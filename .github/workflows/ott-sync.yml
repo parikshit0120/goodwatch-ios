@@ -1,0 +1,93 @@
+name: OTT Catalog Sync
+
+on:
+  schedule:
+    # Sunday at 2 AM IST (Saturday 8:30 PM UTC)
+    - cron: '30 20 * * 6'
+    # Wednesday at 2 AM IST (Tuesday 8:30 PM UTC)
+    - cron: '30 20 * * 2'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no database writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: ott-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run OTT Sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: node scripts/sync-indian-ott.mjs
+
+      - name: Upload sync log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log-${{ github.run_id }}
+          path: sync-*.log
+          retention-days: 30
+
+  notify-failure:
+    needs: sync
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send failure notification
+        run: |
+          echo "OTT Sync failed at $(date)"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Add Slack/email notification here if needed
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"OTT Sync failed! Check GitHub Actions."}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  validate:
+    needs: sync
+    if: success()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run validation queries
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: node scripts/validate-sync.mjs
