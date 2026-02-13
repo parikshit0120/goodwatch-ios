@@ -1,0 +1,85 @@
+# GoodWatch iOS — Progress Log
+# Format: [DATE] [STATUS] Description
+#   STATUS: DONE | IN-PROGRESS | BLOCKED | PENDING
+#   Each session appends to this file. Never overwrite previous entries.
+#   Read this file at the START of every session to know where things stand.
+
+================================================================================
+SESSION: 2026-02-13 — Baseline + Workflow Setup
+================================================================================
+
+## Context
+- All previous development was uncommitted (60+ files modified/added since initial release)
+- No git history existed for any feature work
+- CLAUDE.md was outdated (didn't document Explore feature, new services, etc.)
+- No progress tracking existed between sessions
+
+## Completed This Session
+
+[DONE] Baseline commit (ac3017f) — all development work since initial release
+  - 74 files changed: +7,907 / -6,463 lines
+  - This captures everything built in previous sessions that was never committed
+
+[DONE] CLAUDE.md v2 — restructured to Meta-grade engineering standards
+  - Numbered sections (1-11) instead of emoji-only headers
+  - Product philosophy updated: now documents TWO journeys (Pick For Me + Explore)
+  - Full file tree reflects actual codebase (48 Swift files documented)
+  - Removed references to deleted files (MovieFilter, GWRecommendationSession, etc.)
+  - Added new files (ExploreService, WatchlistManager, AuthGuard, etc.)
+  - Screen flow diagram shows both journeys
+  - Ralph Wiggum workflow section added (Section 1.4)
+  - Known issues table with severity ratings
+  - Gotchas consolidated and tightened
+
+[DONE] progress.txt created — this file, session-to-session memory
+
+## What Was Built (reconstructed from baseline commit)
+
+### Core App Improvements
+- GWRecommendationEngine: enhanced scoring + content type filtering
+- Movie.swift: expanded model (OTTProvider, EmotionalProfile, SupabaseService)
+- RootFlowView: dual-journey support (Pick For Me + Explore, 12 screen enum cases)
+- InteractionService: expanded interaction tracking + maturity system
+- All onboarding screens: visual polish, poster backgrounds, animations
+
+### Explore Feature (complete)
+- ExploreView: 6-tab bottom bar container
+- ExploreAuthView: dedicated sign-up-mandatory auth for Explore
+- ExploreService: Supabase-backed search/filter/sort (complex REST queries)
+- WatchlistManager: UserDefaults per-user watchlist persistence
+- 14 explore sub-screens: Discover, New Releases, Platform, Rent, Watchlist, Profile
+  (each with ViewModel + Tab view pattern)
+
+### New Infrastructure
+- UserContext.swift: OTTPlatform, Mood, Language (16 languages) enums
+- UserModels.swift: GWUser, GWUserProfile, GWInteraction, GWFeedback
+- AuthGuard.swift: authentication enforcement with anonymous fallback
+- OTTLanguageAvailability.swift: platform × language content matrix
+- DesignSystem.swift: centralized design tokens (Theme/ directory)
+- PrimaryButton.swift + AppLogo.swift: reusable UI components
+
+### Removed Legacy
+- Deleted: HomeView, DiscoverView, WatchlistView, ProfileView, etc. (old tab bar era)
+- Deleted: GWRecommendationSession, UITrustChecklist, GWLocalProfileStore, GoodWatchScorer
+- Deleted: MovieFilter (consolidated into ExploreService)
+- Deleted: Theme.swift (replaced by DesignSystem.swift)
+
+### Database Migrations
+- 20260210000001_update_derive_tags_v2.sql — tag derivation v2
+- 20260210122158_drop_users_fk.sql — users FK fix
+- 20260211000001_security_hardening.sql — RLS + security policies
+
+## Blockers
+- None currently
+
+## Pending / Not Started
+- [PENDING] Commit and push web + marketing repo uncommitted changes
+- [PENDING] Verify Explore feature builds and runs on simulator
+- [PENDING] Verify app compiles after baseline commit (no build test done this session)
+- [PENDING] Push iOS baseline commit to origin/main
+
+## Notes for Next Session
+- The baseline commit preserves ALL work but hasn't been build-tested
+- 7 TypeScript files in screens/ are old artifacts — kept intentionally
+- Build logs, temp files, and screenshots are still untracked (intentionally not committed)
+- From now on: every feature follows Ralph workflow (PRD → stories → commit per story → update this file)
