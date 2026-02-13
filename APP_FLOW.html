@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoodWatch — App Flow Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0A0A0F; color: #E8E6E3; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', system-ui, sans-serif; padding: 40px; min-height: 100vh; }
+  h1 { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #D4AF37, #F5D77A); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .subtitle { color: #8E8E93; font-size: 14px; margin-bottom: 48px; }
+  .section { margin-bottom: 56px; }
+  .section-title { font-size: 20px; font-weight: 700; color: #D4AF37; margin-bottom: 24px; letter-spacing: 1px; text-transform: uppercase; }
+  .flow-container { display: flex; flex-direction: column; gap: 0; align-items: center; }
+  .screen-card { background: #1C1C1E; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 24px; width: 100%; max-width: 700px; position: relative; }
+  .screen-card.hero { border-color: #D4AF37; box-shadow: 0 0 40px rgba(212,175,55,0.15); }
+  .screen-card.secondary { border-color: rgba(212,175,55,0.3); }
+  .screen-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .screen-number { background: linear-gradient(135deg, #D4AF37, #F5D77A); color: #0A0A0F; font-size: 12px; font-weight: 800; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .screen-number.alt { background: #2C2C2E; color: #8E8E93; }
+  .screen-name { font-size: 18px; font-weight: 700; }
+  .screen-file { font-size: 11px; color: #8E8E93; font-family: 'SF Mono', monospace; margin-left: auto; }
+  .screen-purpose { color: #8E8E93; font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .detail-box { background: #0A0A0F; border-radius: 10px; padding: 14px; }
+  .detail-label { font-size: 10px; font-weight: 700; color: #D4AF37; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .detail-content { font-size: 13px; color: #C0BEB9; line-height: 1.5; }
+  .detail-content li { margin-bottom: 4px; list-style: none; }
+  .detail-content li::before { content: ""; display: inline-block; width: 5px; height: 5px; background: #D4AF37; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .arrow { display: flex; align-items: center; justify-content: center; height: 40px; }
+  .arrow svg { width: 24px; height: 40px; }
+  .arrow-text { font-size: 11px; color: #8E8E93; margin-left: 8px; }
+  .branch { display: flex; gap: 16px; width: 100%; max-width: 700px; }
+  .branch-card { flex: 1; background: #1C1C1E; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 16px; }
+  .branch-label { font-size: 11px; font-weight: 700; color: #D4AF37; margin-bottom: 6px; }
+  .branch-action { font-size: 13px; color: #C0BEB9; }
+  .tag { display: inline-block; background: #2C2C2E; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 3px 8px; font-size: 11px; color: #8E8E93; margin: 2px; }
+  .tag.gold { border-color: rgba(212,175,55,0.3); color: #D4AF37; }
+  .data-pill { display: inline-flex; align-items: center; gap: 4px; background: rgba(212,175,55,0.1); border: 1px solid rgba(212,175,55,0.2); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: #D4AF37; margin: 2px; }
+  .journey-tab { display: inline-block; padding: 8px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; margin-right: 8px; margin-bottom: 24px; }
+  .journey-tab.active { background: linear-gradient(135deg, #D4AF37, #F5D77A); color: #0A0A0F; }
+  .journey-tab.inactive { background: #2C2C2E; color: #8E8E93; border: 1px solid rgba(255,255,255,0.08); }
+  .anim-timeline { background: #0A0A0F; border-radius: 10px; padding: 16px; margin-top: 16px; }
+  .anim-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .anim-time { font-size: 11px; font-family: 'SF Mono', monospace; color: #D4AF37; width: 60px; text-align: right; flex-shrink: 0; }
+  .anim-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #D4AF37, #F5D77A); }
+  .anim-label { font-size: 12px; color: #C0BEB9; }
+  .legend { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 32px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #8E8E93; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .fullwidth { grid-column: 1 / -1; }
+  .divider { width: 100%; max-width: 700px; height: 1px; background: rgba(255,255,255,0.06); margin: 8px 0; }
+  @media (max-width: 600px) { .detail-grid { grid-template-columns: 1fr; } .branch { flex-direction: column; } body { padding: 20px; } }
+</style>
+</head>
+<body>
+
+<h1>GoodWatch App Flow</h1>
+<p class="subtitle">Visual map of every screen, interaction, and data flow &mdash; reverse-engineered from codebase (Feb 2026)</p>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#D4AF37"></div> Core flow screen</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8E8E93"></div> Secondary / overlay</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#E50914"></div> Rejection / error path</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#00A8E1"></div> Explore journey</div>
+</div>
+
+<!-- ==================== JOURNEY 1 ==================== -->
+
+<div class="section">
+<div class="section-title">Journey 1: Pick For Me</div>
+
+<div class="flow-container">
+
+<!-- LANDING -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">0</div>
+    <div class="screen-name">Landing</div>
+    <div class="screen-file">LandingView.swift</div>
+  </div>
+  <div class="screen-purpose">Entry point. Tilted poster grid background (32 posters). Logo + tagline fade in. Two CTAs split users into journeys.</div>
+  <div class="detail-grid">
+    <div class="detail-box">
+      <div class="detail-label">User Sees</div>
+      <div class="detail-content">
+        <li>GoodWatch logo (gold)</li>
+        <li>"Stop browsing. Start watching."</li>
+        <li>Poster grid at 55% opacity, tilted -8deg</li>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Actions</div>
+      <div class="detail-content">
+        <li><strong>"Pick for me"</strong> &rarr; Auth (or Mood if signed in)</li>
+        <li><strong>"Explore & Search"</strong> &rarr; ExploreAuth (or Explore if signed in)</li>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- AUTH -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">1</div>
+    <div class="screen-name">Auth</div>
+    <div class="screen-file">AuthView.swift</div>
+  </div>
+  <div class="screen-purpose">Optional sign-in. Apple + Google + anonymous. Newsletter opt-in toggle (default ON). If OAuth fails, silently falls back to anonymous.</div>
+  <div class="detail-grid">
+    <div class="detail-box">
+      <div class="detail-label">Auth Options</div>
+      <div class="detail-content">
+        <li>Sign in with Apple</li>
+        <li>Continue with Google</li>
+        <li>Continue without account (anonymous)</li>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Data Collected</div>
+      <div class="detail-content">
+        <li>User created in Supabase</li>
+        <li>Display name &rarr; UserDefaults</li>
+        <li>Newsletter subscription (if opted in)</li>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- MOOD -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">2</div>
+    <div class="screen-name">Mood Selector</div>
+    <div class="screen-file">MoodSelectorView.swift</div>
+  </div>
+  <div class="screen-purpose">"What's the vibe?" &mdash; 5 mood cards with poster thumbnails. Each mood maps to intent tags for the engine.</div>
+  <div class="detail-grid">
+    <div class="detail-box fullwidth">
+      <div class="detail-label">Mood Options &rarr; Engine Tags</div>
+      <div class="detail-content" style="display:flex;flex-wrap:wrap;gap:8px;">
+        <div><strong>Feel-good</strong><br><span class="tag gold">feel_good</span><span class="tag gold">uplifting</span><span class="tag gold">safe_bet</span><span class="tag gold">light</span><span class="tag gold">calm</span></div>
+        <div><strong>Easy watch</strong><br><span class="tag">light</span><span class="tag">background_friendly</span><span class="tag">safe_bet</span><span class="tag">calm</span></div>
+        <div><strong>Surprise me</strong><br><span class="tag">no tags (open)</span></div>
+        <div><strong>Gripping</strong><br><span class="tag">tense</span><span class="tag">high_energy</span><span class="tag">full_attention</span></div>
+        <div><strong>Dark & Heavy</strong><br><span class="tag">dark</span><span class="tag">bittersweet</span><span class="tag">heavy</span><span class="tag">acquired_taste</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;">
+    <div class="data-pill">ctx.mood</div>
+    <div class="data-pill">ctx.intent</div>
+    <div class="data-pill">Step 2 &rarr; Keychain</div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- PLATFORMS -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">3</div>
+    <div class="screen-name">Platforms + Languages</div>
+    <div class="screen-file">PlatformSelectorView.swift</div>
+  </div>
+  <div class="screen-purpose">"Which platforms do you have?" &mdash; 6 OTT tiles + 16 language chips. Languages auto-disable if unavailable on selected platforms.</div>
+  <div class="detail-grid">
+    <div class="detail-box">
+      <div class="detail-label">Platforms (3&times;2 grid)</div>
+      <div class="detail-content">
+        <li><span style="color:#E50914">Netflix</span></li>
+        <li><span style="color:#00A8E1">Prime Video</span></li>
+        <li><span style="color:#1F80E0">JioHotstar</span></li>
+        <li><span style="color:#A2A2A2">Apple TV+</span></li>
+        <li><span style="color:#555">SonyLIV</span></li>
+        <li><span style="color:#8230C6">Zee5</span></li>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Languages (16)</div>
+      <div class="detail-content" style="font-size:12px;">
+        English, Hindi, Tamil, Telugu, Malayalam, Korean, Kannada, Bengali, Marathi, Spanish, Japanese, French, Punjabi, Chinese, Portuguese, Gujarati
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;">
+    <div class="data-pill">ctx.otts[]</div>
+    <div class="data-pill">ctx.languages[]</div>
+    <div class="data-pill">Step 3 &rarr; Keychain</div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- DURATION -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">4</div>
+    <div class="screen-name">Duration</div>
+    <div class="screen-file">DurationSelectorView.swift</div>
+  </div>
+  <div class="screen-purpose">"How long do you want to watch?" &mdash; 3 options. Series mode sets content_type filter + checks availability.</div>
+  <div class="detail-grid">
+    <div class="detail-box fullwidth">
+      <div class="detail-label">Duration Options</div>
+      <div class="detail-content" style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div><strong>90 min</strong><br><span class="tag">60-90 min range</span></div>
+        <div><strong>2-2.5 hours</strong><br><span class="tag">120-150 min range</span></div>
+        <div><strong>Series/Binge</strong><br><span class="tag gold">content_type = "tv"</span></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;">
+    <div class="data-pill">ctx.minDuration</div>
+    <div class="data-pill">ctx.maxDuration</div>
+    <div class="data-pill">ctx.requiresSeries</div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- EMOTIONAL HOOK -->
+<div class="screen-card">
+  <div class="screen-header">
+    <div class="screen-number">5</div>
+    <div class="screen-name">Emotional Hook</div>
+    <div class="screen-file">EmotionalHookView.swift</div>
+  </div>
+  <div class="screen-purpose">Final confirmation. Blurred poster preview with gold ring pulse. Runs availability pre-check. Shows alert if no matches found.</div>
+  <div class="detail-grid">
+    <div class="detail-box">
+      <div class="detail-label">Copy Sequence</div>
+      <div class="detail-content">
+        <li>"Your perfect pick is ready."</li>
+        <li>"Matched to your mood, time, and taste."</li>
+        <li><strong>"One tap. One pick. Done."</strong></li>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">CTA</div>
+      <div class="detail-content">
+        <li><strong>"Show me"</strong> (gold gradient)</li>
+        <li>Triggers fetchRecommendation()</li>
+        <li>Navigates to Confidence Moment</li>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- CONFIDENCE MOMENT -->
+<div class="screen-card secondary">
+  <div class="screen-header">
+    <div class="screen-number alt">~</div>
+    <div class="screen-name">Confidence Moment (Loading)</div>
+    <div class="screen-file">ConfidenceMomentView.swift</div>
+  </div>
+  <div class="screen-purpose">1.2s loading screen. 3 gold dots pulse. Movie trivia from 15-item bank. Auto-transitions when both timer AND recommendation are ready.</div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<!-- MAIN SCREEN -->
+<div class="screen-card hero">
+  <div class="screen-header">
+    <div class="screen-number" style="width:32px;height:32px;font-size:14px;">&#9733;</div>
+    <div class="screen-name" style="font-size:22px;">Main Screen (THE PRODUCT)</div>
+    <div class="screen-file">MainScreenView.swift</div>
+  </div>
+  <div class="screen-purpose">THE recommendation reveal. Poster + title + metadata + GoodScore + causal "Why This" copy + Watch Now CTA. 7-step choreographed animation.</div>
+  <div class="detail-grid">
+    <div class="detail-box">
+      <div class="detail-label">Display Elements</div>
+      <div class="detail-content">
+        <li>Film poster (240&times;340pt) + type badge</li>
+        <li>Title (28pt bold, 2-line max)</li>
+        <li>Year &middot; Runtime</li>
+        <li>Genre chips (max 3)</li>
+        <li><em>"Why This"</em> causal copy (gold italic)</li>
+        <li>Overview + Director/Cast pitch</li>
+        <li><strong>GoodScore</strong> (64pt gold, glow box)</li>
+      </div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Actions</div>
+      <div class="detail-content">
+        <li><strong>"Watch on [Platform]"</strong> &rarr; OTT deep link</li>
+        <li>Also available: up to 3 other platform chips</li>
+        <li>"Not tonight" &rarr; Rejection Sheet</li>
+        <li>"Already seen" &rarr; fetch new pick</li>
+        <li>Home icon &rarr; Landing</li>
+        <li>Search icon &rarr; Explore</li>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANIMATION TIMELINE -->
+  <div class="anim-timeline">
+    <div class="detail-label" style="margin-bottom:8px;">Reveal Animation Timeline</div>
+    <div class="anim-row"><div class="anim-time">0ms</div><div class="anim-bar" style="width:80px;"></div><div class="anim-label">Poster fade in + scale</div></div>
+    <div class="anim-row"><div class="anim-time">600ms</div><div class="anim-bar" style="width:60px;"></div><div class="anim-label">Title fade in</div></div>
+    <div class="anim-row"><div class="anim-time">700ms</div><div class="anim-bar" style="width:20px;"></div><div class="anim-label">GoodScore box appears</div></div>
+    <div class="anim-row"><div class="anim-time">800ms</div><div class="anim-bar" style="width:100px;background:linear-gradient(90deg,#D4AF37,#F5D77A,#D4AF37);"></div><div class="anim-label"><strong>GoodScore NUMBER reveals (spring + glow)</strong></div></div>
+    <div class="anim-row"><div class="anim-time">1100ms</div><div class="anim-bar" style="width:60px;opacity:0.7;"></div><div class="anim-label">"Why This" copy</div></div>
+    <div class="anim-row"><div class="anim-time">1400ms</div><div class="anim-bar" style="width:60px;"></div><div class="anim-label">Watch Now slides up</div></div>
+    <div class="anim-row"><div class="anim-time">1600ms</div><div class="anim-bar" style="width:40px;opacity:0.5;"></div><div class="anim-label">Secondary actions fade in</div></div>
+  </div>
+</div>
+
+<!-- BRANCH ACTIONS -->
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 16" stroke="#D4AF37" stroke-width="2" fill="none"/></svg></div>
+
+<div class="branch">
+  <div class="branch-card" style="border-color:rgba(212,175,55,0.3);">
+    <div class="branch-label">Watch Now</div>
+    <div class="branch-action">Opens OTT deep link &rarr; Enjoy Screen (5s auto-dismiss) &rarr; Landing<br><br><span class="data-pill">+0.15 tag weight</span><span class="data-pill">Feedback scheduled (2h)</span></div>
+  </div>
+  <div class="branch-card" style="border-color:rgba(229,9,20,0.3);">
+    <div class="branch-label" style="color:#E50914;">Not Tonight</div>
+    <div class="branch-action">Rejection Sheet &rarr; "Too long" / "Not in mood" / "Not interested" &rarr; Fetch new pick<br><br><span class="data-pill">-0.1 tag weight</span><span class="data-pill">Reason logged</span></div>
+  </div>
+  <div class="branch-card">
+    <div class="branch-label" style="color:#8E8E93;">Already Seen</div>
+    <div class="branch-action">Mark as seen &rarr; Fetch similar unseen movie<br><br><span class="data-pill">Added to exclusions</span></div>
+  </div>
+</div>
+
+<div class="divider" style="margin-top:24px;"></div>
+
+<!-- POST-WATCH FEEDBACK -->
+<div style="margin-top:24px;" class="flow-container">
+<div class="screen-card secondary" style="max-width:700px;">
+  <div class="screen-header">
+    <div class="screen-number alt">F</div>
+    <div class="screen-name">Post-Watch Feedback</div>
+    <div class="screen-file">PostWatchFeedbackView.swift</div>
+  </div>
+  <div class="screen-purpose">Triggered 2+ hours after "Watch Now". Blocking screen on next app launch. "How was [Movie]?" &mdash; Finished (+0.15) / Didn't finish (-0.1) / Skip (no delta).</div>
+</div>
+</div>
+
+</div><!-- end flow-container -->
+</div><!-- end section -->
+
+<!-- ==================== JOURNEY 2 ==================== -->
+
+<div class="section">
+<div class="section-title" style="color:#00A8E1;">Journey 2: Explore & Search</div>
+
+<div class="flow-container">
+
+<div class="screen-card" style="border-color:rgba(0,168,225,0.3);">
+  <div class="screen-header">
+    <div class="screen-number" style="background:#00A8E1;">E1</div>
+    <div class="screen-name">Explore Auth</div>
+    <div class="screen-file">ExploreAuthView.swift</div>
+  </div>
+  <div class="screen-purpose">Mandatory sign-up for Explore journey. Apple + Google (no anonymous option). Shows benefit messaging. Newsletter opt-in.</div>
+</div>
+
+<div class="arrow"><svg viewBox="0 0 24 40"><path d="M12 0 L12 32 M6 26 L12 34 L18 26" stroke="#00A8E1" stroke-width="2" fill="none"/></svg></div>
+
+<div class="screen-card" style="border-color:rgba(0,168,225,0.3);">
+  <div class="screen-header">
+    <div class="screen-number" style="background:#00A8E1;">E2</div>
+    <div class="screen-name">Explore View (6 Tabs)</div>
+    <div class="screen-file">ExploreView.swift</div>
+  </div>
+  <div class="screen-purpose">Full catalog browse interface. Bottom tab bar with 6 sections. Home button to switch back to "Pick For Me".</div>
+  <div class="detail-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="detail-box">
+      <div class="detail-label">Discover</div>
+      <div class="detail-content"><li>Search + filters</li><li>Sort options</li><li>3-column grid</li></div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">New Releases</div>
+      <div class="detail-content"><li>Latest by platform</li><li>Release date sort</li></div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">By Platform</div>
+      <div class="detail-content"><li>Platform-specific catalog</li><li>Netflix, Prime, etc.</li></div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Rent</div>
+      <div class="detail-content"><li>Rental/purchase options</li><li>Google Play, Apple</li></div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Watchlist</div>
+      <div class="detail-content"><li>Saved movies</li><li>UserDefaults backed</li></div>
+    </div>
+    <div class="detail-box">
+      <div class="detail-label">Profile</div>
+      <div class="detail-content"><li>User archetype</li><li>Taste profile</li><li>Watch stats</li></div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ==================== LEARNING SYSTEM ==================== -->
+
+<div class="section">
+<div class="section-title">Learning System (Tag Weights)</div>
+
+<div style="max-width:700px; margin: 0 auto;">
+<div class="detail-grid" style="grid-template-columns: 1fr;">
+
+<div class="detail-box">
+<div class="detail-label">How Personalization Works</div>
+<table style="width:100%; font-size:13px; color:#C0BEB9; border-collapse: collapse;">
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">User Action</td>
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">Tag Delta</td>
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">Effect on Future Picks</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Watch Now</td>
+    <td style="padding:8px;color:#4CAF50;">+0.15</td>
+    <td style="padding:8px;">Strengthens preference for this movie's genre/mood tags</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Not Tonight</td>
+    <td style="padding:8px;color:#E50914;">-0.10</td>
+    <td style="padding:8px;">Weakens preference for this movie's genre/mood tags</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Show Another</td>
+    <td style="padding:8px;color:#FF9800;">-0.02</td>
+    <td style="padding:8px;">Very mild negative signal (user wasn't excited)</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Feedback: Finished</td>
+    <td style="padding:8px;color:#4CAF50;">+0.15</td>
+    <td style="padding:8px;">Confirms the recommendation was good</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;">Feedback: Abandoned</td>
+    <td style="padding:8px;color:#E50914;">-0.10</td>
+    <td style="padding:8px;">Movie didn't hold user's attention</td>
+  </tr>
+</table>
+</div>
+
+<div class="detail-box">
+<div class="detail-label">User Maturity Gates</div>
+<table style="width:100%; font-size:13px; color:#C0BEB9; border-collapse: collapse;">
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">Milestone</td>
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">Threshold</td>
+    <td style="padding:8px;font-weight:600;color:#E8E6E3;">Unlocks</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Mature User</td>
+    <td style="padding:8px;">5+ watch_now</td>
+    <td style="padding:8px;">Animated & kids content visible</td>
+  </tr>
+  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+    <td style="padding:8px;">Documentary Watcher</td>
+    <td style="padding:8px;">1+ documentary watched</td>
+    <td style="padding:8px;">Documentary recommendations enabled</td>
+  </tr>
+  <tr>
+    <td style="padding:8px;">Quality Gate Relaxed</td>
+    <td style="padding:8px;">Mature user</td>
+    <td style="padding:8px;">Min GoodScore: 7.5 &rarr; 7.0</td>
+  </tr>
+</table>
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- ==================== ENGINE PIPELINE ==================== -->
+
+<div class="section">
+<div class="section-title">Recommendation Engine Pipeline</div>
+
+<div class="flow-container">
+  <div class="screen-card" style="max-width:700px;">
+    <div class="screen-purpose" style="font-size:15px; line-height:2; color:#C0BEB9;">
+      <strong style="color:#D4AF37;">1.</strong> Fetch 1000 movies from Supabase <span class="tag">language filter</span> <span class="tag">content_type filter</span><br>
+      <strong style="color:#D4AF37;">2.</strong> Validate each against profile <span class="tag">platform match</span> <span class="tag">runtime window</span> <span class="tag">excluded IDs</span> <span class="tag">content gate</span><br>
+      <strong style="color:#D4AF37;">3.</strong> Score valid movies <span class="tag gold">composite_score</span> <span class="tag gold">tag alignment</span> <span class="tag gold">platform bias</span><br>
+      <strong style="color:#D4AF37;">4.</strong> Apply quality gate <span class="tag">min 7.5 (immature)</span> <span class="tag">min 7.0 (mature)</span><br>
+      <strong style="color:#D4AF37;">5.</strong> Return top-scoring movie <strong style="color:#D4AF37;">OR</strong> progressive fallback <strong style="color:#E50914;">OR</strong> empty state
+    </div>
+  </div>
+</div>
+</div>
+
+<div style="text-align:center; color:#8E8E93; font-size:12px; padding:40px 0;">
+  Generated from codebase &mdash; GoodWatch iOS &mdash; Feb 2026
+</div>
+
+</body>
+</html>

@@ -83,3 +83,49 @@ SESSION: 2026-02-13 — Baseline + Workflow Setup
 - 7 TypeScript files in screens/ are old artifacts — kept intentionally
 - Build logs, temp files, and screenshots are still untracked (intentionally not committed)
 - From now on: every feature follows Ralph workflow (PRD → stories → commit per story → update this file)
+
+================================================================================
+SESSION: 2026-02-13 (Part 2) — PRD + App Flow Documentation
+================================================================================
+
+## Context
+- Parikshit requested full PRD and visual app flow doc built from codebase
+- All 48 Swift files read and analyzed for exact behavior, data flow, and interactions
+
+## Completed This Session
+
+[DONE] PRD.md — comprehensive Product Requirements Document
+  - 11 sections: Vision, Principles, Journeys, Screen Specs, Data Architecture,
+    Engine Pipeline, Animation Spec, Design System, Persistence, Content, Limitations
+  - Screen-by-screen spec for all 12 screens with:
+    - UI elements, user choices, data collected, navigation callbacks
+    - Tag mappings (mood → intent_tags)
+    - Animation timelines (7-step MainScreen reveal)
+  - Interaction logging table (7 interaction types with tag deltas)
+  - User maturity system documented
+  - Recommendation engine pipeline (5-step)
+  - Resume/persistence behavior documented
+  - Design system tokens (colors, typography, spacing, radius)
+
+[DONE] APP_FLOW.html — visual app flow document
+  - Interactive HTML doc (open in browser for full rendering)
+  - Dark theme matching app design system
+  - Visual cards for every screen with detail grids
+  - Arrow-connected flow showing navigation paths
+  - Branch actions from MainScreen (Watch Now / Not Tonight / Already Seen)
+  - Learning system table (tag weight deltas)
+  - Engine pipeline visualization
+  - Explore journey (6-tab layout)
+  - Animation timeline for MainScreen reveal sequence
+
+## Files Created
+- ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/PRD.md
+- ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/APP_FLOW.html
+
+## Blockers
+- None
+
+## Pending / Not Started
+- [PENDING] Commit and push web + marketing repo uncommitted changes
+- [PENDING] Verify app compiles and runs on simulator
+- [PENDING] Push all commits to origin/main
