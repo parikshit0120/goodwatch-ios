@@ -1,8 +1,8 @@
 import SwiftUI
 
 // Screen 5: Confidence Moment (Transition)
-// "Finding your film..." with animated gold dots
-// Duration: 1.0 - 1.2 seconds
+// "Finding your film..." with animated gold dots + movie trivia
+// Duration: ~1.2 seconds (auto-completes)
 struct ConfidenceMomentView: View {
     let onComplete: () -> Void
 
@@ -13,6 +13,32 @@ struct ConfidenceMomentView: View {
     @State private var dot2Opacity: Double = 0.3
     @State private var dot3Opacity: Double = 0.3
     @State private var textOpacity: Double = 0
+    @State private var triviaOpacity: Double = 0
+
+    // Movie trivia — shown during the wait so it doesn't feel like a wait
+    private let trivia: [String] = [
+        "The longest movie ever made is over 35 days long.",
+        "The first film ever made was just 2 seconds long.",
+        "A movie set's \"best boy\" has nothing to do with acting.",
+        "There are over 500,000 movies in existence worldwide.",
+        "India produces the most films per year of any country.",
+        "The Wilhelm Scream has been used in over 400 films.",
+        "Psycho was the first film to show a toilet flushing.",
+        "The average Hollywood movie makes 80% of its profit overseas.",
+        "Sean Connery wore a toupee in every Bond film.",
+        "The word \"movie\" comes from \"moving picture.\"",
+        "Hitchcock's Rope was designed to look like one continuous shot.",
+        "Most car sounds in films are added in post-production.",
+        "Film reels used to be flammable and caused theater fires.",
+        "The average movie script is about 120 pages long.",
+        "Disney almost went bankrupt before Snow White saved them."
+    ]
+
+    private var randomTrivia: String {
+        trivia[Int.random(in: 0..<trivia.count)]
+    }
+
+    @State private var currentTrivia: String = ""
 
     var body: some View {
         ZStack {
@@ -20,6 +46,8 @@ struct ConfidenceMomentView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 20) {
+                Spacer()
+
                 // Animated gold dots
                 HStack(spacing: 8) {
                     Circle()
@@ -41,14 +69,35 @@ struct ConfidenceMomentView: View {
                         .opacity(dot3Opacity)
                 }
 
-                // Text
+                // Finding text
                 Text("Finding your film...")
                     .font(GWTypography.body(weight: .medium))
                     .foregroundColor(GWColors.lightGray)
                     .opacity(textOpacity)
+
+                Spacer()
+
+                // Movie trivia at the bottom
+                VStack(spacing: 8) {
+                    Text("Did you know?")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(GWColors.gold)
+                        .tracking(1.2)
+
+                    Text(currentTrivia)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(GWColors.lightGray)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 32)
+                }
+                .opacity(triviaOpacity)
+
+                Spacer().frame(height: 60)
             }
         }
         .onAppear {
+            currentTrivia = randomTrivia
             startAnimation()
         }
     }
@@ -61,6 +110,11 @@ struct ConfidenceMomentView: View {
 
         // Animate dots in sequence with pulse effect
         animateDots()
+
+        // Fade in trivia after a brief pause
+        withAnimation(.easeOut(duration: 0.4).delay(0.3)) {
+            triviaOpacity = 1
+        }
 
         // Complete after ~1.2 seconds
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {

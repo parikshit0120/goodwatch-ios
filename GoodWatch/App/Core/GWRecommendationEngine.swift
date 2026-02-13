@@ -46,6 +46,20 @@ enum GWValidationFailure: CustomStringConvertible {
     case contentTypeMismatch(expected: String, actual: String?)
     case qualityGateFailed(rating: Double, voteCount: Int)
 
+    var ruleLabel: String {
+        switch self {
+        case .languageMismatch: return "language"
+        case .platformMismatch: return "platform"
+        case .alreadyInteracted: return "interacted"
+        case .runtimeOutOfWindow: return "runtime"
+        case .goodscoreBelowThreshold: return "goodscore"
+        case .noMatchingTags: return "tags"
+        case .movieUnavailable: return "unavailable"
+        case .contentTypeMismatch: return "contentType"
+        case .qualityGateFailed: return "qualityGate"
+        }
+    }
+
     var description: String {
         switch self {
         case .languageMismatch(let movieLang, let userLangs):
@@ -137,6 +151,8 @@ struct GWUserProfileComplete {
     var recommendationStyle: GWRecommendationStyle
     var tagWeights: [String: Double]
     var requiresSeries: Bool
+    var platformBias: GWPlatformBias
+    var dimensionalLearning: GWDimensionalLearning
 
     /// All excluded movie IDs (seen + notTonight + abandoned)
     var allExcludedIds: Set<String> {
@@ -159,7 +175,9 @@ struct GWUserProfileComplete {
         abandoned: [String],
         recommendationStyle: GWRecommendationStyle,
         tagWeights: [String: Double],
-        requiresSeries: Bool = false
+        requiresSeries: Bool = false,
+        platformBias: GWPlatformBias = GWPlatformBias(),
+        dimensionalLearning: GWDimensionalLearning = GWDimensionalLearning()
     ) {
         self.userId = userId
         self.preferredLanguages = preferredLanguages
@@ -179,11 +197,18 @@ struct GWUserProfileComplete {
         self.recommendationStyle = recommendationStyle
         self.tagWeights = tagWeights
         self.requiresSeries = requiresSeries
+        self.platformBias = platformBias
+        self.dimensionalLearning = dimensionalLearning
     }
 
     /// Build from UserContext (used in EmotionalHookView and MovieFilter)
     static func from(context: UserContext, userId: String, excludedIds: [String]) -> GWUserProfileComplete {
-        GWUserProfileComplete(
+        // Load learning data from local storage
+        let learningData = InteractionService.shared.getLearningData(
+            userId: UUID(uuidString: userId) ?? UUID()
+        )
+
+        return GWUserProfileComplete(
             userId: userId,
             preferredLanguages: context.languages.map { $0.rawValue },
             platforms: context.otts.map { $0.rawValue },
@@ -195,7 +220,9 @@ struct GWUserProfileComplete {
             abandoned: [],
             recommendationStyle: .safe,
             tagWeights: TagWeightStore.shared.getWeights(),
-            requiresSeries: context.requiresSeries
+            requiresSeries: context.requiresSeries,
+            platformBias: learningData.platformBias,
+            dimensionalLearning: learningData.dimensional
         )
     }
 }
@@ -240,6 +267,13 @@ struct GWNewUserContentFilter {
                 if !(hasAdultGenre && isHighQuality) {
                     return true
                 }
+            }
+        }
+
+        // Filter musicals for new users (polarizing for general audience)
+        if !shouldShowDocumentaries {
+            if genres.contains("music") || genres.contains("musical") {
+                return true
             }
         }
 
@@ -381,10 +415,17 @@ final class GWRecommendationEngine {
             ))
         }
 
-        // Rule 5: Content type match (if user requires series)
+        // Rule 5: Content type match
+        // If user requires series → exclude movies
+        // If user does NOT require series → exclude series (prevent TV shows for movie users)
         if profile.requiresSeries {
             if !movie.isSeries {
                 return .invalid(.contentTypeMismatch(expected: "series", actual: movie.contentType))
+            }
+        } else {
+            // User wants movies — filter OUT anything that looks like a series
+            if movie.isSeries {
+                return .invalid(.contentTypeMismatch(expected: "movie", actual: movie.contentType))
             }
         }
 
@@ -459,7 +500,12 @@ final class GWRecommendationEngine {
             return lhs.0.goodscore > rhs.0.goodscore
         }
 
-        return GWRecommendationOutput(movie: sorted.first?.0, stopCondition: nil)
+        // Weighted random sampling from top candidates
+        // Higher-scored movies have higher probability but aren't guaranteed
+        // This prevents deterministic repetition while still favoring quality
+        let topN = Array(sorted.prefix(10))
+        let picked = weightedRandomPick(from: topN)
+        return GWRecommendationOutput(movie: picked, stopCondition: nil)
     }
 
     /// Recommend from raw Movie array (converts to GWMovie internally)
@@ -516,7 +562,11 @@ final class GWRecommendationEngine {
         }
 
         let sorted = scored.sorted { $0.1 > $1.1 }
-        return GWRecommendationOutput(movie: sorted.first?.0, stopCondition: nil)
+
+        // Weighted random sampling — same as recommend() to avoid repetition
+        let topN = Array(sorted.prefix(10))
+        let picked = weightedRandomPick(from: topN)
+        return GWRecommendationOutput(movie: picked, stopCondition: nil)
     }
 
     // ============================================
@@ -524,11 +574,22 @@ final class GWRecommendationEngine {
     // ============================================
 
     /// Compute recommendation score for a movie given a profile
+    /// Score components:
+    ///   - Tag alignment (50%): How well movie tags match intent, weighted by learned tag weights
+    ///   - Regret safety (25%): Safe bet vs polarizing content
+    ///   - Platform bias (15%): Boost movies on platforms the user historically accepts from
+    ///   - Dimensional fit (10%): Penalty based on rejection dimension patterns
+    ///
+    /// Threshold-gated confidence boost:
+    ///   When a user has enough tag weight data (≥10 tags modified from default 1.0),
+    ///   the engine has higher confidence in personalization. This doesn't change the
+    ///   formula weights — it amplifies the tag alignment signal by up to 10%, making
+    ///   learned preferences more decisive once we have enough data to trust them.
     func computeScore(movie: GWMovie, profile: GWUserProfileComplete) -> Double {
         let movieTags = Set(movie.tags)
         let intentTags = Set(profile.intentTags)
 
-        // Tag alignment with weights
+        // 1. Tag alignment with weights
         let intersection = movieTags.intersection(intentTags)
         var weightedAlignment = 0.0
         var totalWeight = 0.0
@@ -543,7 +604,7 @@ final class GWRecommendationEngine {
 
         let tagAlignment = totalWeight > 0 ? weightedAlignment / totalWeight : 0.0
 
-        // Regret safety (weighted)
+        // 2. Regret safety (weighted)
         let regretSafety: Double
         if movieTags.contains(RegretRisk.safe_bet.rawValue) {
             regretSafety = 1.0 * (profile.tagWeights[RegretRisk.safe_bet.rawValue] ?? 1.0)
@@ -555,7 +616,158 @@ final class GWRecommendationEngine {
 
         let normalizedRegretSafety = min(max(regretSafety, 0), 1)
 
-        return (tagAlignment * 0.6) + (normalizedRegretSafety * 0.4)
+        // 3. Platform bias: boost movies on platforms the user tends to accept
+        let platformBiasScore = computePlatformBiasScore(movie: movie, bias: profile.platformBias)
+
+        // 4. Dimensional learning: penalize movies that match rejection patterns
+        let dimensionalPenalty = computeDimensionalPenalty(movie: movie, learning: profile.dimensionalLearning)
+
+        // Weighted combination
+        let baseScore = (tagAlignment * 0.50) +
+                         (normalizedRegretSafety * 0.25) +
+                         (platformBiasScore * 0.15) +
+                         ((1.0 - dimensionalPenalty) * 0.10)
+
+        // 5. Threshold-gated confidence boost
+        // Once we have enough learned tag data (≥10 tags deviated from default 1.0),
+        // amplify tag alignment by up to 10% to make personalization more decisive.
+        // Below threshold: confidenceBoost = 0 (no effect on score).
+        let confidenceBoost = computeConfidenceBoost(
+            tagAlignment: tagAlignment,
+            tagWeights: profile.tagWeights
+        )
+
+        return min(max(baseScore + confidenceBoost, 0), 1)
+    }
+
+    // MARK: - Confidence Boost (Threshold-Gated)
+
+    /// Returns a small boost (0 to 0.05) to tag alignment when we have enough
+    /// learned data to be confident in personalization.
+    ///
+    /// Activation threshold: ≥10 tags must have weights different from default (1.0).
+    /// This means the user has had enough interactions for the learning system to
+    /// have meaningful data. Below this threshold, returns 0 (no effect).
+    ///
+    /// Design: The boost scales linearly from 0 at 10 learned tags to max at 20+.
+    /// Max boost is 5% of tagAlignment — enough to break ties in favor of
+    /// personalized picks, but not enough to override the core scoring formula.
+    private func computeConfidenceBoost(tagAlignment: Double, tagWeights: [String: Double]) -> Double {
+        // Count tags that have deviated from default (1.0)
+        let learnedTagCount = tagWeights.values.filter { abs($0 - 1.0) > 0.001 }.count
+
+        // Threshold gate: need at least 10 learned tags
+        let activationThreshold = 10
+        guard learnedTagCount >= activationThreshold else { return 0.0 }
+
+        // Scale factor: ramps from 0 at threshold to 1.0 at 2x threshold
+        let scaleFactor = min(Double(learnedTagCount - activationThreshold) / Double(activationThreshold), 1.0)
+
+        // Max boost: 5% of tag alignment score (breaks ties, doesn't dominate)
+        let maxBoost = 0.05
+        return tagAlignment * maxBoost * scaleFactor
+    }
+
+    // MARK: - Platform Bias Scoring
+
+    /// Compute a 0-1 score based on how much the user prefers the movie's platforms
+    /// Higher score = user has historically accepted more movies from this platform
+    private func computePlatformBiasScore(movie: GWMovie, bias: GWPlatformBias) -> Double {
+        let totalAccepts = bias.accepts.values.reduce(0, +)
+        let totalRejects = bias.rejects.values.reduce(0, +)
+        let totalInteractions = totalAccepts + totalRejects
+
+        // Not enough data — return neutral 0.5
+        guard totalInteractions >= 3 else { return 0.5 }
+
+        // Find the best accept ratio among the movie's platforms
+        var bestRatio = 0.0
+        for platform in movie.platforms {
+            let platformLower = platform.lowercased()
+            let accepts = bias.accepts.first(where: { $0.key.lowercased() == platformLower })?.value ?? 0
+            let rejects = bias.rejects.first(where: { $0.key.lowercased() == platformLower })?.value ?? 0
+            let total = accepts + rejects
+            if total > 0 {
+                let ratio = Double(accepts) / Double(total)
+                bestRatio = max(bestRatio, ratio)
+            }
+        }
+
+        // If no platform data found, return neutral
+        if bestRatio == 0.0 { return 0.5 }
+
+        return bestRatio
+    }
+
+    // MARK: - Dimensional Learning Penalty
+
+    /// Compute a 0-1 penalty based on rejection dimension patterns
+    /// Higher penalty = movie matches dimensions the user frequently rejects for
+    private func computeDimensionalPenalty(movie: GWMovie, learning: GWDimensionalLearning) -> Double {
+        let totalRejections = learning.dimensions.values.reduce(0, +)
+
+        // Not enough data — no penalty
+        guard totalRejections >= 3 else { return 0.0 }
+
+        var penalty = 0.0
+
+        // "too_long" dimension: penalize longer movies proportionally
+        if let tooLongCount = learning.dimensions[GWLearningDimension.tooLong.rawValue], tooLongCount > 0 {
+            let tooLongRatio = Double(tooLongCount) / Double(totalRejections)
+            // Movies over 150 min get penalized if user frequently says "too long"
+            if movie.runtime > 150 {
+                penalty += tooLongRatio * 0.5
+            } else if movie.runtime > 120 {
+                penalty += tooLongRatio * 0.2
+            }
+        }
+
+        // "not_in_mood" dimension: slight penalty on mood-mismatched tags
+        // This is already handled by tag weights, so apply a mild supplementary penalty
+        if let notInMoodCount = learning.dimensions[GWLearningDimension.notInMood.rawValue], notInMoodCount > 0 {
+            let moodRatio = Double(notInMoodCount) / Double(totalRejections)
+            // If user frequently rejects for mood reasons, slightly penalize polarizing content
+            if movie.tags.contains(RegretRisk.polarizing.rawValue) ||
+               movie.tags.contains(RegretRisk.acquired_taste.rawValue) {
+                penalty += moodRatio * 0.15
+            }
+        }
+
+        // "not_interested" is handled by tag weight learning directly — no extra penalty needed
+
+        return min(penalty, 1.0)
+    }
+
+    // MARK: - Weighted Random Selection
+
+    /// Weighted random selection from scored candidates.
+    /// Uses softmax-style exponential weighting: score differences are amplified
+    /// so the top movie is ~3x more likely than #5, but #2-#4 still get picked regularly.
+    /// This prevents deterministic repetition while still favoring quality.
+    ///
+    /// Temperature controls randomness:
+    ///   - Lower = more deterministic (picks #1 almost always)
+    ///   - Higher = more random (all candidates equally likely)
+    ///   - 0.15 = score differences are meaningful but not absolute
+    private func weightedRandomPick(from candidates: [(GWMovie, Double)]) -> GWMovie? {
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 { return candidates[0].0 }
+
+        let temperature = 0.15
+
+        let maxScore = candidates[0].1
+        let weights = candidates.map { exp(($0.1 - maxScore) / temperature) }
+        let totalWeight = weights.reduce(0, +)
+
+        let roll = Double.random(in: 0..<totalWeight)
+        var cumulative = 0.0
+        for (i, weight) in weights.enumerated() {
+            cumulative += weight
+            if roll < cumulative {
+                return candidates[i].0
+            }
+        }
+        return candidates.last?.0
     }
 
     // ============================================
@@ -695,11 +907,50 @@ final class GWRecommendationEngine {
     ) -> GWCatalogAvailability {
         let total = movies.count
 
-        // Filter out content-filtered movies
+        // Filter out content-filtered movies (animation/kids for new users)
         let filteredMovies = movies.filter { !contentFilter.shouldExclude(movie: $0) }
 
-        // Platform matches
-        let platformMatches = filteredMovies.filter { movie in
+        #if DEBUG
+        print("\n🔍 CATALOG AVAILABILITY CHECK:")
+        print("   Total fetched: \(total), after content filter: \(filteredMovies.count)")
+        print("   Profile platforms: \(profile.platforms)")
+        print("   Profile languages: \(profile.preferredLanguages)")
+        print("   Profile runtime: \(profile.runtimeWindow.min)-\(profile.runtimeWindow.max)")
+        print("   Requires series: \(profile.requiresSeries)")
+
+        // Sample: check what languages are in the fetched set
+        var langDist: [String: Int] = [:]
+        for m in filteredMovies { langDist[m.language, default: 0] += 1 }
+        print("   Language distribution: \(langDist.sorted(by: { $0.value > $1.value }).prefix(10).map { "\($0.key):\($0.value)" }.joined(separator: ", "))")
+
+        // Sample: check how many have platforms
+        let withPlatforms = filteredMovies.filter { !$0.platforms.isEmpty }.count
+        print("   Movies with OTT data: \(withPlatforms) / \(filteredMovies.count)")
+        #endif
+
+        // Helper: check if movie language matches user's preferred languages
+        func languageMatch(_ movie: GWMovie) -> Bool {
+            if profile.preferredLanguages.isEmpty { return true }
+            let movieLang = movie.language.lowercased()
+            return profile.preferredLanguages.contains { lang in
+                let l = lang.lowercased()
+                return movieLang.contains(l) ||
+                       (l == "english" && movieLang == "en") ||
+                       (l == "hindi" && movieLang == "hi") ||
+                       (l == "tamil" && movieLang == "ta") ||
+                       (l == "telugu" && movieLang == "te") ||
+                       (l == "malayalam" && movieLang == "ml") ||
+                       (l == "kannada" && movieLang == "kn") ||
+                       (l == "marathi" && movieLang == "mr") ||
+                       (l == "korean" && movieLang == "ko") ||
+                       (l == "japanese" && movieLang == "ja") ||
+                       (l == "spanish" && movieLang == "es") ||
+                       (l == "french" && movieLang == "fr")
+            }
+        }
+
+        // Helper: check if movie platform matches user's platforms
+        func platformMatch(_ movie: GWMovie) -> Bool {
             if profile.platforms.isEmpty { return true }
             return profile.platforms.contains { platform in
                 let p = platform.lowercased()
@@ -709,17 +960,11 @@ final class GWRecommendationEngine {
             }
         }
 
+        // Platform matches
+        let platformMatches = filteredMovies.filter { platformMatch($0) }
+
         // Language matches
-        let languageMatches = filteredMovies.filter { movie in
-            if profile.preferredLanguages.isEmpty { return true }
-            let movieLang = movie.language.lowercased()
-            return profile.preferredLanguages.contains { lang in
-                let l = lang.lowercased()
-                return movieLang.contains(l) ||
-                       (l == "english" && movieLang == "en") ||
-                       (l == "hindi" && movieLang == "hi")
-            }
-        }
+        let languageMatches = filteredMovies.filter { languageMatch($0) }
 
         // Runtime matches
         let runtimeMatches = filteredMovies.filter { movie in
@@ -739,13 +984,30 @@ final class GWRecommendationEngine {
             movie.goodscore >= 7.5
         }
 
-        // Combined: all filters
+        // Combined: check HARD constraints only (platform + language)
+        // Language is now filtered at the DB level, so language match should be ~100%.
+        // Content type is also filtered at DB level.
+        // Only platform matching needs client-side verification.
         let combined = filteredMovies.filter { movie in
-            if case .valid = isValidMovie(movie, profile: profile) {
-                return true
-            }
-            return false
+            platformMatch(movie) && languageMatch(movie)
         }
+
+        #if DEBUG
+        print("   Platform matches: \(platformMatches.count)")
+        print("   Language matches: \(languageMatches.count)")
+        print("   Runtime matches: \(runtimeMatches.count)")
+        print("   Content type matches: \(contentTypeMatches.count)")
+        print("   Quality matches: \(qualityMatches.count)")
+        print("   Combined (platform+language): \(combined.count)")
+        if combined.isEmpty && !filteredMovies.isEmpty {
+            // Debug: show why first 5 movies failed
+            for movie in filteredMovies.prefix(5) {
+                let pOk = platformMatch(movie)
+                let lOk = languageMatch(movie)
+                print("   ❌ \(movie.title): lang=\(movie.language)[\(lOk ? "✓" : "✗")] platforms=\(movie.platforms)[\(pOk ? "✓" : "✗")]")
+            }
+        }
+        #endif
 
         // Determine issue
         var issue: GWAvailabilityIssue? = nil

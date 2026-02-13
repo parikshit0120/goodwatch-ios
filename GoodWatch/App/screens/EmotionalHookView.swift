@@ -9,6 +9,7 @@ struct EmotionalHookView: View {
     let onBack: () -> Void
     let onChangePlatforms: () -> Void
     let onChangeRuntime: () -> Void
+    var onHome: (() -> Void)? = nil
 
     @State private var chaosOpacity: Double = 0
     @State private var text1Opacity: Double = 0
@@ -45,18 +46,30 @@ struct EmotionalHookView: View {
 
                     Spacer()
 
+                    AppLogo(size: 28)
+
+                    Spacer()
+
                     Text("4/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
+
+                    if let onHome = onHome {
+                        Button(action: onHome) {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(GWColors.lightGray)
+                        }
+                        .padding(.leading, 12)
+                    }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.top, 16)
 
                 Spacer()
 
-                // Chaos/Scribble Visual (representing choice paralysis)
-                ChaosVisual()
-                    .frame(width: 120, height: 120)
+                // Blurred poster preview — teases that a movie is behind the curtain
+                BlurredPosterPreview()
                     .opacity(chaosOpacity)
 
                 Spacer().frame(height: 60)
@@ -228,12 +241,16 @@ struct EmotionalHookView: View {
                 if availability.hasAvailableMovies {
                     // Good to go!
                     proceedToShowMe()
-                } else if let issue = availability.issue {
-                    // Show alert with specific guidance
-                    availabilityIssue = issue
-                    showAvailabilityAlert = true
                 } else {
-                    // Unknown issue - proceed and let normal flow handle
+                    // Pre-check found limited matches, but ALWAYS proceed anyway.
+                    // The recommendation engine handles edge cases gracefully with
+                    // proper fallback logic and stop conditions. Blocking users here
+                    // causes false alarms since the pre-check uses a limited sample.
+                    #if DEBUG
+                    if let issue = availability.issue {
+                        print("⚠️ Availability pre-check issue (non-blocking): \(issue.title) - \(issue.message)")
+                    }
+                    #endif
                     proceedToShowMe()
                 }
             }
@@ -335,6 +352,65 @@ struct AvailabilityAlertOverlay: View {
             return "Change Language"
         case .changeRuntime:
             return "Change Duration"
+        }
+    }
+}
+
+// Blurred poster preview — teases a movie behind a curtain with "?" overlay
+struct BlurredPosterPreview: View {
+    // Rotate through a few posters so it doesn't feel static
+    private let teaserPosters: [String] = [
+        "/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg",
+        "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",
+        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg"
+    ]
+
+    @State private var glowPulse: Double = 0.3
+
+    var body: some View {
+        ZStack {
+            // The blurred poster
+            AsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w500\(teaserPosters[Int.random(in: 0..<teaserPosters.count)])")) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 180, height: 250)
+                        .blur(radius: 10)
+                        .brightness(-0.2)
+                        .scaleEffect(1.15)
+                        .clipped()
+                default:
+                    // Fallback: gold gradient placeholder
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                colors: [GWColors.gold.opacity(0.15), GWColors.darkGray],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 180, height: 250)
+                }
+            }
+
+            // Dark overlay
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.black.opacity(0.25))
+
+            // Question mark
+            Text("?")
+                .font(.system(size: 48, weight: .bold))
+                .foregroundColor(GWColors.gold)
+        }
+        .frame(width: 180, height: 250)
+        .cornerRadius(20)
+        .shadow(color: GWColors.gold.opacity(glowPulse), radius: 24)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
+                glowPulse = 0.5
+            }
         }
     }
 }

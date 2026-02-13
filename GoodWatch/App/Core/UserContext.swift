@@ -34,15 +34,22 @@ enum Language: String, CaseIterable, Codable {
     case telugu = "telugu"
     case malayalam = "malayalam"
     case kannada = "kannada"
+    case bengali = "bengali"
     case marathi = "marathi"
+    case punjabi = "punjabi"
+    case gujarati = "gujarati"
     case korean = "korean"
     case japanese = "japanese"
     case spanish = "spanish"
     case french = "french"
+    case chinese = "chinese"
+    case portuguese = "portuguese"
 
-    /// Languages shown in the onboarding UI (excludes Japanese, French for now)
+    /// Languages shown in the onboarding UI — sorted by catalog size
     static var visibleCases: [Language] {
-        [.english, .hindi, .tamil, .telugu, .malayalam, .kannada, .marathi, .korean, .spanish]
+        [.english, .hindi, .tamil, .telugu, .malayalam, .korean,
+         .kannada, .bengali, .marathi, .spanish, .japanese, .french,
+         .punjabi, .chinese, .portuguese, .gujarati]
     }
 
     var displayName: String {
@@ -53,11 +60,16 @@ enum Language: String, CaseIterable, Codable {
         case .telugu: return "Telugu"
         case .malayalam: return "Malayalam"
         case .kannada: return "Kannada"
+        case .bengali: return "Bengali"
         case .marathi: return "Marathi"
+        case .punjabi: return "Punjabi"
+        case .gujarati: return "Gujarati"
         case .korean: return "Korean"
         case .japanese: return "Japanese"
         case .spanish: return "Spanish"
         case .french: return "French"
+        case .chinese: return "Chinese"
+        case .portuguese: return "Portuguese"
         }
     }
 
@@ -70,11 +82,16 @@ enum Language: String, CaseIterable, Codable {
         case .telugu: return "te"
         case .malayalam: return "ml"
         case .kannada: return "kn"
+        case .bengali: return "bn"
         case .marathi: return "mr"
+        case .punjabi: return "pa"
+        case .gujarati: return "gu"
         case .korean: return "ko"
         case .japanese: return "ja"
         case .spanish: return "es"
         case .french: return "fr"
+        case .chinese: return "zh"
+        case .portuguese: return "pt"
         }
     }
 }

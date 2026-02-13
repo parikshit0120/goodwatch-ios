@@ -6,6 +6,7 @@ struct MoodSelectorView: View {
     @Binding var ctx: UserContext
     let onNext: () -> Void
     let onBack: () -> Void
+    var onHome: (() -> Void)? = nil
 
     @State private var selectedIndex: Int? = nil
 
@@ -16,11 +17,21 @@ struct MoodSelectorView: View {
         (.light, "Easy watch", "Nothing too heavy",
          ["light", "background_friendly", "safe_bet", "calm"], .calm, .light),
         (.neutral, "Surprise me", "I'm open to anything",
-         ["safe_bet", "full_attention", "medium"], .tense, .medium),
+         [], .tense, .medium),
         (.intense, "Gripping", "Edge of my seat",
          ["tense", "high_energy", "full_attention", "medium"], .high_energy, .medium),
         (.intense, "Dark & Heavy", "Hit me with the feels",
          ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"], .tense, .heavy)
+    ]
+
+    // Representative movie poster for each mood — purely cosmetic
+    // All live-action movies only — NO animated films
+    private let moodPosters: [String] = [
+        "/lBYOKAMcxIvuk9s9hMuecB9dPBV.jpg",  // Feel-good → The Pursuit of Happyness
+        "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",  // Easy watch
+        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",  // Surprise me
+        "/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg",  // Gripping
+        "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg"   // Dark & Heavy → Fight Club
     ]
 
     var body: some View {
@@ -45,9 +56,22 @@ struct MoodSelectorView: View {
 
                     Spacer()
 
+                    AppLogo(size: 28)
+
+                    Spacer()
+
                     Text("1/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
+
+                    if let onHome = onHome {
+                        Button(action: onHome) {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(GWColors.lightGray)
+                        }
+                        .padding(.leading, 12)
+                    }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.top, 16)
@@ -78,6 +102,7 @@ struct MoodSelectorView: View {
                         MoodCard(
                             title: option.1,
                             subtitle: option.2,
+                            posterPath: moodPosters[index],
                             isSelected: selectedIndex == index,
                             action: {
                                 selectedIndex = index
@@ -134,29 +159,53 @@ struct MoodSelectorView: View {
 struct MoodCard: View {
     let title: String
     let subtitle: String
+    let posterPath: String
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(GWColors.white)
+        HStack(spacing: 0) {
+            // Movie poster thumbnail on left edge
+            AsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w200\(posterPath)")) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 56, height: 72)
+                        .clipped()
+                        .opacity(0.9)
+                default:
+                    Color.clear
+                        .frame(width: 56, height: 72)
+                }
+            }
 
-            Text(subtitle)
-                .font(GWTypography.small())
-                .foregroundColor(GWColors.lightGray)
+            // Text content
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(GWColors.white)
+
+                Text(subtitle)
+                    .font(GWTypography.small())
+                    .foregroundColor(GWColors.lightGray)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+
+            Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 20)
+        .frame(height: 72)
         .background(isSelected ? GWColors.darkGray : GWColors.darkGray.opacity(0.6))
         .cornerRadius(GWRadius.md)
+        .clipped()
         .overlay(
             RoundedRectangle(cornerRadius: GWRadius.md)
-                .stroke(isSelected ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                .stroke(isSelected ? GWColors.gold.opacity(0.6) : Color.clear, lineWidth: 1.5)
         )
-        .shadow(color: isSelected ? Color.white.opacity(0.1) : Color.clear, radius: 8)
+        .shadow(color: isSelected ? GWColors.gold.opacity(0.15) : Color.clear, radius: 8)
         .onTapGesture {
             action()
         }

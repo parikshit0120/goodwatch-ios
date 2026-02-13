@@ -6,6 +6,7 @@ struct PlatformSelectorView: View {
     @Binding var ctx: UserContext
     let onNext: () -> Void
     let onBack: () -> Void
+    var onHome: (() -> Void)? = nil
 
     let platformColumns = [
         GridItem(.flexible(), spacing: 16),
@@ -41,9 +42,22 @@ struct PlatformSelectorView: View {
 
                     Spacer()
 
+                    AppLogo(size: 28)
+
+                    Spacer()
+
                     Text("2/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
+
+                    if let onHome = onHome {
+                        Button(action: onHome) {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(GWColors.lightGray)
+                        }
+                        .padding(.leading, 12)
+                    }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.top, 16)
@@ -51,7 +65,7 @@ struct PlatformSelectorView: View {
                 // Scrollable content
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
-                        Spacer().frame(height: 32)
+                        Spacer().frame(height: 20)
 
                         // Headline
                         Text("Which platforms do you have?")
@@ -60,7 +74,7 @@ struct PlatformSelectorView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.horizontal, GWSpacing.screenPadding)
 
-                        Spacer().frame(height: 8)
+                        Spacer().frame(height: 6)
 
                         // Subhead
                         Text("We'll only show films you can watch")
@@ -69,10 +83,24 @@ struct PlatformSelectorView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.horizontal, GWSpacing.screenPadding)
 
-                        Spacer().frame(height: 32)
+                        Spacer().frame(height: 20)
+
+                        // Select All / Deselect All toggle
+                        HStack {
+                            Spacer()
+                            Button {
+                                toggleSelectAll()
+                            } label: {
+                                Text(ctx.otts.count == OTTPlatform.allCases.count ? "Deselect all" : "Select all")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(GWColors.gold)
+                            }
+                        }
+                        .padding(.horizontal, GWSpacing.screenPadding)
+                        .padding(.bottom, 8)
 
                         // Platform Grid - Circular 3D Design
-                        LazyVGrid(columns: platformColumns, spacing: 20) {
+                        LazyVGrid(columns: platformColumns, spacing: 16) {
                             ForEach(OTTPlatform.allCases, id: \.self) { platform in
                                 PlatformTile(
                                     platform: platform,
@@ -85,7 +113,7 @@ struct PlatformSelectorView: View {
                         }
                         .padding(.horizontal, GWSpacing.screenPadding)
 
-                        Spacer().frame(height: 48)
+                        Spacer().frame(height: 28)
 
                         // Language Section - Visually distinct card
                         VStack(alignment: .leading, spacing: 20) {
@@ -130,7 +158,7 @@ struct PlatformSelectorView: View {
                         )
                         .padding(.horizontal, GWSpacing.screenPadding)
 
-                        Spacer().frame(height: 24)
+                        Spacer().frame(height: 16)
                     }
                 }
 
@@ -170,6 +198,22 @@ struct PlatformSelectorView: View {
 
     private var canProceed: Bool {
         !ctx.otts.isEmpty && !ctx.languages.isEmpty
+    }
+
+    private func toggleSelectAll() {
+        if ctx.otts.count == OTTPlatform.allCases.count {
+            // Deselect all
+            ctx.otts.removeAll()
+        } else {
+            // Select all
+            ctx.otts = Array(OTTPlatform.allCases)
+        }
+        // Re-validate languages against new platform set
+        if !ctx.otts.isEmpty {
+            ctx.languages.removeAll { language in
+                !OTTLanguageAvailability.shared.isLanguageAvailable(language, onPlatforms: ctx.otts)
+            }
+        }
     }
 
     private func togglePlatform(_ platform: OTTPlatform) {
@@ -240,11 +284,11 @@ struct LanguageChip: View {
                             .stroke(
                                 isDisabled
                                     ? GWColors.surfaceBorder.opacity(0.3)
-                                    : (isSelected ? Color.white.opacity(0.5) : GWColors.surfaceBorder),
+                                    : (isSelected ? GWColors.gold.opacity(0.6) : GWColors.surfaceBorder),
                                 lineWidth: 1.5
                             )
                     )
-                    .shadow(color: isSelected && !isDisabled ? Color.white.opacity(0.1) : Color.clear, radius: 8)
+                    .shadow(color: isSelected && !isDisabled ? GWColors.gold.opacity(0.15) : Color.clear, radius: 8)
             }
             .buttonStyle(.plain)
 
@@ -305,22 +349,22 @@ struct PlatformTile: View {
                                 )
                         )
                         .overlay(
-                            // Selection border - subtle white instead of gold
+                            // Selection border - light golden outline
                             Circle()
                                 .stroke(
-                                    isSelected ? Color.white.opacity(0.6) : Color.clear,
+                                    isSelected ? GWColors.gold.opacity(0.7) : Color.clear,
                                     lineWidth: 2
                                 )
                         )
                         .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
                         .shadow(color: Color.black.opacity(0.2), radius: 4, x: 0, y: 2)
-                        .shadow(color: isSelected ? Color.white.opacity(0.15) : Color.clear, radius: 12, x: 0, y: 0)
+                        .shadow(color: isSelected ? GWColors.gold.opacity(0.2) : Color.clear, radius: 12, x: 0, y: 0)
 
-                    // Platform logo
+                    // Platform logo — fills the circle with small margin
                     Image(platformLogoName)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 48, height: 48)
+                        .frame(width: 66, height: 66)
                         .clipShape(Circle())
                 }
 

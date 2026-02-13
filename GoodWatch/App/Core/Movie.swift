@@ -40,14 +40,26 @@ struct OTTProvider: Codable, Identifiable {
     let logo_path: String?
     let provider_id: Int?
     let display_priority: Int?
+    let type: String?  // "flatrate", "ads", "rent", "buy" — nil for legacy data
 
     var displayName: String {
         // Normalize common OTT names for display
+        // Rental-specific platforms keep their own identity
         let lowered = name.lowercased()
+        let isRental = type == "rent" || type == "buy"
+
+        // Rental platforms — keep distinct names
+        if lowered == "google play movies" { return "Google Play" }
+        if lowered == "youtube" { return "YouTube" }
+        if lowered == "amazon video" && isRental { return "Amazon" }
+
+        // Subscription platforms
         if lowered.contains("netflix") { return "Netflix" }
         if lowered.contains("amazon prime") || lowered.contains("prime video") { return "Prime Video" }
+        if lowered.contains("amazon video") { return "Prime Video" }  // fallback for non-rental Amazon Video
         if lowered.contains("hotstar") || lowered.contains("jiohotstar") { return "Jio Hotstar" }
-        if lowered.contains("apple tv") { return "Apple TV+" }
+        if lowered.contains("apple tv") && isRental { return "Apple TV" }  // rental Apple TV (store), not Apple TV+
+        if lowered.contains("apple tv") { return "Apple TV+" }             // subscription Apple TV+
         if lowered.contains("sony") || lowered.contains("sonyliv") { return "SonyLIV" }
         if lowered.contains("zee5") { return "ZEE5" }
         return name
@@ -62,11 +74,17 @@ struct OTTProvider: Codable, Identifiable {
         if lowered.contains("amazon prime") || lowered.contains("prime video") {
             return URL(string: "aiv://")
         }
+        if lowered == "amazon video" {
+            return URL(string: "aiv://")
+        }
         if lowered.contains("hotstar") {
             return URL(string: "hotstar://")
         }
         if lowered.contains("apple tv") {
             return URL(string: "com.apple.tv://")
+        }
+        if lowered == "youtube" {
+            return URL(string: "youtube://")
         }
         return nil
     }
@@ -80,6 +98,9 @@ struct OTTProvider: Codable, Identifiable {
         if lowered.contains("amazon prime") || lowered.contains("prime video") {
             return URL(string: "https://www.primevideo.com")
         }
+        if lowered == "amazon video" {
+            return URL(string: "https://www.amazon.in")
+        }
         if lowered.contains("hotstar") {
             return URL(string: "https://www.hotstar.com")
         }
@@ -91,6 +112,12 @@ struct OTTProvider: Codable, Identifiable {
         }
         if lowered.contains("zee5") {
             return URL(string: "https://www.zee5.com")
+        }
+        if lowered == "google play movies" {
+            return URL(string: "https://play.google.com/store/movies")
+        }
+        if lowered == "youtube" {
+            return URL(string: "https://www.youtube.com")
         }
         return nil
     }
@@ -115,13 +142,21 @@ struct OTTProvider: Codable, Identifiable {
     }
 
     // Convenience initializer for cases without full provider info
-    init(id: Int = 0, name: String, logo_path: String? = nil, provider_id: Int? = nil, display_priority: Int? = nil) {
+    init(id: Int = 0, name: String, logo_path: String? = nil, provider_id: Int? = nil, display_priority: Int? = nil, type: String? = nil) {
         self.id = id
         self.name = name
         self.logo_path = logo_path
         self.provider_id = provider_id
         self.display_priority = display_priority
+        self.type = type
     }
+}
+
+// MARK: - Genre (from Supabase genres JSONB column)
+
+struct Genre: Codable, Identifiable {
+    let id: Int
+    let name: String
 }
 
 // MARK: - Movie Model
@@ -138,7 +173,7 @@ struct Movie: Identifiable, Codable {
     let imdb_rating: Double?
     let imdb_votes: Int?
     let runtime: Int?
-    let genres: [[String: Any]]?  // JSONB array from Supabase
+    let genres: [Genre]?  // JSONB array from Supabase
     let ott_providers: [OTTProvider]?
     let emotional_profile: EmotionalProfile?
     let content_type: String?  // "movie" or "series" / "tv"
@@ -162,9 +197,48 @@ struct Movie: Identifiable, Codable {
         composite_score ?? imdb_rating ?? vote_average ?? 0.0
     }
 
-    /// Runtime in minutes (default 120 if not set)
+    /// Runtime in minutes. For movies defaults to 120 if not set.
+    /// For series, the DB runtime field is unreliable (often null or total runtime).
     var runtimeMinutes: Int {
-        runtime ?? 120
+        if isSeries {
+            // For series: if runtime exists and looks like per-episode (< 120), use it.
+            // Otherwise don't assume — return 0 to signal "unknown".
+            if let r = runtime, r > 0 && r <= 120 {
+                return r
+            }
+            return 0  // Unknown episode runtime
+        }
+        return runtime ?? 120
+    }
+
+    /// Whether this is a series/TV show
+    var isSeries: Bool {
+        let ct = content_type?.lowercased() ?? ""
+        return ct == "series" || ct == "tv"
+    }
+
+    /// Content type display label
+    var contentTypeLabel: String {
+        isSeries ? "Series" : "Movie"
+    }
+
+    /// Display-friendly runtime string that accounts for series (per-episode) vs movie
+    var runtimeDisplay: String {
+        if isSeries {
+            let mins = runtimeMinutes
+            if mins > 0 {
+                return "\(mins) min/ep"
+            }
+            return "Series"  // Don't show bogus runtime
+        } else {
+            let mins = runtimeMinutes
+            let hours = mins / 60
+            let remainder = mins % 60
+            if hours > 0 {
+                return "\(hours)h \(remainder)m"
+            }
+            return "\(mins)m"
+        }
     }
 
     /// Poster URL (full TMDB URL)
@@ -183,9 +257,20 @@ struct Movie: Identifiable, Codable {
     /// Genre names extracted from genres JSONB
     var genreNames: [String] {
         guard let genreArray = genres else { return [] }
-        return genreArray.compactMap { dict in
-            dict["name"] as? String
+        return genreArray.map { $0.name }
+    }
+
+    /// GoodScore on 0-100 scale, matching Pick For Me display.
+    /// Uses composite_score (enriched multi-source), fallback to IMDb+TMDB blend, then raw rating.
+    var goodScoreDisplay: Int? {
+        if let cs = composite_score, cs > 0 {
+            return Int(round(cs * 10))
+        } else if let imdb = imdb_rating, let tmdb = vote_average, imdb > 0 && tmdb > 0 {
+            return Int(round(((imdb * 0.75) + (tmdb * 0.25)) * 10))
+        } else if let rating = imdb_rating ?? vote_average, rating > 0 {
+            return Int(round(rating * 10))
         }
+        return nil
     }
 
     /// Director display string (nil if empty)
@@ -198,6 +283,40 @@ struct Movie: Identifiable, Codable {
     var castDisplay: String? {
         guard let c = cast_list, !c.isEmpty else { return nil }
         return c.prefix(3).joined(separator: ", ")
+    }
+
+    /// Overview trimmed to the first complete sentence for a succinct summary.
+    /// If the first sentence is too long, trims to ~25 words at a natural break.
+    var shortOverview: String? {
+        guard let text = overview, !text.isEmpty else { return nil }
+
+        // Try to get the first complete sentence (end at period followed by space or end-of-string)
+        // Look for sentence-ending punctuation: ". " or "." at end
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let dotRange = trimmed.range(of: ". ", options: .literal) {
+            let firstSentence = String(trimmed[trimmed.startIndex..<dotRange.lowerBound]) + "."
+            let wordCount = firstSentence.split(separator: " ").count
+            // If first sentence is reasonable length (5-30 words), use it
+            if wordCount >= 5 && wordCount <= 30 {
+                return firstSentence
+            }
+        }
+
+        // Fallback: if first sentence is too short or too long, use up to 25 words
+        // and end at the last natural break (comma, dash, period)
+        let words = trimmed.split(separator: " ")
+        if words.count <= 25 {
+            return trimmed
+        }
+        let chunk = words.prefix(25).joined(separator: " ")
+        // Try to cut at last comma or dash for a clean ending
+        if let lastComma = chunk.lastIndex(of: ",") {
+            let upToComma = String(chunk[chunk.startIndex..<lastComma])
+            if upToComma.split(separator: " ").count >= 8 {
+                return upToComma + "."
+            }
+        }
+        return chunk + "."
     }
 
     /// Credits pitch line: "Dir. X . A, B, C"
@@ -223,10 +342,48 @@ struct Movie: Identifiable, Codable {
 
     // MARK: - Platform Matching
 
-    /// Get providers matching user's selected OTT platforms
-    func matchingProviders(for userPlatforms: [OTTPlatform]) -> [OTTProvider] {
+    /// The 6 supported subscription OTT platforms
+    static let supportedPlatformKeywords: [(OTTPlatform, [String])] = [
+        (.netflix, ["netflix"]),
+        (.prime, ["amazon prime video", "amazon prime video with ads", "prime video"]),
+        (.jioHotstar, ["jiohotstar", "hotstar", "disney+ hotstar", "jio hotstar"]),
+        (.appleTV, ["apple tv", "apple tv+"]),
+        (.sonyLIV, ["sony liv", "sonyliv"]),
+        (.zee5, ["zee5"]),
+    ]
+
+    /// Rental platform names recognized in UI
+    static let rentalPlatformNames: Set<String> = [
+        "google play movies", "youtube", "amazon video"
+    ]
+
+    /// Whether a provider name matches any supported platform (subscription or rental)
+    static func isSupportedProvider(_ providerName: String) -> Bool {
+        let lowered = providerName.lowercased()
+        // Check subscription platforms
+        if supportedPlatformKeywords.contains(where: { (_, keywords) in
+            keywords.contains { lowered.contains($0) }
+        }) { return true }
+        // Check rental platforms
+        if rentalPlatformNames.contains(lowered) { return true }
+        return false
+    }
+
+    /// All providers filtered to supported platforms (subscription + rental)
+    var supportedProviders: [OTTProvider] {
         guard let providers = ott_providers else { return [] }
-        return providers.filter { provider in
+        return providers.filter { Movie.isSupportedProvider($0.name) }
+    }
+
+    /// Providers available for rent or buy (Apple TV, Google Play, YouTube, Amazon Video)
+    var rentalProviders: [OTTProvider] {
+        guard let providers = ott_providers else { return [] }
+        return providers.filter { $0.type == "rent" || $0.type == "buy" }
+    }
+
+    /// Get providers matching user's selected OTT platforms (filtered to supported only)
+    func matchingProviders(for userPlatforms: [OTTPlatform]) -> [OTTProvider] {
+        return supportedProviders.filter { provider in
             let providerName = provider.name.lowercased()
             return userPlatforms.contains { platform in
                 let variations = platformVariations(for: platform)
@@ -235,11 +392,32 @@ struct Movie: Identifiable, Codable {
         }
     }
 
-    /// Get providers NOT matching user's platforms (for "Also available on")
+    /// Best matching provider for primary CTA — prefers subscription-included platforms
+    /// Subscription platforms (Netflix, Hotstar, Apple TV+, SonyLIV, ZEE5) are preferred
+    /// over transactional/rental platforms (Prime Video "with ads" variants)
+    func bestMatchingProvider(for userPlatforms: [OTTPlatform]) -> OTTProvider? {
+        let matches = matchingProviders(for: userPlatforms)
+        if matches.isEmpty { return nil }
+
+        // Subscription-first: prefer platforms where content is included with subscription
+        // Deprioritize providers with "with ads", "rent", "buy" in the name
+        let sorted = matches.sorted { a, b in
+            let aIsRental = a.name.lowercased().contains("with ads") ||
+                            a.name.lowercased().contains("rent") ||
+                            a.name.lowercased().contains("buy")
+            let bIsRental = b.name.lowercased().contains("with ads") ||
+                            b.name.lowercased().contains("rent") ||
+                            b.name.lowercased().contains("buy")
+            if aIsRental != bIsRental { return !aIsRental }
+            return (a.display_priority ?? 999) < (b.display_priority ?? 999)
+        }
+        return sorted.first
+    }
+
+    /// Get OTHER supported providers not matching user's platforms (for "Also available on")
     func otherProviders(excludingUserPlatforms userPlatforms: [OTTPlatform]) -> [OTTProvider] {
-        guard let providers = ott_providers else { return [] }
         let matching = Set(matchingProviders(for: userPlatforms).map { $0.id })
-        return providers.filter { !matching.contains($0.id) }
+        return supportedProviders.filter { !matching.contains($0.id) }
     }
 
     private func platformVariations(for platform: OTTPlatform) -> [String] {
@@ -264,12 +442,11 @@ struct Movie: Identifiable, Codable {
     enum CodingKeys: String, CodingKey {
         case id, title, year, overview, poster_path, original_language
         case vote_average, vote_count, imdb_rating, imdb_votes
-        case runtime, content_type, available
+        case runtime, genres, content_type, available
         case ott_providers, emotional_profile
         case rt_critics_score, rt_audience_score, metacritic_score
         case composite_score, rating_confidence
         case director, cast_list
-        // genres handled separately due to JSONB
     }
 
     init(from decoder: Decoder) throws {
@@ -287,7 +464,30 @@ struct Movie: Identifiable, Codable {
         runtime = try container.decodeIfPresent(Int.self, forKey: .runtime)
         content_type = try container.decodeIfPresent(String.self, forKey: .content_type)
         available = try container.decodeIfPresent(Bool.self, forKey: .available)
-        ott_providers = try container.decodeIfPresent([OTTProvider].self, forKey: .ott_providers)
+        // ott_providers may be a proper JSONB array OR a JSON string containing an array.
+        // Some DB rows store it as text instead of jsonb — handle both gracefully.
+        if let directArray = try? container.decodeIfPresent([OTTProvider].self, forKey: .ott_providers) {
+            ott_providers = directArray
+        } else if let jsonString = try? container.decodeIfPresent(String.self, forKey: .ott_providers),
+                  let jsonData = jsonString.data(using: .utf8) {
+            // Try decoding the string as [OTTProvider]
+            if let parsed = try? JSONDecoder().decode([OTTProvider].self, from: jsonData) {
+                ott_providers = parsed
+            } else if let rawArray = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
+                // Fallback: manually extract from dictionaries (handles provider_id vs id, logo vs logo_path)
+                ott_providers = rawArray.compactMap { dict in
+                    guard let name = dict["name"] as? String else { return nil }
+                    let id = (dict["id"] as? Int) ?? (dict["provider_id"] as? Int) ?? 0
+                    let logoPath = (dict["logo_path"] as? String) ?? (dict["logo"] as? String)
+                    let type = dict["type"] as? String
+                    return OTTProvider(id: id, name: name, logo_path: logoPath, type: type)
+                }
+            } else {
+                ott_providers = nil
+            }
+        } else {
+            ott_providers = nil
+        }
         emotional_profile = try container.decodeIfPresent(EmotionalProfile.self, forKey: .emotional_profile)
         rt_critics_score = try container.decodeIfPresent(Int.self, forKey: .rt_critics_score)
         rt_audience_score = try container.decodeIfPresent(Int.self, forKey: .rt_audience_score)
@@ -296,7 +496,16 @@ struct Movie: Identifiable, Codable {
         rating_confidence = try container.decodeIfPresent(Double.self, forKey: .rating_confidence)
         director = try container.decodeIfPresent(String.self, forKey: .director)
         cast_list = try container.decodeIfPresent([String].self, forKey: .cast_list)
-        genres = nil // Handled separately if needed
+        // genres may be a proper JSONB array OR a JSON string — handle both gracefully.
+        if let directArray = try? container.decodeIfPresent([Genre].self, forKey: .genres) {
+            genres = directArray
+        } else if let jsonString = try? container.decodeIfPresent(String.self, forKey: .genres),
+                  let jsonData = jsonString.data(using: .utf8),
+                  let parsed = try? JSONDecoder().decode([Genre].self, from: jsonData) {
+            genres = parsed
+        } else {
+            genres = nil
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -312,6 +521,7 @@ struct Movie: Identifiable, Codable {
         try container.encodeIfPresent(imdb_rating, forKey: .imdb_rating)
         try container.encodeIfPresent(imdb_votes, forKey: .imdb_votes)
         try container.encodeIfPresent(runtime, forKey: .runtime)
+        try container.encodeIfPresent(genres, forKey: .genres)
         try container.encodeIfPresent(content_type, forKey: .content_type)
         try container.encodeIfPresent(available, forKey: .available)
         try container.encodeIfPresent(ott_providers, forKey: .ott_providers)
@@ -338,7 +548,7 @@ struct Movie: Identifiable, Codable {
         imdb_rating: Double? = nil,
         imdb_votes: Int? = nil,
         runtime: Int? = nil,
-        genres: [[String: Any]]? = nil,
+        genres: [Genre]? = nil,
         ott_providers: [OTTProvider]? = nil,
         emotional_profile: EmotionalProfile? = nil,
         content_type: String? = nil,
@@ -417,9 +627,28 @@ final class SupabaseService {
     ) async throws -> [Movie] {
         var urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)"
 
+        // Add language filter at DB level (convert full names to ISO 639-1 codes)
+        // This ensures we fetch movies in the user's preferred languages, not just top-rated globally
+        let isoMap: [String: String] = [
+            "english": "en", "hindi": "hi", "tamil": "ta", "telugu": "te",
+            "malayalam": "ml", "kannada": "kn", "marathi": "mr", "korean": "ko",
+            "japanese": "ja", "spanish": "es", "french": "fr"
+        ]
+        let isoCodes = languages.compactMap { isoMap[$0.lowercased()] }
+        if !isoCodes.isEmpty {
+            urlString += "&original_language=in.(\(isoCodes.joined(separator: ",")))"
+        }
+
         // Add content type filter
+        // For movies: include content_type = 'movie' OR NULL (many movies lack this field)
+        // For series: include content_type = 'tv' OR 'series' (DB may use either)
         if let ct = contentType {
-            urlString += "&content_type=eq.\(ct)"
+            if ct == "movie" {
+                urlString += "&or=(content_type.eq.movie,content_type.is.null)"
+            } else {
+                // Series: match both 'tv' and 'series' since DB may use either value
+                urlString += "&or=(content_type.eq.tv,content_type.eq.series)"
+            }
         }
 
         // Order by composite_score (enriched) first, then imdb_rating
@@ -450,33 +679,7 @@ enum SupabaseServiceError: Error {
     case fetchFailed
 }
 
-// MARK: - Decision Timing (Placeholder)
-
-struct GWDecisionTiming {
-    var presentedAt: Date = Date()
-    var decisionAt: Date?
-
-    var decisionDurationSeconds: Double? {
-        guard let decision = decisionAt else { return nil }
-        return decision.timeIntervalSince(presentedAt)
-    }
-
-    var isQuickDecision: Bool {
-        guard let duration = decisionDurationSeconds else { return false }
-        return duration < 3.0
-    }
-
-    var isHesitantDecision: Bool {
-        guard let duration = decisionDurationSeconds else { return false }
-        return duration > 30.0
-    }
-
-    mutating func recordDecision() {
-        decisionAt = Date()
-    }
-}
-
-// MARK: - Learning Dimensions (Placeholder)
+// MARK: - Learning Dimensions
 
 enum GWLearningDimension: String, Codable {
     case tooLong = "too_long"
@@ -512,4 +715,24 @@ struct GWPlatformBias: Codable {
     mutating func recordReject(platform: String) {
         rejects[platform, default: 0] += 1
     }
+}
+
+// MARK: - Decision Timing (Threshold-Gated Learning)
+
+/// Records how long a user took to decide on a recommendation.
+/// Always collected from first interaction. Only used in scoring after ≥20 samples.
+struct GWDecisionTiming: Codable {
+    let movieId: String
+    let decisionSeconds: TimeInterval
+    let wasAccepted: Bool
+    let timestamp: TimeInterval  // Unix timestamp
+}
+
+/// Aggregated insights from decision timing data.
+/// Only available once threshold (≥20 decisions) is met.
+struct GWDecisionTimingInsights {
+    let totalDecisions: Int
+    let avgAcceptTimeSeconds: Double
+    let avgRejectTimeSeconds: Double
+    let quickAcceptRate: Double  // Fraction of accepts that happened in < 5s
 }

@@ -78,9 +78,16 @@ final class OTTLanguageAvailability {
             .telugu: .extensive,
             .malayalam: .good,
             .kannada: .good,
+            .bengali: .good,
             .marathi: .good,
+            .punjabi: .limited,
+            .gujarati: .veryLimited,
             .korean: .extensive,
-            .spanish: .extensive
+            .japanese: .extensive,
+            .spanish: .extensive,
+            .french: .good,
+            .chinese: .good,
+            .portuguese: .good
         ],
         .prime: [
             .english: .extensive,
@@ -89,9 +96,16 @@ final class OTTLanguageAvailability {
             .telugu: .extensive,
             .malayalam: .extensive,
             .kannada: .good,
+            .bengali: .good,
             .marathi: .good,
+            .punjabi: .good,
+            .gujarati: .limited,
             .korean: .good,
-            .spanish: .good
+            .japanese: .good,
+            .spanish: .good,
+            .french: .limited,
+            .chinese: .limited,
+            .portuguese: .limited
         ],
         .jioHotstar: [
             .english: .good,
@@ -100,9 +114,16 @@ final class OTTLanguageAvailability {
             .telugu: .extensive,
             .malayalam: .good,
             .kannada: .good,
+            .bengali: .good,
             .marathi: .good,
+            .punjabi: .limited,
+            .gujarati: .limited,
             .korean: .limited,
-            .spanish: .limited
+            .japanese: .limited,
+            .spanish: .limited,
+            .french: .veryLimited,
+            .chinese: .veryLimited,
+            .portuguese: .veryLimited
         ],
         .appleTV: [
             .english: .extensive,
@@ -111,9 +132,16 @@ final class OTTLanguageAvailability {
             .telugu: .veryLimited,
             .malayalam: .none,
             .kannada: .none,
+            .bengali: .none,
             .marathi: .none,
+            .punjabi: .none,
+            .gujarati: .none,
             .korean: .good,
-            .spanish: .good
+            .japanese: .good,
+            .spanish: .good,
+            .french: .good,
+            .chinese: .limited,
+            .portuguese: .limited
         ],
         .sonyLIV: [
             .english: .limited,
@@ -122,9 +150,16 @@ final class OTTLanguageAvailability {
             .telugu: .good,
             .malayalam: .limited,
             .kannada: .limited,
+            .bengali: .limited,
             .marathi: .good,
+            .punjabi: .limited,
+            .gujarati: .veryLimited,
             .korean: .veryLimited,
-            .spanish: .none
+            .japanese: .none,
+            .spanish: .none,
+            .french: .none,
+            .chinese: .none,
+            .portuguese: .none
         ],
         .zee5: [
             .english: .veryLimited,
@@ -133,9 +168,16 @@ final class OTTLanguageAvailability {
             .telugu: .good,
             .malayalam: .good,
             .kannada: .good,
+            .bengali: .good,
             .marathi: .good,
+            .punjabi: .good,
+            .gujarati: .limited,
             .korean: .veryLimited,
-            .spanish: .none
+            .japanese: .none,
+            .spanish: .none,
+            .french: .none,
+            .chinese: .none,
+            .portuguese: .none
         ]
     ]
 

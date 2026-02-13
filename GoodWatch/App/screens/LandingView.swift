@@ -2,33 +2,132 @@ import SwiftUI
 
 // Screen 0: Landing View
 // Simple: Logo + Wordmark + Tagline
-// After 5+ uses: shows user profile archetype card
+// Clean home screen — archetype card lives in Profile tab only
 struct LandingView: View {
     let onContinue: () -> Void
+    var onExplore: (() -> Void)?
     var onProfileTap: (() -> Void)?
+    var onDebugSkip: (() -> Void)?  // DEBUG: skip to recommendation with preset context
 
     @State private var logoOpacity: Double = 0
     @State private var textOpacity: Double = 0
-    @State private var profileOpacity: Double = 0
+    @State private var posterImages: [Int: Image] = [:]
+    @State private var postersReady: Bool = false
 
-    /// Derive user archetype from tag weights
-    private var userArchetype: UserArchetype? {
-        let weights = TagWeightStore.shared.getWeights()
-        guard !weights.isEmpty else { return nil }
+    // Explore button is always visible — auth gate is inside ExploreView
 
-        // Check if user has enough interactions (stored in onboarding step as proxy)
-        let step = GWKeychainManager.shared.getOnboardingStep()
-        guard step >= 5 else { return nil }
-
-        return UserArchetype.derive(from: weights)
-    }
+    // Hardcoded TMDB poster paths for landing background grid
+    // All live-action movies — NO animated films
+    // 32 posters = 8 rows × 4 columns to fill the full screen
+    private let backdropPosters: [String] = [
+        "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",  // Live-action
+        "/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg",  // Live-action
+        "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg",  // Fight Club
+        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",  // Live-action
+        "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",  // The Dark Knight
+        "/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",  // Live-action
+        "/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg",  // Live-action
+        "/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg",  // Gladiator
+        "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",  // Live-action
+        "/sv1xJUazXeYqALzczSZ3O6nkH75.jpg",  // Live-action
+        "/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg",  // The Shawshank Redemption
+        "/62HCnUTziyWcpDaBO2i1DX17ljH.jpg",  // Live-action
+        "/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",  // Parasite
+        "/6CoRTJTmijhBLJTUNoVSUNxZMEI.jpg",  // Live-action
+        "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",  // Live-action
+        "/ngl2FKBlU4fhbdsrtdom9LVLBXw.jpg",  // Live-action
+        "/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg",  // Live-action
+        "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",  // Oppenheimer
+        "/rktDFPbfHfUbArZ6OOOKsXcv0Bm.jpg",  // Live-action
+        "/saHP97rTPS5eLmrLQEcANmKrsFl.jpg",  // Forrest Gump
+        "/wWJbBo5yjw22AIjE8isBFoiBI3S.jpg",  // The Godfather
+        "/xlaY2zyzMfkhk0HSC5VUwzoZPU1.jpg",  // Inception
+        "/lBYOKAMcxIvuk9s9hMuecB9dPBV.jpg",  // The Pursuit of Happyness
+        "/bAKvH3yDzEHG0kTwQ6HbCCCpYhh.jpg",  // Life is Beautiful
+        "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg",  // Duplicate row for coverage
+        "/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg",
+        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+        "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+        "/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
+        "/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg",
+        "/ty8TGRuvJLPUmAR1H1nRIsgwvim.jpg",
+        "/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg",
+    ]
 
     var body: some View {
         ZStack {
             GWColors.black
                 .ignoresSafeArea()
 
+            // Poster grid background — tilted collage for cinematic feel
+            GeometryReader { geo in
+                let columns = 4
+                let spacing: CGFloat = 6
+                let posterW = (geo.size.width + 40) / CGFloat(columns) - spacing
+                let posterH: CGFloat = 110
+
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.fixed(posterW), spacing: spacing), count: columns),
+                    spacing: spacing
+                ) {
+                    ForEach(0..<backdropPosters.count, id: \.self) { i in
+                        if let img = posterImages[i] {
+                            img
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: posterW, height: posterH)
+                                .clipped()
+                                .cornerRadius(6)
+                        } else {
+                            // Dark placeholder — matches grid, never empty
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.06))
+                                .frame(width: posterW, height: posterH)
+                        }
+                    }
+                }
+                .padding(-20)
+                .rotationEffect(.degrees(-8))
+                .scaleEffect(1.2)
+                .opacity(postersReady ? 0.55 : 0.15)
+                .animation(.easeOut(duration: 0.5), value: postersReady)
+            }
+            .ignoresSafeArea()
+
+            // Vertical gradient over poster grid — fades bottom for text legibility (STRONGER)
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: GWColors.black.opacity(0.2), location: 0),
+                    .init(color: GWColors.black.opacity(0.5), location: 0.3),
+                    .init(color: GWColors.black.opacity(0.85), location: 0.55),
+                    .init(color: GWColors.black.opacity(0.98), location: 0.75),
+                    .init(color: GWColors.black, location: 0.9)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
             VStack(spacing: 0) {
+                // DEBUG: Quick-skip button (top-right, only in debug builds)
+                #if DEBUG
+                HStack {
+                    Spacer()
+                    if let debugSkip = onDebugSkip {
+                        Button(action: debugSkip) {
+                            Image(systemName: "ant.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(GWColors.lightGray.opacity(0.5))
+                                .padding(8)
+                                .background(GWColors.darkGray.opacity(0.6))
+                                .cornerRadius(8)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.top, 8)
+                    }
+                }
+                #endif
+
                 Spacer().frame(height: 100)
 
                 // Logo (Golden film strip) - 30% smaller
@@ -54,32 +153,44 @@ struct LandingView: View {
                 .foregroundColor(GWColors.lightGray)
                 .opacity(textOpacity)
 
-                // User Profile Card (after 5+ uses)
-                if let archetype = userArchetype {
-                    Button {
-                        onProfileTap?()
-                    } label: {
-                        UserProfileCard(archetype: archetype)
-                    }
-                    .padding(.top, 24)
-                    .padding(.horizontal, 40)
-                    .opacity(profileOpacity)
-                }
-
                 Spacer()
 
-                // CTA button
-                Button(action: onContinue) {
-                    Text("Pick for me")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(GWColors.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(LinearGradient.goldGradient)
-                        .cornerRadius(30)
+                // Bottom action area
+                VStack(spacing: 14) {
+                    // Primary CTA
+                    Button(action: onContinue) {
+                        Text("Pick for me")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(GWColors.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(LinearGradient.goldGradient)
+                            .cornerRadius(30)
+                    }
+
+                    // Explore / Search button — always visible, auth gate inside ExploreView
+                    if let explore = onExplore {
+                        Button(action: explore) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 15, weight: .medium))
+                                Text("Explore & Search")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                            .foregroundColor(GWColors.lightGray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(GWColors.darkGray)
+                            .cornerRadius(30)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 30)
+                                    .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                            )
+                        }
+                    }
                 }
                 .padding(.horizontal, 40)
-                .padding(.bottom, 80)
+                .padding(.bottom, 60)
                 .opacity(textOpacity)
             }
         }
@@ -90,9 +201,45 @@ struct LandingView: View {
             withAnimation(.easeOut(duration: 0.6).delay(0.3)) {
                 textOpacity = 1
             }
-            // Profile card fades in slightly after text
-            withAnimation(.easeOut(duration: 0.5).delay(0.6)) {
-                profileOpacity = 1
+            // Preload all poster images concurrently, then reveal together
+            preloadPosters()
+        }
+    }
+
+    // MARK: - Poster Preloading
+
+    private func preloadPosters() {
+        Task {
+            await withTaskGroup(of: (Int, Image?).self) { group in
+                for (index, path) in backdropPosters.enumerated() {
+                    group.addTask {
+                        guard let url = URL(string: "https://image.tmdb.org/t/p/w200\(path)") else {
+                            return (index, nil)
+                        }
+                        do {
+                            let (data, _) = try await URLSession.shared.data(from: url)
+                            if let uiImage = UIImage(data: data) {
+                                return (index, Image(uiImage: uiImage))
+                            }
+                        } catch {}
+                        return (index, nil)
+                    }
+                }
+
+                var loaded: [Int: Image] = [:]
+                for await (index, image) in group {
+                    if let image = image {
+                        loaded[index] = image
+                    }
+                }
+
+                // Update all at once on main thread
+                await MainActor.run {
+                    posterImages = loaded
+                    withAnimation(.easeOut(duration: 0.6)) {
+                        postersReady = true
+                    }
+                }
             }
         }
     }
@@ -170,52 +317,3 @@ struct UserArchetype {
     }
 }
 
-// MARK: - User Profile Card
-
-struct UserProfileCard: View {
-    let archetype: UserArchetype
-
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Text(archetype.emoji)
-                    .font(.system(size: 20))
-
-                Text(archetype.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(GWColors.white)
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(GWColors.lightGray.opacity(0.6))
-            }
-
-            Text(archetype.description)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundColor(GWColors.lightGray.opacity(0.8))
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 8) {
-                ForEach(archetype.traits, id: \.self) { trait in
-                    Text(trait)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(GWColors.gold.opacity(0.9))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(GWColors.gold.opacity(0.12))
-                        .cornerRadius(8)
-                }
-                Spacer()
-            }
-        }
-        .padding(14)
-        .background(GWColors.darkGray)
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(GWColors.gold.opacity(0.2), lineWidth: 1)
-        )
-    }
-}

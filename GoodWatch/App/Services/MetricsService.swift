@@ -93,12 +93,6 @@ class MetricsService {
         Analytics.setUserProperty(authType, forName: "auth_type")
     }
 
-    /// Set user preferences as Firebase user properties
-    func setUserProperties(platformsCount: Int, preferredLanguage: String) {
-        Analytics.setUserProperty(String(platformsCount), forName: "platforms_count")
-        Analytics.setUserProperty(preferredLanguage, forName: "preferred_language")
-    }
-
     // MARK: - Track Event
 
     func track(_ event: MetricEvent, properties: [String: Any] = [:]) {
@@ -244,37 +238,4 @@ class MetricsService {
         flushToSupabase()
     }
 
-    // MARK: - Session Summary
-
-    func printSessionSummary() {
-        #if DEBUG
-        print("\n--- 📝 SESSION LOG SUMMARY ---")
-        if sessionLogs.isEmpty {
-            print("(No events recorded)")
-        } else {
-            let formatter = ISO8601DateFormatter()
-            for log in sessionLogs {
-                let timeStr = formatter.string(from: log.timestamp)
-                print("[\(timeStr)] \(log.event.rawValue) \t \(log.properties)")
-            }
-            print("Total events: \(sessionLogs.count)")
-        }
-        print("------------------------------\n")
-        #endif
-
-        // Flush remaining events to Supabase
-        flushToSupabase()
-    }
-
-    func clearLogs() {
-        sessionLogs.removeAll()
-    }
-
-    // MARK: - Event Counts (for local analytics)
-
-    var sessionEventCount: Int { sessionLogs.count }
-
-    func countEvents(of type: MetricEvent) -> Int {
-        sessionLogs.filter { $0.event == type }.count
-    }
 }

@@ -14,24 +14,26 @@ CREATE TABLE IF NOT EXISTS app_events (
 );
 
 -- Performance indexes for pipeline queries
-CREATE INDEX idx_app_events_user ON app_events(user_id);
-CREATE INDEX idx_app_events_device ON app_events(device_id);
-CREATE INDEX idx_app_events_event ON app_events(event_name);
-CREATE INDEX idx_app_events_created ON app_events(created_at DESC);
-CREATE INDEX idx_app_events_session ON app_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_app_events_user ON app_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_events_device ON app_events(device_id);
+CREATE INDEX IF NOT EXISTS idx_app_events_event ON app_events(event_name);
+CREATE INDEX IF NOT EXISTS idx_app_events_created ON app_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_events_session ON app_events(session_id);
 
 -- Composite index for common queries: "events by user in time range"
-CREATE INDEX idx_app_events_user_time ON app_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_events_user_time ON app_events(user_id, created_at DESC);
 
 -- Enable RLS
 ALTER TABLE app_events ENABLE ROW LEVEL SECURITY;
 
 -- Allow any authenticated or anonymous user to insert events (write-only from client)
+DROP POLICY IF EXISTS "Anyone can insert events" ON app_events;
 CREATE POLICY "Anyone can insert events"
     ON app_events FOR INSERT
     WITH CHECK (true);
 
 -- Users can only read their own events
+DROP POLICY IF EXISTS "Users read own events" ON app_events;
 CREATE POLICY "Users read own events"
     ON app_events FOR SELECT
     USING (

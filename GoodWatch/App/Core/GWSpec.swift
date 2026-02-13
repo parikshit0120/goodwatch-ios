@@ -171,7 +171,7 @@ struct GWMovie: Identifiable, Codable {
         if let cs = movie.composite_score, cs > 0 {
             self.composite_score = cs * 10
         } else if let imdb = movie.imdb_rating, let tmdb = movie.vote_average, imdb > 0 && tmdb > 0 {
-            self.composite_score = ((imdb * 0.7) + (tmdb * 0.3)) * 10
+            self.composite_score = ((imdb * 0.75) + (tmdb * 0.25)) * 10
         } else {
             self.composite_score = sourceRating * 10
         }
@@ -301,6 +301,7 @@ struct GWSpecInteraction: Codable {
         case not_tonight
         case abandoned
         case completed
+        case show_me_another  // Weak signal: user wasn't excited but didn't actively reject
     }
 
     init(userId: String, movieId: String, action: SpecInteractionAction) {
@@ -521,12 +522,31 @@ func recommendMovie(
 // MARK: - Section 7: Rejection Learning (Stateful, Persistent)
 
 /// Manages persistent tag weights for personalized scoring
+/// Tag weights are now PER-USER to prevent data mixing on shared devices
 class TagWeightStore {
     static let shared = TagWeightStore()
 
-    private let userDefaultsKey = "gw_tag_weights"
+    private let legacyKey = "gw_tag_weights"
+    private let keyPrefix = "gw_tag_weights_"
+    private var currentUserId: String?
 
     private init() {}
+
+    /// Set the current user for tag weight operations
+    func setUser(_ userId: String) {
+        // On first login, migrate legacy global weights to this user if they exist
+        if currentUserId == nil {
+            migrateGlobalWeightsIfNeeded(toUser: userId)
+        }
+        currentUserId = userId
+    }
+
+    private var userDefaultsKey: String {
+        if let userId = currentUserId {
+            return "\(keyPrefix)\(userId)"
+        }
+        return legacyKey // Fallback for pre-auth calls
+    }
 
     /// Get current tag weights (default 1.0 for all tags)
     func getWeights() -> [String: Double] {
@@ -553,12 +573,36 @@ class TagWeightStore {
     func resetWeights() {
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
+
+    /// Migrate legacy global weights to a user-specific key (one-time)
+    private func migrateGlobalWeightsIfNeeded(toUser userId: String) {
+        let userKey = "\(keyPrefix)\(userId)"
+        // Only migrate if user has no weights yet AND global weights exist
+        guard UserDefaults.standard.data(forKey: userKey) == nil,
+              let globalData = UserDefaults.standard.data(forKey: legacyKey) else {
+            return
+        }
+        UserDefaults.standard.set(globalData, forKey: userKey)
+        // Remove legacy global key to prevent confusion
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+
+        #if DEBUG
+        print("📦 Migrated global tag weights to user \(userId)")
+        #endif
+    }
 }
 
 /// Updates tag weights based on user action
-/// - completed: +0.1 (user liked movies with these tags)
-/// - not_tonight: -0.1 (user rejected movies with these tags)
-/// - abandoned: -0.3 (user strongly disliked movies with these tags)
+/// - watch_now: +0.15 (user chose to watch — meaningful positive reinforcement)
+/// - completed: +0.2 (user finished watching — strong positive signal)
+/// - not_tonight: -0.2 (user rejected movies with these tags — significant negative)
+/// - abandoned: -0.4 (user strongly disliked movies with these tags)
+/// - show_me_another: -0.05 (user wasn't excited — mild negative that accumulates)
+///
+/// Deltas are calibrated so learning produces visible ranking changes:
+/// - After 2 rejections of "dark" movies: weight goes 1.0 → 0.6 (meaningful shift)
+/// - After 1 watch of "feel_good": weight goes 1.0 → 1.15 (noticeable boost)
+/// - After 5 skips of same tag: weight drops by 0.25 (equivalent to 1 rejection)
 func updateTagWeights(
     tagWeights: [String: Double],
     movie: GWMovie,
@@ -567,16 +611,16 @@ func updateTagWeights(
     let delta: Double
     switch action {
     case .completed:
-        delta = 0.1
+        delta = 0.2
     case .not_tonight:
-        delta = -0.1
+        delta = -0.2
     case .abandoned:
-        delta = -0.3
+        delta = -0.4
     case .watch_now:
-        delta = 0 // No weight change for watch_now
+        delta = 0.15 // Meaningful positive reinforcement for acceptance
+    case .show_me_another:
+        delta = -0.05 // Mild negative: accumulates to meaningful signal after several skips
     }
-
-    guard delta != 0 else { return tagWeights }
 
     var updated = tagWeights
     for tag in movie.tags {

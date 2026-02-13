@@ -117,7 +117,9 @@ final class UserService: ObservableObject {
         // Exchange tokens with Supabase Auth
         let authResponse = try await exchangeGoogleToken(idToken: idToken, accessToken: accessToken)
 
-        // Check if user exists
+        // Check if user exists by email (handles cross-provider linking)
+        // Scenario: User signed up with Apple, uninstalled, reinstalled, now signing in with Google
+        // → Find existing account by email, reuse it (preserves all history)
         if let existingUser = try? await fetchUserByEmail(authResponse.email) {
             // Upgrade anonymous user if needed
             if existingUser.auth_provider == AuthProvider.anonymous.rawValue {
@@ -128,11 +130,24 @@ final class UserService: ObservableObject {
                 }
                 return upgradedUser
             }
+
+            #if DEBUG
+            if existingUser.auth_provider != AuthProvider.google.rawValue {
+                print("🔗 Account linking: Found existing \(existingUser.auth_provider) account for \(authResponse.email), reusing for Google sign-in")
+            }
+            #endif
+
             await MainActor.run {
                 self.currentUser = existingUser
                 self.isAuthenticated = true
             }
             cacheUserId(existingUser.id)
+
+            // Fetch profile
+            if let profile = try? await fetchProfile(userId: existingUser.id) {
+                await MainActor.run { self.currentProfile = profile }
+            }
+
             return existingUser
         }
 
@@ -188,7 +203,7 @@ final class UserService: ObservableObject {
         print("🍎 Apple Sign In: userId=\(appleUserId), email=\(email.isEmpty ? "(not provided)" : email)")
         #endif
 
-        // Check if user exists by Apple user ID (stored in device_id field for Apple users)
+        // 1. Check if user exists by Apple user ID (stored in device_id field for Apple users)
         if let existingUser = try? await fetchUserByDeviceId(appleUserId) {
             await MainActor.run {
                 self.currentUser = existingUser
@@ -204,7 +219,31 @@ final class UserService: ObservableObject {
             return existingUser
         }
 
-        // Create new user
+        // 2. Cross-provider account linking by email
+        //    Scenario: User signed up with Google, uninstalled, reinstalled, now signing in with Apple
+        //    → Find existing account by email, link Apple ID to it (preserves all history)
+        if !email.isEmpty, let existingUser = try? await fetchUserByEmail(email) {
+            #if DEBUG
+            print("🔗 Account linking: Found existing \(existingUser.auth_provider) account for \(email), linking with Apple")
+            #endif
+
+            // Update existing user: store Apple user ID in device_id so future Apple logins find it
+            let linkedUser = try await linkAppleId(existingUser, appleUserId: appleUserId)
+            await MainActor.run {
+                self.currentUser = linkedUser
+                self.isAuthenticated = true
+            }
+            cacheUserId(linkedUser.id)
+
+            // Fetch existing profile (preserves all watch history, preferences, tag weights)
+            if let profile = try? await fetchProfile(userId: linkedUser.id) {
+                await MainActor.run { self.currentProfile = profile }
+            }
+
+            return linkedUser
+        }
+
+        // 3. No existing account — create new user
         let user = GWUser(
             id: UUID(),
             auth_provider: AuthProvider.apple.rawValue,
@@ -377,6 +416,38 @@ final class UserService: ObservableObject {
         let users = try JSONDecoder().decode([GWUser].self, from: data)
         guard let user = users.first else { throw UserServiceError.notFound }
         return user
+    }
+
+    /// Link an Apple user ID to an existing account (cross-provider account linking)
+    /// Updates device_id to Apple user ID so future Apple Sign-Ins find this account
+    private func linkAppleId(_ user: GWUser, appleUserId: String) async throws -> GWUser {
+        let urlString = "\(baseURL)/rest/v1/users?id=eq.\(user.id.uuidString)"
+        guard let url = URL(string: urlString) else { throw UserServiceError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("return=representation", forHTTPHeaderField: "Prefer")
+
+        // Store Apple user ID in device_id so future Apple logins match
+        // Keep original auth_provider — the account was created with Google/other
+        let updateData: [String: Any] = [
+            "device_id": appleUserId
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw UserServiceError.updateFailed
+        }
+
+        let users = try JSONDecoder().decode([GWUser].self, from: data)
+        guard let updated = users.first else { throw UserServiceError.updateFailed }
+        return updated
     }
 
     private func upgradeUser(_ user: GWUser, toProvider provider: AuthProvider, email: String) async throws -> GWUser {

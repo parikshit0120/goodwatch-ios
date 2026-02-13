@@ -6,6 +6,7 @@ struct DurationSelectorView: View {
     @Binding var ctx: UserContext
     let onNext: () -> Void
     let onBack: () -> Void
+    var onHome: (() -> Void)? = nil
 
     @State private var selectedDuration: DurationOption?
     @State private var seriesAvailabilityMessage: String?
@@ -76,9 +77,22 @@ struct DurationSelectorView: View {
 
                     Spacer()
 
+                    AppLogo(size: 28)
+
+                    Spacer()
+
                     Text("3/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
+
+                    if let onHome = onHome {
+                        Button(action: onHome) {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 14))
+                                .foregroundColor(GWColors.lightGray)
+                        }
+                        .padding(.leading, 12)
+                    }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.top, 16)

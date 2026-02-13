@@ -26,10 +26,12 @@ CREATE INDEX IF NOT EXISTS idx_ops_log_status ON ops_log(status);
 -- RLS: allow anon inserts (scripts use anon key), reads for authenticated
 ALTER TABLE ops_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anon insert ops_log" ON ops_log;
 CREATE POLICY "Allow anon insert ops_log"
     ON ops_log FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow anon select ops_log" ON ops_log;
 CREATE POLICY "Allow anon select ops_log"
     ON ops_log FOR SELECT
     USING (true);

@@ -194,6 +194,14 @@ struct AuthView: View {
         switch result {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
+                // Cache display name from Apple (only available on first sign-in)
+                if let fullName = appleIDCredential.fullName {
+                    let parts = [fullName.givenName, fullName.familyName].compactMap { $0 }
+                    let name = parts.joined(separator: " ")
+                    if !name.isEmpty {
+                        UserDefaults.standard.set(name, forKey: "gw_user_display_name")
+                    }
+                }
                 Task {
                     do {
                         _ = try await UserService.shared.signInWithApple(credential: appleIDCredential)
@@ -278,6 +286,11 @@ struct AuthView: View {
             }
 
             let accessToken = user.accessToken.tokenString
+
+            // Cache display name from Google profile for Profile tab
+            if let name = user.profile?.name, !name.isEmpty {
+                UserDefaults.standard.set(name, forKey: "gw_user_display_name")
+            }
 
             // Sign in with Supabase using Google tokens
             Task {

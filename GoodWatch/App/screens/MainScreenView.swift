@@ -11,8 +11,13 @@ struct MainScreenView: View {
     let onNotTonight: () -> Void
     let onAlreadySeen: () -> Void
     let onStartOver: (() -> Void)?
+    let onExplore: (() -> Void)?
 
-    // Default initializer for backwards compatibility
+    #if DEBUG
+    let debugInfo: DebugRecommendationInfo?
+    #endif
+
+    // Default initializer
     init(
         movie: Movie,
         goodScore: Int,
@@ -21,7 +26,8 @@ struct MainScreenView: View {
         onWatchNow: @escaping (OTTProvider) -> Void,
         onNotTonight: @escaping () -> Void,
         onAlreadySeen: @escaping () -> Void,
-        onStartOver: (() -> Void)? = nil
+        onStartOver: (() -> Void)? = nil,
+        onExplore: (() -> Void)? = nil
     ) {
         self.movie = movie
         self.goodScore = goodScore
@@ -31,15 +37,42 @@ struct MainScreenView: View {
         self.onNotTonight = onNotTonight
         self.onAlreadySeen = onAlreadySeen
         self.onStartOver = onStartOver
+        self.onExplore = onExplore
+        #if DEBUG
+        self.debugInfo = nil
+        #endif
     }
+
+    #if DEBUG
+    // Debug initializer with recommendation info overlay
+    init(
+        movie: Movie,
+        goodScore: Int,
+        userOTTs: [OTTPlatform],
+        userMood: String? = nil,
+        onWatchNow: @escaping (OTTProvider) -> Void,
+        onNotTonight: @escaping () -> Void,
+        onAlreadySeen: @escaping () -> Void,
+        onStartOver: (() -> Void)? = nil,
+        onExplore: (() -> Void)? = nil,
+        debugInfo: DebugRecommendationInfo?
+    ) {
+        self.movie = movie
+        self.goodScore = goodScore
+        self.userOTTs = userOTTs
+        self.userMood = userMood
+        self.onWatchNow = onWatchNow
+        self.onNotTonight = onNotTonight
+        self.onAlreadySeen = onAlreadySeen
+        self.onStartOver = onStartOver
+        self.onExplore = onExplore
+        self.debugInfo = debugInfo
+    }
+    #endif
 
     @Environment(\.openURL) private var openURL
 
-    // FUTURE-PROOFING: Decision timing tracker (PLACEHOLDER)
-    // Tracks how long user takes to make a decision
-    // Quick decisions (< 3s) = strong preference/dislike
-    // Hesitant decisions (> 30s) = uncertainty
-    @State private var decisionTiming = GWDecisionTiming()
+    // Decision timing is now handled by RootFlowView via InteractionService.recordDecisionTiming()
 
     // Animation states
     @State private var posterOpacity: Double = 0
@@ -54,7 +87,11 @@ struct MainScreenView: View {
     @State private var buttonOffset: CGFloat = 20
     @State private var secondaryOpacity: Double = 0
     @State private var whyThisOpacity: Double = 0
-    @State private var alsoAvailableOpacity: Double = 0
+
+    // DEBUG: overlay toggle (triple-tap GoodScore box)
+    #if DEBUG
+    @State private var showDebugOverlay: Bool = false
+    #endif
 
     // MARK: - Causal "Why This" Copy
     // Connects the recommendation to user's stated mood preference
@@ -103,12 +140,12 @@ struct MainScreenView: View {
     // Primary CTA = user's selected platform
     // "Also available on" = other platforms the movie is on
 
-    /// Providers matching user's platforms (for primary CTA button)
-    private var matchingProviders: [OTTProvider] {
-        movie.matchingProviders(for: userOTTs)
+    /// Best provider for primary CTA (subscription-preferred)
+    private var primaryProvider: OTTProvider? {
+        movie.bestMatchingProvider(for: userOTTs)
     }
 
-    /// Providers NOT in user's platforms (for "Also available on" section)
+    /// Other supported providers NOT matching user's platforms (for "Also available on")
     private var otherProviders: [OTTProvider] {
         movie.otherProviders(excludingUserPlatforms: userOTTs)
     }
@@ -125,12 +162,22 @@ struct MainScreenView: View {
 
             VStack(spacing: 0) {
                 // Header
-                HStack {
+                HStack(spacing: 8) {
+                    AppLogo(size: 26)
+
                     Text("GoodWatch")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(LinearGradient.goldGradient)
 
                     Spacer()
+
+                    if let explore = onExplore {
+                        Button(action: explore) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 16))
+                                .foregroundColor(GWColors.lightGray)
+                        }
+                    }
 
                     if let startOver = onStartOver {
                         Button(action: startOver) {
@@ -153,8 +200,8 @@ struct MainScreenView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: 16)
 
-                    // Film Poster - smaller to fit screen
-                    ZStack {
+                    // Film Poster with content type badge
+                    ZStack(alignment: .topTrailing) {
                         if let url = movie.posterURL, let imageURL = URL(string: url) {
                             AsyncImage(url: imageURL) { phase in
                                 switch phase {
@@ -176,6 +223,16 @@ struct MainScreenView: View {
                         } else {
                             posterSkeleton
                         }
+
+                        // Content type badge (Movie / Series)
+                        Text(movie.contentTypeLabel)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(GWColors.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(GWColors.gold)
+                            .cornerRadius(GWRadius.sm)
+                            .padding(10)
                     }
                     .opacity(posterOpacity)
                     .scaleEffect(posterScale)
@@ -199,11 +256,32 @@ struct MainScreenView: View {
                             Text(movie.yearString)
                         }
                         Text("·")
-                        Text(formatRuntime(movie.runtimeMinutes))
+                        Text(movie.runtimeDisplay)
                     }
                     .font(GWTypography.small())
                     .foregroundColor(GWColors.lightGray)
                     .opacity(titleOpacity)
+
+                    // Genre Tag Chips
+                    if !movie.genreNames.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(movie.genreNames.prefix(3), id: \.self) { genre in
+                                Text(genre)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(GWColors.lightGray)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(GWColors.darkGray)
+                                    .cornerRadius(GWRadius.sm)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: GWRadius.sm)
+                                            .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                                    )
+                            }
+                        }
+                        .padding(.top, 6)
+                        .opacity(titleOpacity)
+                    }
 
                     // CAUSAL "WHY THIS" COPY
                     // Connects recommendation to user's stated mood preference
@@ -218,13 +296,13 @@ struct MainScreenView: View {
 
                     // 2-LINE PITCH: overview + credits
                     VStack(spacing: 6) {
-                        // Line 1: Brief overview
-                        if let overview = movie.overview, !overview.isEmpty {
+                        // Line 1: Succinct overview (first complete sentence)
+                        if let overview = movie.shortOverview {
                             Text(overview)
                                 .font(.system(size: 12, weight: .regular))
                                 .foregroundColor(GWColors.lightGray.opacity(0.85))
                                 .multilineTextAlignment(.center)
-                                .lineLimit(2)
+                                .lineLimit(3)
                                 .padding(.horizontal, 32)
                         }
 
@@ -250,119 +328,98 @@ struct MainScreenView: View {
                         numberScale: scoreNumberScale,
                         glowIntensity: scoreGlow
                     )
+                    #if DEBUG
+                    .onTapGesture(count: 3) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showDebugOverlay.toggle()
+                        }
+                    }
+                    #endif
 
                     Spacer()
 
-                    // Watch Now Button (Gold CTA) - Primary platform
-                    if let provider = matchingProviders.first {
-                        Button {
-                            // PLACEHOLDER: Record decision timing
-                            var timing = decisionTiming
-                            timing.recordDecision()
-                            #if DEBUG
-                            if let duration = timing.decisionDurationSeconds {
-                                let type = timing.isQuickDecision ? "QUICK" : (timing.isHesitantDecision ? "HESITANT" : "NORMAL")
-                                print("⏱️ Decision timing: \(String(format: "%.1f", duration))s (\(type)) - WATCH_NOW")
+                    // BOTTOM ACTION AREA — cleaner layout
+                    VStack(spacing: 14) {
+                        // Watch Now Button (Gold CTA) - subscription-preferred platform
+                        if let provider = primaryProvider {
+                            Button {
+                                openOTT(provider)
+                                onWatchNow(provider)
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 16))
+                                    Text("Watch on \(provider.displayName)")
+                                        .font(GWTypography.button())
+                                }
+                                .foregroundColor(GWColors.black)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(LinearGradient.goldGradient)
+                                .cornerRadius(GWRadius.lg)
                             }
-                            #endif
-
-                            openOTT(provider)
-                            onWatchNow(provider)
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 16))
-                                Text("Watch on \(provider.displayName)")
-                                    .font(GWTypography.button())
-                            }
-                            .foregroundColor(GWColors.black)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(LinearGradient.goldGradient)
-                            .cornerRadius(GWRadius.lg)
+                            .padding(.horizontal, GWSpacing.screenPadding)
+                            .opacity(buttonOpacity)
+                            .offset(y: buttonOffset)
                         }
-                        .padding(.horizontal, GWSpacing.screenPadding)
-                        .opacity(buttonOpacity)
-                        .offset(y: buttonOffset)
-                    }
 
-                    // "Also available on" section (PART 7)
-                    // Shows OTHER platforms the movie is available on
-                    if hasOtherProviders {
-                        VStack(spacing: 8) {
-                            Text("Also available on")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(GWColors.lightGray.opacity(0.8))
-
-                            HStack(spacing: 12) {
-                                ForEach(otherProviders.prefix(4), id: \.id) { provider in
-                                    Button {
-                                        openOTT(provider)
-                                    } label: {
-                                        Text(provider.displayName)
-                                            .font(.system(size: 12, weight: .medium))
-                                            .foregroundColor(GWColors.white.opacity(0.9))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(GWColors.darkGray)
-                                            .cornerRadius(GWRadius.sm)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: GWRadius.sm)
-                                                    .stroke(GWColors.surfaceBorder, lineWidth: 1)
-                                            )
+                        // Secondary actions row
+                        VStack(spacing: 10) {
+                            // Also available on (inline chips) — only when other providers exist
+                            if hasOtherProviders {
+                                HStack(spacing: 6) {
+                                    ForEach(otherProviders.prefix(3), id: \.id) { provider in
+                                        Button {
+                                            openOTT(provider)
+                                        } label: {
+                                            Text(provider.displayName)
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundColor(GWColors.lightGray)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 5)
+                                                .background(GWColors.darkGray)
+                                                .cornerRadius(GWRadius.sm)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: GWRadius.sm)
+                                                        .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                                                )
+                                        }
                                     }
                                 }
                             }
+
+                            // Not tonight · Already seen — always centered
+                            HStack(spacing: 16) {
+                                Button("Not tonight") {
+                                    onNotTonight()
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(GWColors.lightGray)
+
+                                Rectangle()
+                                    .fill(GWColors.lightGray.opacity(0.3))
+                                    .frame(width: 1, height: 16)
+
+                                Button("Already seen") {
+                                    onAlreadySeen()
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(GWColors.lightGray)
+                            }
                         }
-                        .padding(.top, 12)
-                        .opacity(alsoAvailableOpacity)
+                        .padding(.horizontal, GWSpacing.screenPadding)
+                        .opacity(secondaryOpacity)
                     }
 
-                    Spacer().frame(height: 16)
-
-                    // Secondary Actions
-                    HStack(spacing: 16) {
-                        Button("Not tonight") {
-                            // PLACEHOLDER: Record decision timing
-                            var timing = decisionTiming
-                            timing.recordDecision()
-                            #if DEBUG
-                            if let duration = timing.decisionDurationSeconds {
-                                let type = timing.isQuickDecision ? "QUICK" : (timing.isHesitantDecision ? "HESITANT" : "NORMAL")
-                                print("⏱️ Decision timing: \(String(format: "%.1f", duration))s (\(type)) - NOT_TONIGHT")
-                            }
-                            #endif
-
-                            onNotTonight()
-                        }
-                        .font(GWTypography.body(weight: .medium))
-                        .foregroundColor(GWColors.lightGray)
-
-                        Rectangle()
-                            .fill(GWColors.lightGray.opacity(0.3))
-                            .frame(width: 1, height: 20)
-
-                        Button("Already seen") {
-                            // PLACEHOLDER: Record decision timing
-                            var timing = decisionTiming
-                            timing.recordDecision()
-                            #if DEBUG
-                            if let duration = timing.decisionDurationSeconds {
-                                let type = timing.isQuickDecision ? "QUICK" : (timing.isHesitantDecision ? "HESITANT" : "NORMAL")
-                                print("⏱️ Decision timing: \(String(format: "%.1f", duration))s (\(type)) - ALREADY_SEEN")
-                            }
-                            #endif
-
-                            onAlreadySeen()
-                        }
-                        .font(GWTypography.body(weight: .medium))
-                        .foregroundColor(GWColors.lightGray)
-                    }
-                    .opacity(secondaryOpacity)
-
-                    Spacer().frame(height: 32)
+                    Spacer().frame(height: 24)
                 }
             }
+            // DEBUG: Overlay panel (triple-tap GoodScore to toggle)
+            #if DEBUG
+            if showDebugOverlay, let info = debugInfo {
+                debugOverlayView(info: info)
+            }
+            #endif
         }
         .onAppear {
             runRevealAnimation()
@@ -379,14 +436,71 @@ struct MainScreenView: View {
             )
     }
 
-    private func formatRuntime(_ minutes: Int) -> String {
-        let hours = minutes / 60
-        let mins = minutes % 60
-        if hours > 0 {
-            return "\(hours)h \(mins)m"
+    // MARK: - DEBUG Overlay
+
+    #if DEBUG
+    private func debugOverlayView(info: DebugRecommendationInfo) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header with close button
+            HStack {
+                Text("DEBUG")
+                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                    .foregroundColor(.red)
+                Spacer()
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showDebugOverlay = false
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(.bottom, 6)
+
+            debugRow("type", info.contentType)
+            debugRow("mood", info.mood)
+            debugRow("score", "\(info.displayedScore) (comp:\(String(format: "%.1f", info.compositeScore)) gs:\(String(format: "%.1f", info.goodscore)))")
+            debugRow("match", String(format: "%.3f", info.matchScore))
+            debugRow("runtime", "\(info.runtime)m")
+            debugRow("providers", "\(info.providerCount) supported")
+            debugRow("tags", info.tags.prefix(5).joined(separator: ", "))
+            debugRow("intent", info.intentTags.prefix(4).joined(separator: ", "))
+            debugRow("platforms", info.platforms.joined(separator: ", "))
+
+            if !info.allProviderNames.isEmpty {
+                debugRow("all OTT", info.allProviderNames.prefix(4).joined(separator: ", "))
+            }
         }
-        return "\(mins)m"
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black.opacity(0.92))
+        .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.red.opacity(0.4), lineWidth: 1)
+        )
+        .padding(.horizontal, 12)
+        .padding(.top, 50)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
+
+    private func debugRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Text(label)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundColor(.red.opacity(0.7))
+                .frame(width: 52, alignment: .trailing)
+            Text(value)
+                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(2)
+        }
+        .padding(.vertical, 1)
+    }
+    #endif
 
     private func openOTT(_ provider: OTTProvider) {
         if let deepLink = provider.deepLinkURL {
@@ -455,15 +569,8 @@ struct MainScreenView: View {
             }
         }
 
-        // Step 4.5: "Also available on" fades in (after 1.5s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.easeOut(duration: 0.25)) {
-                alsoAvailableOpacity = 1
-            }
-        }
-
-        // Step 5: Secondary Actions Fade In (after 1.7s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.7) {
+        // Step 5: Secondary Actions + OTT chips Fade In (after 1.6s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
             withAnimation(.easeIn(duration: 0.2)) {
                 secondaryOpacity = 1
             }
@@ -482,12 +589,6 @@ struct GoodScoreDisplay: View {
 
     @State private var innerGlowPulse: Double = 0
 
-    private var confidenceLabel: String {
-        if score >= 85 { return "High confidence" }
-        if score >= 70 { return "Safe pick tonight" }
-        return "Worth a watch"
-    }
-
     var body: some View {
         VStack(spacing: 4) {
             // Score Number
@@ -504,14 +605,8 @@ struct GoodScoreDisplay: View {
                 .foregroundColor(GWColors.lightGray)
                 .tracking(2)
                 .opacity(numberOpacity)
-
-            // Micro-label (confidence indicator)
-            Text(confidenceLabel)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(GWColors.gold.opacity(0.8))
-                .opacity(numberOpacity)
         }
-        .frame(width: 160, height: 130)
+        .frame(width: 140, height: 110)
         .background(
             ZStack {
                 GWColors.darkGray

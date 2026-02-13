@@ -14,18 +14,17 @@ struct RejectionSheetView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Overlay (tap to dismiss)
-            GWColors.overlay
-                .ignoresSafeArea()
-                .onTapGesture {
-                    onDismiss()
-                }
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // Tap-to-dismiss background — full screen
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onDismiss()
+                    }
 
-            // Sheet
-            VStack(spacing: 0) {
-                Spacer()
-
+                // Sheet content area — pinned to bottom
                 VStack(spacing: 0) {
                     // Drag handle
                     RoundedRectangle(cornerRadius: 2)
@@ -90,22 +89,29 @@ struct RejectionSheetView: View {
                             .foregroundColor(GWColors.lightGray)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
-                            .background(Color.clear)
+                            .contentShape(Rectangle())
                             .overlay(
                                 RoundedRectangle(cornerRadius: GWRadius.md)
                                     .stroke(GWColors.surfaceBorder, lineWidth: 1.5)
                             )
                             .cornerRadius(GWRadius.md)
                     }
+                    .buttonStyle(.plain)
                     .padding(.horizontal, GWSpacing.screenPadding)
 
                     Spacer().frame(height: 32)
                 }
-                .background(GWColors.darkGray)
+                .background(
+                    GWColors.darkGray
+                        .onTapGesture {
+                            // Prevent taps on sheet from dismissing
+                        }
+                )
                 .cornerRadius(GWRadius.xl, corners: [.topLeft, .topRight])
             }
-            .transition(.move(edge: .bottom))
         }
+        .ignoresSafeArea(edges: .bottom)
+        .transition(.move(edge: .bottom))
     }
 }
 
@@ -126,7 +132,9 @@ struct ReasonButton: View {
                         .stroke(GWColors.surfaceBorder, lineWidth: 1.5)
                 )
                 .cornerRadius(GWRadius.md)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
 

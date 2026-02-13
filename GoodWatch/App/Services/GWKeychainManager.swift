@@ -49,50 +49,6 @@ final class GWKeychainManager {
         return newId
     }
 
-    /// Check if anonymous user ID exists in Keychain
-    func hasAnonymousUserId() -> Bool {
-        return readFromKeychain(key: userIdKey) != nil
-    }
-
-    /// Clear anonymous user ID (for logout)
-    func clearAnonymousUserId() {
-        deleteFromKeychain(key: userIdKey)
-        #if DEBUG
-        print("🔑 Cleared anonymous user ID from Keychain")
-        #endif
-    }
-
-    // MARK: - Supabase Session Token
-
-    private let sessionTokenKey = "gw_supabase_session_token"
-    private let refreshTokenKey = "gw_supabase_refresh_token"
-
-    /// Store Supabase session token
-    func storeSessionToken(_ token: String) {
-        _ = saveToKeychain(key: sessionTokenKey, value: token)
-    }
-
-    /// Get Supabase session token
-    func getSessionToken() -> String? {
-        return readFromKeychain(key: sessionTokenKey)
-    }
-
-    /// Store Supabase refresh token
-    func storeRefreshToken(_ token: String) {
-        _ = saveToKeychain(key: refreshTokenKey, value: token)
-    }
-
-    /// Get Supabase refresh token
-    func getRefreshToken() -> String? {
-        return readFromKeychain(key: refreshTokenKey)
-    }
-
-    /// Clear all auth tokens
-    func clearAllTokens() {
-        deleteFromKeychain(key: sessionTokenKey)
-        deleteFromKeychain(key: refreshTokenKey)
-    }
-
     // MARK: - Onboarding State
 
     private let onboardingStepKey = "gw_onboarding_step"
@@ -109,11 +65,6 @@ final class GWKeychainManager {
             return 0
         }
         return step
-    }
-
-    /// Clear onboarding state
-    func clearOnboardingState() {
-        deleteFromKeychain(key: onboardingStepKey)
     }
 
     // MARK: - Private Keychain Operations
@@ -165,18 +116,5 @@ final class GWKeychainManager {
         ]
 
         SecItemDelete(query as CFDictionary)
-    }
-}
-
-// MARK: - UserService Integration
-
-extension GWKeychainManager {
-    /// Get stable user ID for all Supabase operations.
-    /// Uses Keychain-backed anonymous ID if not authenticated.
-    func getStableUserId(authenticatedUserId: UUID?) -> String {
-        if let authId = authenticatedUserId {
-            return authId.uuidString
-        }
-        return getOrCreateAnonymousUserId()
     }
 }

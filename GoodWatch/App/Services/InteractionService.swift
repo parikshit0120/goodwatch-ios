@@ -70,9 +70,8 @@ final class InteractionService {
     // MARK: - Record Watch Now
     func recordWatchNow(userId: UUID, movieId: UUID) async throws {
         try await recordInteraction(userId: userId, movieId: movieId, action: .watch_now)
-
-        // Schedule feedback prompt (in production, use local notifications)
-        scheduleFeedbackPrompt(userId: userId, movieId: movieId, delayHours: 2)
+        // Note: Post-watch feedback is handled by GWFeedbackEnforcer.schedulePostWatchFeedback()
+        // which is called from RootFlowView.handleWatchNow()
     }
 
     // MARK: - Record Not Tonight
@@ -325,17 +324,36 @@ final class InteractionService {
         }
     }
 
-    private func scheduleFeedbackPrompt(userId: UUID, movieId: UUID, delayHours: Int) {
-        // In production, schedule a local notification
-        // For now, store in UserDefaults
-        let key = "pending_feedback_\(movieId.uuidString)"
-        let promptTime = Date().addingTimeInterval(TimeInterval(delayHours * 3600))
-        UserDefaults.standard.set(promptTime.timeIntervalSince1970, forKey: key)
-        UserDefaults.standard.set(userId.uuidString, forKey: "\(key)_user")
+    // REMOVED: scheduleFeedbackPrompt() was writing orphaned UserDefaults keys
+    // (pending_feedback_<movieId>) that no code ever reads. Post-watch feedback
+    // is now handled entirely by GWFeedbackEnforcer using its own storage key
+    // (gw_pending_feedback_list). The old pending_feedback_ keys in existing
+    // installs will be harmless dead data in UserDefaults.
 
-        #if DEBUG
-        print("📅 Scheduled feedback prompt for \(delayHours) hours")
-        #endif
+    // MARK: - Get Recently Shown Movie IDs (Last 30 days)
+    /// Fetch movie IDs shown to the user in the last 30 days
+    /// Used to prevent recommending the same movie across sessions
+    func getRecentlyShownMovieIds(userId: UUID) async throws -> Set<UUID> {
+        let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -30, to: Date())!
+        let dateString = ISO8601DateFormatter().string(from: thirtyDaysAgo)
+
+        let urlString = "\(baseURL)/rest/v1/interactions?user_id=eq.\(userId.uuidString)&action=eq.shown&created_at=gte.\(dateString)&select=movie_id"
+        guard let url = URL(string: urlString) else { throw InteractionServiceError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        struct InteractionRow: Codable {
+            let movie_id: UUID
+        }
+
+        let rows = try JSONDecoder().decode([InteractionRow].self, from: data)
+        return Set(rows.map { $0.movie_id })
     }
 }
 
@@ -446,5 +464,88 @@ extension InteractionService {
     /// Get current learning data for a user (for debugging/analytics)
     func getLearningData(userId: UUID) -> (dimensional: GWDimensionalLearning, platformBias: GWPlatformBias) {
         return (loadDimensionalLearning(userId: userId), loadPlatformBias(userId: userId))
+    }
+
+    // MARK: - Decision Timing (Threshold-Gated)
+
+    /// Record how long the user spent looking at a recommendation before deciding.
+    /// Always collected. Only used in scoring once ≥20 timing samples exist.
+    ///
+    /// Design rationale:
+    /// - Quick accepts (< 5s): User recognized and wanted the movie → strong positive signal
+    /// - Long deliberation (> 30s) → accept: User was unsure but convinced → neutral
+    /// - Quick rejects (< 3s): User immediately knew they didn't want it → strong negative signal
+    /// - Long deliberation → reject: User gave it a chance → mild negative
+    ///
+    /// The timing data enriches the learning picture but requires sufficient samples
+    /// before it can meaningfully influence scoring (threshold = 20 decisions).
+    func recordDecisionTiming(
+        userId: UUID,
+        movieId: UUID,
+        decisionSeconds: TimeInterval,
+        wasAccepted: Bool
+    ) {
+        var timings = loadDecisionTimings(userId: userId)
+        timings.append(GWDecisionTiming(
+            movieId: movieId.uuidString,
+            decisionSeconds: decisionSeconds,
+            wasAccepted: wasAccepted,
+            timestamp: Date().timeIntervalSince1970
+        ))
+
+        // Keep only last 100 timing records to avoid unbounded growth
+        if timings.count > 100 {
+            timings = Array(timings.suffix(100))
+        }
+
+        saveDecisionTimings(timings, userId: userId)
+
+        #if DEBUG
+        let action = wasAccepted ? "accepted" : "rejected"
+        print("⏱️ Decision timing: \(String(format: "%.1f", decisionSeconds))s → \(action) for movie \(movieId)")
+        #endif
+    }
+
+    /// Get average decision time for accepts vs rejects (for future scoring use)
+    /// Returns nil if insufficient data (< 20 samples)
+    func getDecisionTimingInsights(userId: UUID) -> GWDecisionTimingInsights? {
+        let timings = loadDecisionTimings(userId: userId)
+
+        // Threshold gate: need at least 20 decisions to be meaningful
+        guard timings.count >= 20 else { return nil }
+
+        let accepts = timings.filter { $0.wasAccepted }
+        let rejects = timings.filter { !$0.wasAccepted }
+
+        let avgAcceptTime = accepts.isEmpty ? 0 :
+            accepts.map { $0.decisionSeconds }.reduce(0, +) / Double(accepts.count)
+        let avgRejectTime = rejects.isEmpty ? 0 :
+            rejects.map { $0.decisionSeconds }.reduce(0, +) / Double(rejects.count)
+
+        return GWDecisionTimingInsights(
+            totalDecisions: timings.count,
+            avgAcceptTimeSeconds: avgAcceptTime,
+            avgRejectTimeSeconds: avgRejectTime,
+            quickAcceptRate: Double(accepts.filter { $0.decisionSeconds < 5.0 }.count) /
+                             max(Double(accepts.count), 1.0)
+        )
+    }
+
+    // MARK: - Decision Timing Storage
+
+    private func loadDecisionTimings(userId: UUID) -> [GWDecisionTiming] {
+        let key = "gw_decision_timings_\(userId.uuidString)"
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let timings = try? JSONDecoder().decode([GWDecisionTiming].self, from: data) else {
+            return []
+        }
+        return timings
+    }
+
+    private func saveDecisionTimings(_ timings: [GWDecisionTiming], userId: UUID) {
+        let key = "gw_decision_timings_\(userId.uuidString)"
+        if let data = try? JSONEncoder().encode(timings) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 }

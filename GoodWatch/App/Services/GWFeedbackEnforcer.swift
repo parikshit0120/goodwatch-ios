@@ -179,11 +179,40 @@ final class GWFeedbackEnforcer {
     }
 
     private func updateTagWeightsForFeedback(movieId: String, status: GWFeedbackStatus) async {
-        // Get movie from Supabase to get tags
-        // For now, we rely on the engine's updateTagWeights being called from RootFlowView
-        #if DEBUG
-        print("📊 Tag weight update triggered for feedback: \(status.rawValue)")
-        #endif
+        guard SupabaseConfig.isConfigured else { return }
+
+        // Map feedback status to spec interaction action for tag weight update
+        let action: GWSpecInteraction.SpecInteractionAction
+        switch status {
+        case .completed:
+            action = .completed   // +0.1 to matching tags
+        case .abandoned:
+            action = .abandoned   // -0.3 to matching tags (strong negative signal)
+        case .skipped, .pending:
+            return // No tag weight change for skipped/pending
+        }
+
+        // Fetch movie from Supabase to derive tags for weight update
+        do {
+            let movies = try await SupabaseService.shared.fetchMovies(limit: 2000)
+            if let movie = movies.first(where: { $0.id.uuidString == movieId }) {
+                let gwMovie = GWMovie(from: movie)
+                let updatedWeights = updateTagWeights(
+                    tagWeights: TagWeightStore.shared.getWeights(),
+                    movie: gwMovie,
+                    action: action
+                )
+                TagWeightStore.shared.saveWeights(updatedWeights)
+
+                #if DEBUG
+                print("📊 Tag weights updated from feedback (\(status.rawValue)) for \(movie.title)")
+                #endif
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ Failed to update tag weights for feedback: \(error)")
+            #endif
+        }
     }
 
     private func addToSeenList(movieId: String, userId: String) async {
