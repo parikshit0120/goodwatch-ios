@@ -10,9 +10,10 @@ import SwiftUI
 struct ExploreView: View {
 
     enum Tab: String, CaseIterable {
-        // Short labels for bottom tab bar (must fit in 6 columns)
+        // Short labels for bottom tab bar (must fit in 7 columns)
         case discover = "Discover"
         case newReleases = "New"
+        case upcoming = "Soon"
         case byPlatform = "Platform"
         case rent = "Rent"
         case watchlist = "Saved"
@@ -22,6 +23,7 @@ struct ExploreView: View {
             switch self {
             case .discover: return "magnifyingglass"
             case .newReleases: return "sparkles"
+            case .upcoming: return "calendar.badge.clock"
             case .byPlatform: return "square.grid.2x2"
             case .rent: return "tag"
             case .watchlist: return "heart.fill"
@@ -34,6 +36,7 @@ struct ExploreView: View {
             switch self {
             case .discover: return "Discover"
             case .newReleases: return "New Releases"
+            case .upcoming: return "Upcoming"
             case .byPlatform: return "By Platform"
             case .rent: return "Rent"
             case .watchlist: return "Watchlist"
@@ -145,34 +148,56 @@ struct ExploreView: View {
     }
 
     // MARK: - Tab Content
-    // All tabs stay alive in a ZStack — hidden tabs use opacity(0) + disabled hit testing.
-    // This preserves ViewModels, image caches, and scroll positions across tab switches.
+    // Lazy tab rendering: only the active tab + previously visited tabs stay alive.
+    // This prevents 6 ViewModels from all fetching data simultaneously on entry.
+    @State private var visitedTabs: Set<Tab> = [.discover]
 
     private var tabContent: some View {
         ZStack {
-            DiscoverTab()
-                .opacity(selectedTab == .discover ? 1 : 0)
-                .allowsHitTesting(selectedTab == .discover)
+            if visitedTabs.contains(.discover) {
+                DiscoverTab()
+                    .opacity(selectedTab == .discover ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .discover)
+            }
 
-            NewReleasesTab()
-                .opacity(selectedTab == .newReleases ? 1 : 0)
-                .allowsHitTesting(selectedTab == .newReleases)
+            if visitedTabs.contains(.newReleases) {
+                NewReleasesTab()
+                    .opacity(selectedTab == .newReleases ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .newReleases)
+            }
 
-            PlatformTab()
-                .opacity(selectedTab == .byPlatform ? 1 : 0)
-                .allowsHitTesting(selectedTab == .byPlatform)
+            if visitedTabs.contains(.upcoming) {
+                UpcomingReleasesTab()
+                    .opacity(selectedTab == .upcoming ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .upcoming)
+            }
 
-            RentTab()
-                .opacity(selectedTab == .rent ? 1 : 0)
-                .allowsHitTesting(selectedTab == .rent)
+            if visitedTabs.contains(.byPlatform) {
+                PlatformTab()
+                    .opacity(selectedTab == .byPlatform ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .byPlatform)
+            }
 
-            WatchlistTab()
-                .opacity(selectedTab == .watchlist ? 1 : 0)
-                .allowsHitTesting(selectedTab == .watchlist)
+            if visitedTabs.contains(.rent) {
+                RentTab()
+                    .opacity(selectedTab == .rent ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .rent)
+            }
 
-            ProfileTab(onSignOut: onHome)
-                .opacity(selectedTab == .profile ? 1 : 0)
-                .allowsHitTesting(selectedTab == .profile)
+            if visitedTabs.contains(.watchlist) {
+                WatchlistTab()
+                    .opacity(selectedTab == .watchlist ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .watchlist)
+            }
+
+            if visitedTabs.contains(.profile) {
+                ProfileTab(onSignOut: onHome)
+                    .opacity(selectedTab == .profile ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .profile)
+            }
+        }
+        .onChange(of: selectedTab) { newTab in
+            visitedTabs.insert(newTab)
         }
     }
 

@@ -137,7 +137,7 @@ final class ExploreService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -210,7 +210,7 @@ final class ExploreService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -253,7 +253,7 @@ final class ExploreService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -267,97 +267,110 @@ final class ExploreService {
     // MARK: - New Release Counts (last 90 days, per platform)
 
     func fetchNewReleaseCounts() async throws -> [String: Int] {
-        var counts: [String: Int] = [:]
-
         let calendar = Calendar.current
         let cutoffDate = calendar.date(byAdding: .day, value: -90, to: Date()) ?? Date()
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
         let cutoff = formatter.string(from: cutoffDate)
 
-        for platform in ["Netflix", "Prime Video", "Jio Hotstar", "Apple TV+", "ZEE5", "SonyLIV"] {
-            do {
-                let platformPattern = platformToPattern(platform)
-                guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { continue }
-                components.queryItems = [
-                    URLQueryItem(name: "select", value: "count"),
-                    URLQueryItem(name: "ott_providers", value: "cs.\(platformPattern)"),
-                    URLQueryItem(name: "release_date", value: "gte.\(cutoff)"),
-                    URLQueryItem(name: "poster_path", value: "not.is.null"),
-                    URLQueryItem(name: "vote_average", value: "gt.0"),
-                    URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)")
-                ]
-                guard let url = components.url else { continue }
+        let platforms = ["Netflix", "Prime Video", "Jio Hotstar", "Apple TV+", "ZEE5", "SonyLIV"]
 
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue(anonKey, forHTTPHeaderField: "apikey")
-                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("exact", forHTTPHeaderField: "Prefer")
+        // Parallel fetch — all 6 platforms concurrently instead of sequentially
+        return await withTaskGroup(of: (String, Int).self) { group in
+            for platform in platforms {
+                group.addTask { [self] in
+                    do {
+                        let platformPattern = platformToPattern(platform)
+                        guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { return (platform, 0) }
+                        components.queryItems = [
+                            URLQueryItem(name: "select", value: "count"),
+                            URLQueryItem(name: "ott_providers", value: "cs.\(platformPattern)"),
+                            URLQueryItem(name: "release_date", value: "gte.\(cutoff)"),
+                            URLQueryItem(name: "poster_path", value: "not.is.null"),
+                            URLQueryItem(name: "vote_average", value: "gt.0"),
+                            URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)")
+                        ]
+                        guard let url = components.url else { return (platform, 0) }
 
-                let (data, response) = try await URLSession.shared.data(for: request)
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "GET"
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+                        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+                        request.setValue("exact", forHTTPHeaderField: "Prefer")
 
-                if let httpResponse = response as? HTTPURLResponse,
-                   (200...206).contains(httpResponse.statusCode) {
-                    // Parse count from content-range header
-                    if let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
-                       let total = contentRange.split(separator: "/").last,
-                       let count = Int(total) {
-                        counts[platform] = count
-                    }
+                        let (_, response) = try await GWNetworkSession.shared.data(for: request)
+
+                        if let httpResponse = response as? HTTPURLResponse,
+                           (200...206).contains(httpResponse.statusCode),
+                           let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
+                           let total = contentRange.split(separator: "/").last,
+                           let count = Int(total) {
+                            return (platform, count)
+                        }
+                    } catch {}
+                    return (platform, 0)
                 }
-            } catch {
-                counts[platform] = 0
             }
-        }
 
-        return counts
+            var counts: [String: Int] = [:]
+            for await (platform, count) in group {
+                counts[platform] = count
+            }
+            return counts
+        }
     }
 
     // MARK: - Full Catalog Counts (per platform, with quality filters)
 
     func fetchPlatformCounts() async throws -> [String: Int] {
-        var counts: [String: Int] = [:]
         let currentYear = Calendar.current.component(.year, from: Date())
+        let platforms = ["Netflix", "Prime Video", "Jio Hotstar", "Apple TV+", "ZEE5", "SonyLIV"]
 
-        for platform in ["Netflix", "Prime Video", "Jio Hotstar", "Apple TV+", "ZEE5", "SonyLIV"] {
-            do {
-                let platformPattern = platformToPattern(platform)
-                guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { continue }
-                components.queryItems = [
-                    URLQueryItem(name: "select", value: "count"),
-                    URLQueryItem(name: "ott_providers", value: "cs.\(platformPattern)"),
-                    URLQueryItem(name: "poster_path", value: "not.is.null"),
-                    URLQueryItem(name: "vote_average", value: "gt.0"),
-                    URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)"),
-                    URLQueryItem(name: "year", value: "lte.\(currentYear)")
-                ]
-                guard let url = components.url else { continue }
+        // Parallel fetch — all 6 platforms concurrently instead of sequentially
+        return await withTaskGroup(of: (String, Int).self) { group in
+            for platform in platforms {
+                group.addTask { [self] in
+                    do {
+                        let platformPattern = platformToPattern(platform)
+                        guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { return (platform, 0) }
+                        components.queryItems = [
+                            URLQueryItem(name: "select", value: "count"),
+                            URLQueryItem(name: "ott_providers", value: "cs.\(platformPattern)"),
+                            URLQueryItem(name: "poster_path", value: "not.is.null"),
+                            URLQueryItem(name: "vote_average", value: "gt.0"),
+                            URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)"),
+                            URLQueryItem(name: "year", value: "lte.\(currentYear)")
+                        ]
+                        guard let url = components.url else { return (platform, 0) }
 
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue(anonKey, forHTTPHeaderField: "apikey")
-                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "GET"
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+                        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+                        request.setValue("exact", forHTTPHeaderField: "Prefer")
 
-                let (_, response) = try await URLSession.shared.data(for: request)
+                        let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
-                if let httpResponse = response as? HTTPURLResponse,
-                   (200...206).contains(httpResponse.statusCode) {
-                    if let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
-                       let total = contentRange.split(separator: "/").last,
-                       let count = Int(total) {
-                        counts[platform] = count
-                    }
+                        if let httpResponse = response as? HTTPURLResponse,
+                           (200...206).contains(httpResponse.statusCode),
+                           let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
+                           let total = contentRange.split(separator: "/").last,
+                           let count = Int(total) {
+                            return (platform, count)
+                        }
+                    } catch {}
+                    return (platform, 0)
                 }
-            } catch {
-                counts[platform] = 0
             }
-        }
 
-        return counts
+            var counts: [String: Int] = [:]
+            for await (platform, count) in group {
+                counts[platform] = count
+            }
+            return counts
+        }
     }
 
     // MARK: - Rent/Buy Movies
@@ -397,7 +410,7 @@ final class ExploreService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -409,47 +422,53 @@ final class ExploreService {
     }
 
     func fetchRentalPlatformCounts() async throws -> [String: Int] {
-        var counts: [String: Int] = [:]
         let currentYear = Calendar.current.component(.year, from: Date())
         let rentalPlatforms = ["Apple TV", "Google Play Movies", "YouTube", "Amazon Video"]
 
-        for platform in rentalPlatforms {
-            do {
-                let dbName = dbRentalPlatformName(platform)
-                guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { continue }
-                components.queryItems = [
-                    URLQueryItem(name: "select", value: "count"),
-                    URLQueryItem(name: "ott_providers", value: "cs.[{\"name\":\"\(dbName)\",\"type\":\"rent\"}]"),
-                    URLQueryItem(name: "poster_path", value: "not.is.null"),
-                    URLQueryItem(name: "vote_average", value: "gt.0"),
-                    URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)"),
-                    URLQueryItem(name: "year", value: "lte.\(currentYear)")
-                ]
-                guard let url = components.url else { continue }
+        // Parallel fetch — all 4 rental platforms concurrently
+        return await withTaskGroup(of: (String, Int).self) { group in
+            for platform in rentalPlatforms {
+                group.addTask { [self] in
+                    do {
+                        let dbName = dbRentalPlatformName(platform)
+                        guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else { return (platform, 0) }
+                        components.queryItems = [
+                            URLQueryItem(name: "select", value: "count"),
+                            URLQueryItem(name: "ott_providers", value: "cs.[{\"name\":\"\(dbName)\",\"type\":\"rent\"}]"),
+                            URLQueryItem(name: "poster_path", value: "not.is.null"),
+                            URLQueryItem(name: "vote_average", value: "gt.0"),
+                            URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)"),
+                            URLQueryItem(name: "year", value: "lte.\(currentYear)")
+                        ]
+                        guard let url = components.url else { return (platform, 0) }
 
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue(anonKey, forHTTPHeaderField: "apikey")
-                request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "GET"
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+                        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+                        request.setValue("exact", forHTTPHeaderField: "Prefer")
 
-                let (_, response) = try await URLSession.shared.data(for: request)
+                        let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
-                if let httpResponse = response as? HTTPURLResponse,
-                   (200...206).contains(httpResponse.statusCode) {
-                    if let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
-                       let total = contentRange.split(separator: "/").last,
-                       let count = Int(total) {
-                        counts[platform] = count
-                    }
+                        if let httpResponse = response as? HTTPURLResponse,
+                           (200...206).contains(httpResponse.statusCode),
+                           let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
+                           let total = contentRange.split(separator: "/").last,
+                           let count = Int(total) {
+                            return (platform, count)
+                        }
+                    } catch {}
+                    return (platform, 0)
                 }
-            } catch {
-                counts[platform] = 0
             }
-        }
 
-        return counts
+            var counts: [String: Int] = [:]
+            for await (platform, count) in group {
+                counts[platform] = count
+            }
+            return counts
+        }
     }
 
     func fetchTotalRentalCount() async throws -> Int {
@@ -474,7 +493,7 @@ final class ExploreService {
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("exact", forHTTPHeaderField: "Prefer")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
         if let httpResponse = response as? HTTPURLResponse,
            (200...206).contains(httpResponse.statusCode),
@@ -521,7 +540,7 @@ final class ExploreService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -584,6 +603,167 @@ final class ExploreService {
         // Map UI name to DB name, then build raw JSON for JSONB containment
         let dbName = dbPlatformName(platform)
         return "[{\"name\":\"\(dbName)\"}]"
+    }
+
+    // MARK: - Upcoming Releases
+
+    func fetchUpcomingReleases(
+        section: String,
+        platform: String?,
+        contentType: String?,
+        limit: Int
+    ) async throws -> [UpcomingRelease] {
+        guard var components = URLComponents(string: "\(baseURL)/rest/v1/upcoming_releases") else {
+            throw ExploreServiceError.invalidURL
+        }
+        var queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "section", value: "eq.\(section)"),
+            URLQueryItem(name: "order", value: "popularity.desc.nullslast"),
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+
+        if let platform = platform {
+            queryItems.append(URLQueryItem(name: "platform", value: "eq.\(platform)"))
+        }
+
+        if let contentType = contentType {
+            switch contentType {
+            case "Movies":
+                queryItems.append(URLQueryItem(name: "content_type", value: "eq.movie"))
+            case "Series":
+                queryItems.append(URLQueryItem(name: "content_type", value: "eq.tv"))
+            default:
+                break
+            }
+        }
+
+        components.queryItems = queryItems
+        guard let url = components.url else { throw ExploreServiceError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw ExploreServiceError.fetchFailed
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([UpcomingRelease].self, from: data)
+    }
+
+    func fetchUpcomingSectionCounts() async throws -> [String: Int] {
+        var counts: [String: Int] = [:]
+
+        for section in ["theatrical", "ott"] {
+            guard var components = URLComponents(string: "\(baseURL)/rest/v1/upcoming_releases") else { continue }
+            components.queryItems = [
+                URLQueryItem(name: "select", value: "count"),
+                URLQueryItem(name: "section", value: "eq.\(section)")
+            ]
+            guard let url = components.url else { continue }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("exact", forHTTPHeaderField: "Prefer")
+
+            let (_, response) = try await GWNetworkSession.shared.data(for: request)
+
+            if let httpResponse = response as? HTTPURLResponse,
+               (200...206).contains(httpResponse.statusCode),
+               let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
+               let total = contentRange.split(separator: "/").last,
+               let count = Int(total) {
+                counts[section] = count
+            }
+        }
+        return counts
+    }
+
+    func fetchUpcomingPlatformCounts() async throws -> [String: Int] {
+        let platforms = ["Netflix", "Amazon Prime Video", "JioHotstar", "Apple TV+", "ZEE5", "SonyLIV"]
+
+        return await withTaskGroup(of: (String, Int).self) { group in
+            for platform in platforms {
+                group.addTask { [self] in
+                    do {
+                        guard var components = URLComponents(string: "\(baseURL)/rest/v1/upcoming_releases") else { return (platform, 0) }
+                        components.queryItems = [
+                            URLQueryItem(name: "select", value: "count"),
+                            URLQueryItem(name: "section", value: "eq.ott"),
+                            URLQueryItem(name: "platform", value: "eq.\(platform)")
+                        ]
+                        guard let url = components.url else { return (platform, 0) }
+
+                        var request = URLRequest(url: url)
+                        request.httpMethod = "GET"
+                        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+                        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+                        request.setValue("exact", forHTTPHeaderField: "Prefer")
+
+                        let (_, response) = try await GWNetworkSession.shared.data(for: request)
+
+                        if let httpResponse = response as? HTTPURLResponse,
+                           (200...206).contains(httpResponse.statusCode),
+                           let contentRange = httpResponse.value(forHTTPHeaderField: "content-range"),
+                           let total = contentRange.split(separator: "/").last,
+                           let count = Int(total) {
+                            return (platform, count)
+                        }
+                    } catch {}
+                    return (platform, 0)
+                }
+            }
+
+            var counts: [String: Int] = [:]
+            for await (platform, count) in group {
+                counts[platform] = count
+            }
+            return counts
+        }
+    }
+
+    /// Fetch movies by TMDB IDs — used for enriching upcoming releases with ratings
+    func fetchMoviesByTmdbIds(_ tmdbIds: [Int]) async throws -> [Movie] {
+        guard !tmdbIds.isEmpty else { return [] }
+
+        let idList = tmdbIds.map { "\($0)" }.joined(separator: ",")
+
+        guard var components = URLComponents(string: "\(baseURL)/rest/v1/movies") else {
+            throw ExploreServiceError.invalidURL
+        }
+        components.queryItems = [
+            URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "tmdb_id", value: "in.(\(idList))"),
+            URLQueryItem(name: "limit", value: "\(tmdbIds.count)")
+        ]
+        guard let url = components.url else { throw ExploreServiceError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw ExploreServiceError.fetchFailed
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([Movie].self, from: data)
     }
 
     private let languageToISO: [String: String] = [
