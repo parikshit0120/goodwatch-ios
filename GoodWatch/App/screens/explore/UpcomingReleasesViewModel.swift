@@ -51,13 +51,6 @@ class UpcomingReleasesViewModel: ObservableObject {
             case .ott: return "On OTTs"
             }
         }
-
-        var icon: String {
-            switch self {
-            case .theatrical: return "ticket"
-            case .ott: return "tv"
-            }
-        }
     }
 
     // MARK: - Published Properties
@@ -67,6 +60,7 @@ class UpcomingReleasesViewModel: ObservableObject {
     @Published var selectedSection: Section = .theatrical
     @Published var selectedPlatform: String?
     @Published var selectedContentType: String?
+    @Published var selectedGenre: String?
     @Published var selectedMovie: Movie?
     @Published var sectionCounts: [Section: Int] = [:]
     @Published var platformCounts: [String: Int] = [:]
@@ -80,6 +74,11 @@ class UpcomingReleasesViewModel: ObservableObject {
     ]
 
     static let contentTypes = ["Movies", "Series"]
+
+    static let genres = [
+        "Action", "Comedy", "Drama", "Horror", "Romance",
+        "Thriller", "Science Fiction", "Animation", "Crime", "Documentary"
+    ]
 
     // MARK: - Private
 
@@ -97,9 +96,9 @@ class UpcomingReleasesViewModel: ObservableObject {
     // MARK: - Publishers
 
     private func setupPublishers() {
-        Publishers.CombineLatest3($selectedSection, $selectedPlatform, $selectedContentType)
+        Publishers.CombineLatest4($selectedSection, $selectedPlatform, $selectedContentType, $selectedGenre)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .sink { [weak self] _, _, _ in
+            .sink { [weak self] _, _, _, _ in
                 self?.fetchItems()
             }
             .store(in: &cancellables)
@@ -113,12 +112,20 @@ class UpcomingReleasesViewModel: ObservableObject {
 
         currentFetchTask = Task {
             do {
-                let fetched = try await ExploreService.shared.fetchUpcomingReleases(
+                var fetched = try await ExploreService.shared.fetchUpcomingReleases(
                     section: selectedSection.rawValue,
                     platform: selectedPlatform,
                     contentType: selectedContentType,
-                    limit: 100
+                    limit: 200
                 )
+
+                // Client-side genre filter
+                if let genre = selectedGenre {
+                    fetched = fetched.filter { item in
+                        guard let genres = item.genreNames else { return false }
+                        return genres.contains(genre)
+                    }
+                }
 
                 // For OTT items, cross-reference movies table for ratings
                 let tmdbIds = fetched.map { $0.tmdb_id }

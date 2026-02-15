@@ -25,6 +25,9 @@ struct UpcomingReleasesTab: View {
             // Content type filter
             contentTypeFilter
 
+            // Genre filter
+            genreFilter
+
             // Movie list
             movieList
         }
@@ -38,19 +41,11 @@ struct UpcomingReleasesTab: View {
                 Button {
                     viewModel.selectedSection = section
                 } label: {
-                    VStack(spacing: 2) {
-                        HStack(spacing: 4) {
-                            Image(systemName: section.icon)
-                                .font(.system(size: 12))
-                            Text(section.displayName)
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        Text("\(viewModel.sectionCounts[section] ?? 0)")
-                            .font(.system(size: 11, weight: .medium))
-                    }
+                    Text("\(section.displayName) (\(viewModel.sectionCounts[section] ?? 0))")
+                        .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(viewModel.selectedSection == section ? GWColors.black : GWColors.lightGray)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .background(viewModel.selectedSection == section ? GWColors.gold : GWColors.darkGray)
                 }
             }
@@ -112,6 +107,30 @@ struct UpcomingReleasesTab: View {
             .padding(.horizontal, 16)
         }
         .padding(.top, 10)
+    }
+
+    // MARK: - Genre Filter
+
+    private var genreFilter: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                GenreChip(
+                    title: "All Genres",
+                    isSelected: viewModel.selectedGenre == nil,
+                    action: { viewModel.selectedGenre = nil }
+                )
+
+                ForEach(UpcomingReleasesViewModel.genres, id: \.self) { genre in
+                    GenreChip(
+                        title: genre,
+                        isSelected: viewModel.selectedGenre == genre,
+                        action: { viewModel.selectedGenre = genre }
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.top, 8)
     }
 
     // MARK: - Movie List
@@ -356,5 +375,30 @@ struct UpcomingListCard: View {
             return LinearGradient(colors: [Color(hex: "555555"), Color(hex: "333333")], startPoint: .top, endPoint: .bottom)
         }
         return LinearGradient(colors: [GWColors.lightGray, GWColors.lightGray.opacity(0.8)], startPoint: .top, endPoint: .bottom)
+    }
+}
+
+// MARK: - Genre Chip
+
+struct GenreChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isSelected ? GWColors.gold : GWColors.lightGray)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? GWColors.gold.opacity(0.15) : Color.clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: GWRadius.md)
+                        .stroke(isSelected ? GWColors.gold : GWColors.surfaceBorder, lineWidth: 1)
+                )
+                .cornerRadius(GWRadius.md)
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 }
