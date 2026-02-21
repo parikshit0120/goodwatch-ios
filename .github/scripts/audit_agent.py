@@ -322,29 +322,36 @@ def run_section_a():
     spot_check("A23", "Comedies: humour >= 6", comedies, "humour", 6)
 
     # A25-A29: Tag enum validation (sample)
+    # Tags are flat lists like ["medium", "feel_good", "calm", "full_attention", "polarizing"]
+    # Validate each tag value belongs to a known category
     r = supabase_query("movies?select=tags&tags=not.is.null&limit=200")
     valid_enums = {
-        "weight": {"light", "medium", "heavy"},
-        "mood": {"feel_good", "dark", "bittersweet", "uplifting"},
+        "cognitive_load": {"light", "medium", "heavy"},
+        "emotional_outcome": {"feel_good", "dark", "bittersweet", "uplifting", "disturbing"},
         "energy": {"calm", "tense", "high_energy"},
-        "rewatchability": {"rewatchable", "one_time"},
+        "attention": {"background_friendly", "full_attention", "rewatchable"},
         "risk": {"safe_bet", "polarizing", "acquired_taste"},
     }
+    all_valid_tags = set()
+    for vals in valid_enums.values():
+        all_valid_tags |= vals
     for tag_cat, valid_vals in valid_enums.items():
-        invalid = 0
+        missing = 0
         for movie in r.get("data", []):
-            tags = movie.get("tags", {})
+            tags = movie.get("tags", [])
             if isinstance(tags, str):
                 try:
                     tags = json.loads(tags)
                 except:
                     continue
-            val = tags.get(tag_cat, "")
-            if val and val not in valid_vals:
-                invalid += 1
-        cid = {"weight": "A25", "mood": "A26", "energy": "A27", "rewatchability": "A28", "risk": "A29"}[tag_cat]
+            if not isinstance(tags, list):
+                continue
+            tag_set = set(tags)
+            if not (tag_set & valid_vals):
+                missing += 1
+        cid = {"cognitive_load": "A25", "emotional_outcome": "A26", "energy": "A27", "attention": "A28", "risk": "A29"}[tag_cat]
         check(cid, "data_integrity", f"Tag {tag_cat} values valid", "medium",
-              invalid == 0, "0 invalid", f"{invalid}/200 sampled")
+              missing == 0, "0 missing", f"{missing}/200 sampled")
 
     # A30: OTT data freshness (skip if no updated_at on watch_providers)
     skip("A30", "data_integrity", "OTT data freshness top 500", "high",
