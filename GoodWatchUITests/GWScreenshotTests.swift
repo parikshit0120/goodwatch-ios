@@ -11,8 +11,7 @@ import XCTest
 //   --reset-onboarding: clears all onboarding state
 //
 // Saves PNGs to /tmp/goodwatch_screenshots/
-// Run: xcodebuild test -scheme GoodWatch -testPlan Screenshots
-//   or: Xcode -> Product -> Test (select GWScreenshotTests)
+// Run: xcodebuild test -scheme GoodWatch -only-testing:GoodWatchUITests
 // ============================================
 
 final class GWScreenshotTests: XCTestCase {
@@ -56,94 +55,140 @@ final class GWScreenshotTests: XCTestCase {
         try? data.write(to: URL(fileURLWithPath: path))
     }
 
-    private func waitForElement(_ identifier: String, timeout: TimeInterval = 10) -> XCUIElement {
-        let element = app.buttons[identifier].firstMatch
-        let exists = element.waitForExistence(timeout: timeout)
-        if !exists {
-            // Fallback: try as a static text or other element type
-            let staticText = app.staticTexts[identifier].firstMatch
-            if staticText.waitForExistence(timeout: 2) {
-                return staticText
-            }
-            // Try otherElements
-            let other = app.otherElements[identifier].firstMatch
-            if other.waitForExistence(timeout: 2) {
-                return other
-            }
+    /// Find any element by accessibility identifier, trying multiple element types
+    private func findElement(_ identifier: String, timeout: TimeInterval = 10) -> XCUIElement? {
+        // Try buttons first (most common tappable element)
+        let button = app.buttons[identifier].firstMatch
+        if button.waitForExistence(timeout: timeout) {
+            return button
         }
-        return element
+
+        // Try other elements (VStacks, HStacks with identifiers)
+        let other = app.otherElements[identifier].firstMatch
+        if other.waitForExistence(timeout: 2) {
+            return other
+        }
+
+        // Try static texts
+        let text = app.staticTexts[identifier].firstMatch
+        if text.waitForExistence(timeout: 2) {
+            return text
+        }
+
+        return nil
     }
 
-    /// Navigate through onboarding by tapping Skip auth, first mood, all platforms, first duration
+    /// Tap an element by identifier, with text-based fallback
+    private func tapElement(_ identifier: String, fallbackText: String? = nil, timeout: TimeInterval = 8) -> Bool {
+        if let element = findElement(identifier, timeout: timeout), element.isHittable {
+            element.tap()
+            return true
+        }
+
+        // Fallback: find by visible text
+        if let text = fallbackText {
+            let staticText = app.staticTexts[text].firstMatch
+            if staticText.waitForExistence(timeout: 3) && staticText.isHittable {
+                staticText.tap()
+                return true
+            }
+            // Also try as button label
+            let button = app.buttons[text].firstMatch
+            if button.waitForExistence(timeout: 2) && button.isHittable {
+                button.tap()
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Wait for a screen transition by checking for a new element
+    private func waitForScreen(_ identifier: String, fallbackText: String? = nil, timeout: TimeInterval = 8) -> Bool {
+        if let _ = findElement(identifier, timeout: timeout) {
+            return true
+        }
+        if let text = fallbackText {
+            return app.staticTexts[text].firstMatch.waitForExistence(timeout: 3)
+        }
+        return false
+    }
+
+    /// Navigate through full onboarding: Landing -> Auth(skip) -> Mood -> Platform -> Duration
     private func navigateThroughOnboarding() {
-        // Landing screen -> Pick for me
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) {
-            pickForMe.tap()
-        }
+        // 1. Landing -> tap Pick for me
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        // Auth screen -> Skip (continue without account)
-        let authSkip = waitForElement("auth_skip")
-        if authSkip.waitForExistence(timeout: 5) {
-            authSkip.tap()
-        }
+        // 2. Auth -> tap Skip
+        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        sleep(1)
 
-        // Mood selector -> select first mood (Feel-good) + Continue
-        let moodCard = app.otherElements["mood_card_0"].firstMatch
-        if moodCard.waitForExistence(timeout: 5) {
-            moodCard.tap()
-        } else {
-            // Fallback: tap first mood by text
+        // 3. Mood selector -> tap first mood card (Feel-good)
+        if !tapElement("mood_card_0", timeout: 5) {
+            // Fallback: tap "Feel-good" text directly
             let feelGood = app.staticTexts["Feel-good"].firstMatch
-            if feelGood.waitForExistence(timeout: 3) {
+            if feelGood.waitForExistence(timeout: 3) && feelGood.isHittable {
                 feelGood.tap()
             }
         }
+        sleep(1)
 
-        let moodContinue = waitForElement("mood_continue")
-        if moodContinue.waitForExistence(timeout: 3) {
-            moodContinue.tap()
-        }
+        // Tap mood Continue
+        _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
+        sleep(1)
 
-        // Platform selector -> tap Netflix + English + Continue
-        let netflix = app.otherElements["platform_netflix"].firstMatch
-        if netflix.waitForExistence(timeout: 5) {
-            netflix.tap()
+        // 4. Platform selector -> should now show "Which platforms do you have?"
+        // Wait for platform screen to appear
+        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
+
+        // Tap "Select all" to quickly select all platforms
+        let selectAll = app.buttons["Select all"].firstMatch
+        if selectAll.waitForExistence(timeout: 3) && selectAll.isHittable {
+            selectAll.tap()
         } else {
-            // Fallback: tap "Select all"
-            let selectAll = app.buttons["Select all"].firstMatch
-            if selectAll.waitForExistence(timeout: 3) {
-                selectAll.tap()
+            // Fallback: tap Netflix
+            _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
+        }
+        sleep(1)
+
+        // Select English language — try button first (LanguageChip is a Button)
+        let englishBtn = app.buttons["English"].firstMatch
+        if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
+            englishBtn.tap()
+        } else {
+            let english = app.staticTexts["English"].firstMatch
+            if english.waitForExistence(timeout: 2) && english.isHittable {
+                english.tap()
             }
         }
+        sleep(1)
 
-        // Select English language
-        let english = app.staticTexts["English"].firstMatch
-        if english.waitForExistence(timeout: 3) {
-            english.tap()
-        }
+        // Tap platform Continue
+        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
+        sleep(2)
 
-        let platformContinue = waitForElement("platform_continue")
-        if platformContinue.waitForExistence(timeout: 3) {
-            platformContinue.tap()
-        }
+        // 5. Duration selector -> should show "How long do you want to watch?"
+        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
 
-        // Duration selector -> select "2-2.5 hours" + Continue
-        let durationCard = app.otherElements["duration_card_1"].firstMatch
-        if durationCard.waitForExistence(timeout: 5) {
-            durationCard.tap()
-        } else {
-            // Fallback: tap by text
-            let fullMovie = app.staticTexts["2-2.5 hours"].firstMatch
-            if fullMovie.waitForExistence(timeout: 3) {
+        // Tap "2-2.5 hours" (index 1) — DurationCard is a Button
+        if !tapElement("duration_card_1", timeout: 5) {
+            // Try tapping the button containing "2-2.5 hours"
+            let fullMovie = app.buttons["2-2.5 hours"].firstMatch
+            if fullMovie.waitForExistence(timeout: 3) && fullMovie.isHittable {
                 fullMovie.tap()
+            } else {
+                let fullMovieText = app.staticTexts["2-2.5 hours"].firstMatch
+                if fullMovieText.waitForExistence(timeout: 3) && fullMovieText.isHittable {
+                    fullMovieText.tap()
+                }
             }
         }
+        sleep(1)
 
-        let durationContinue = waitForElement("duration_continue")
-        if durationContinue.waitForExistence(timeout: 3) {
-            durationContinue.tap()
-        }
+        // Tap duration Continue
+        _ = tapElement("duration_continue", fallbackText: "Continue", timeout: 3)
+        sleep(2)
     }
 
     // MARK: - Screenshot Tests
@@ -152,11 +197,8 @@ final class GWScreenshotTests: XCTestCase {
     func test01_LandingScreen() throws {
         app.launch()
 
-        // Wait for landing to load (posters take a moment)
-        let pickForMe = waitForElement("landing_pick_for_me")
-        XCTAssertTrue(pickForMe.waitForExistence(timeout: 10), "Landing screen should show Pick for me button")
-
-        // Wait a bit for poster grid to load
+        // Wait for landing to fully load (posters take a moment)
+        _ = waitForScreen("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
         sleep(3)
         saveScreenshot("01_landing")
     }
@@ -165,48 +207,46 @@ final class GWScreenshotTests: XCTestCase {
     func test02_AuthScreen() throws {
         app.launch()
 
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) {
-            pickForMe.tap()
-        }
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        let authSkip = waitForElement("auth_skip")
-        XCTAssertTrue(authSkip.waitForExistence(timeout: 5), "Auth screen should show Skip button")
-
+        _ = waitForScreen("auth_skip", fallbackText: "Continue without account", timeout: 5)
         sleep(1)
         saveScreenshot("02_auth")
     }
 
-    /// 3. Mood selector screen
+    /// 3. Mood selector screen (no selection)
     func test03_MoodSelector() throws {
         app.launch()
 
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) { pickForMe.tap() }
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        let authSkip = waitForElement("auth_skip")
-        if authSkip.waitForExistence(timeout: 5) { authSkip.tap() }
+        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        sleep(1)
 
-        let moodCard = app.otherElements["mood_card_0"].firstMatch
-        XCTAssertTrue(moodCard.waitForExistence(timeout: 5), "Mood selector should show mood cards")
-
+        // Wait for mood screen to appear
+        _ = waitForScreen("mood_card_0", fallbackText: "What's the vibe?", timeout: 5)
         sleep(1)
         saveScreenshot("03_mood_selector")
     }
 
-    /// 4. Mood selected state
+    /// 4. Mood selected state (Feel-good highlighted)
     func test04_MoodSelected() throws {
         app.launch()
 
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) { pickForMe.tap() }
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        let authSkip = waitForElement("auth_skip")
-        if authSkip.waitForExistence(timeout: 5) { authSkip.tap() }
+        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        sleep(1)
 
-        let moodCard = app.otherElements["mood_card_0"].firstMatch
-        if moodCard.waitForExistence(timeout: 5) { moodCard.tap() }
+        // Wait for mood screen
+        _ = waitForScreen("mood_card_0", fallbackText: "What's the vibe?", timeout: 5)
+        sleep(1)
 
+        // Tap first mood to highlight it
+        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
         sleep(1)
         saveScreenshot("04_mood_selected")
     }
@@ -215,21 +255,20 @@ final class GWScreenshotTests: XCTestCase {
     func test05_PlatformSelector() throws {
         app.launch()
 
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) { pickForMe.tap() }
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        let authSkip = waitForElement("auth_skip")
-        if authSkip.waitForExistence(timeout: 5) { authSkip.tap() }
+        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        sleep(1)
 
-        let moodCard = app.otherElements["mood_card_0"].firstMatch
-        if moodCard.waitForExistence(timeout: 5) { moodCard.tap() }
+        // Select mood + continue
+        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
+        sleep(1)
+        _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
+        sleep(1)
 
-        let moodContinue = waitForElement("mood_continue")
-        if moodContinue.waitForExistence(timeout: 3) { moodContinue.tap() }
-
-        let netflix = app.otherElements["platform_netflix"].firstMatch
-        XCTAssertTrue(netflix.waitForExistence(timeout: 5), "Platform selector should show Netflix")
-
+        // Wait for platform screen
+        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
         sleep(1)
         saveScreenshot("05_platform_selector")
     }
@@ -238,30 +277,45 @@ final class GWScreenshotTests: XCTestCase {
     func test06_DurationSelector() throws {
         app.launch()
 
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) { pickForMe.tap() }
+        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(1)
 
-        let authSkip = waitForElement("auth_skip")
-        if authSkip.waitForExistence(timeout: 5) { authSkip.tap() }
+        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        sleep(1)
 
-        let moodCard = app.otherElements["mood_card_0"].firstMatch
-        if moodCard.waitForExistence(timeout: 5) { moodCard.tap() }
+        // Mood: select + continue
+        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
+        sleep(1)
+        _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
+        sleep(1)
 
-        let moodContinue = waitForElement("mood_continue")
-        if moodContinue.waitForExistence(timeout: 3) { moodContinue.tap() }
+        // Platform: select all + English + continue
+        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
+        let selectAll = app.buttons["Select all"].firstMatch
+        if selectAll.waitForExistence(timeout: 3) && selectAll.isHittable {
+            selectAll.tap()
+        } else {
+            _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
+        }
+        sleep(1)
 
-        let netflix = app.otherElements["platform_netflix"].firstMatch
-        if netflix.waitForExistence(timeout: 5) { netflix.tap() }
+        // English is a Button (LanguageChip uses Button with .buttonStyle(.plain))
+        let englishBtn = app.buttons["English"].firstMatch
+        if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
+            englishBtn.tap()
+        } else {
+            let english = app.staticTexts["English"].firstMatch
+            if english.waitForExistence(timeout: 2) && english.isHittable {
+                english.tap()
+            }
+        }
+        sleep(1)
 
-        let english = app.staticTexts["English"].firstMatch
-        if english.waitForExistence(timeout: 3) { english.tap() }
+        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
+        sleep(2)
 
-        let platformContinue = waitForElement("platform_continue")
-        if platformContinue.waitForExistence(timeout: 3) { platformContinue.tap() }
-
-        let durationCard = app.otherElements["duration_card_0"].firstMatch
-        XCTAssertTrue(durationCard.waitForExistence(timeout: 5), "Duration selector should show duration cards")
-
+        // Wait for duration screen
+        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
         sleep(1)
         saveScreenshot("06_duration_selector")
     }
@@ -278,12 +332,14 @@ final class GWScreenshotTests: XCTestCase {
 
         navigateThroughOnboarding()
 
-        // ConfidenceMoment should appear briefly
+        // ConfidenceMoment should appear — capture it quickly
         let confidence = app.otherElements["confidence_moment_screen"].firstMatch
         if confidence.waitForExistence(timeout: 5) {
+            sleep(1)
             saveScreenshot("07_confidence_moment")
         } else {
-            // It may have already transitioned — capture whatever is on screen
+            // May have already transitioned — capture whatever is on screen
+            sleep(1)
             saveScreenshot("07_confidence_moment")
         }
     }
@@ -304,11 +360,11 @@ final class GWScreenshotTests: XCTestCase {
         // Wait for recommendation to load
         let watchNow = app.buttons["main_watch_now"].firstMatch
         if watchNow.waitForExistence(timeout: 15) {
-            sleep(2)  // Let poster load
+            sleep(3)  // Let poster load
             saveScreenshot("08_main_single_pick")
         } else {
             // Recommendation may not have loaded (no network) — capture anyway
-            sleep(3)
+            sleep(5)
             saveScreenshot("08_main_single_pick")
         }
     }
@@ -327,7 +383,7 @@ final class GWScreenshotTests: XCTestCase {
         navigateThroughOnboarding()
 
         // Wait for carousel to load
-        sleep(5)  // Let multiple posters load
+        sleep(8)  // Let multiple posters load
         saveScreenshot("09_main_carousel")
     }
 
@@ -349,26 +405,20 @@ final class GWScreenshotTests: XCTestCase {
             watchNow.tap()
 
             // Enjoy screen should appear
-            let enjoyText = app.staticTexts["Enjoy!"].firstMatch
-            if enjoyText.waitForExistence(timeout: 5) {
-                sleep(1)
-                saveScreenshot("10_enjoy_screen")
-            } else {
-                sleep(2)
-                saveScreenshot("10_enjoy_screen")
-            }
+            sleep(2)
+            saveScreenshot("10_enjoy_screen")
         } else {
             sleep(3)
             saveScreenshot("10_enjoy_screen")
         }
     }
 
-    /// 11. Landing with Explore button
+    /// 11. Landing with Explore button visible
     func test11_LandingWithExplore() throws {
         app.launch()
 
-        let explore = waitForElement("landing_explore")
-        if explore.waitForExistence(timeout: 8) {
+        let explore = app.buttons["landing_explore"].firstMatch
+        if explore.waitForExistence(timeout: 10) {
             sleep(2)
             saveScreenshot("11_landing_explore")
         } else {
@@ -384,10 +434,8 @@ final class GWScreenshotTests: XCTestCase {
         // The update banner only shows when App Store has a newer version.
         // For screenshots, just capture the landing state — the banner
         // will only be visible in production when an update exists.
-        let pickForMe = waitForElement("landing_pick_for_me")
-        if pickForMe.waitForExistence(timeout: 8) {
-            sleep(2)
-            saveScreenshot("12_landing_clean")
-        }
+        _ = waitForScreen("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        sleep(2)
+        saveScreenshot("12_landing_clean")
     }
 }

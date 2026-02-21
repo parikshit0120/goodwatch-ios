@@ -201,43 +201,43 @@ struct MoodCard: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Movie poster thumbnail on left edge
-            GWCachedImage(url: TMDBImageSize.url(path: posterPath, size: .w154)) {
-                Color.clear
+        Button(action: action) {
+            HStack(spacing: 0) {
+                // Movie poster thumbnail on left edge
+                GWCachedImage(url: TMDBImageSize.url(path: posterPath, size: .w154)) {
+                    Color.clear
+                }
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 56, height: 72)
+                .clipped()
+                .opacity(0.9)
+
+                // Text content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(GWColors.white)
+
+                    Text(subtitle)
+                        .font(GWTypography.small())
+                        .foregroundColor(GWColors.lightGray)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+
+                Spacer()
             }
-            .aspectRatio(contentMode: .fill)
-            .frame(width: 56, height: 72)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 72)
+            .background(isSelected ? GWColors.darkGray : GWColors.darkGray.opacity(0.6))
+            .cornerRadius(GWRadius.md)
             .clipped()
-            .opacity(0.9)
-
-            // Text content
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(GWColors.white)
-
-                Text(subtitle)
-                    .font(GWTypography.small())
-                    .foregroundColor(GWColors.lightGray)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 14)
-
-            Spacer()
+            .overlay(
+                RoundedRectangle(cornerRadius: GWRadius.md)
+                    .stroke(isSelected ? GWColors.gold.opacity(0.6) : Color.clear, lineWidth: 1.5)
+            )
+            .shadow(color: isSelected ? GWColors.gold.opacity(0.15) : Color.clear, radius: 8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 72)
-        .background(isSelected ? GWColors.darkGray : GWColors.darkGray.opacity(0.6))
-        .cornerRadius(GWRadius.md)
-        .clipped()
-        .overlay(
-            RoundedRectangle(cornerRadius: GWRadius.md)
-                .stroke(isSelected ? GWColors.gold.opacity(0.6) : Color.clear, lineWidth: 1.5)
-        )
-        .shadow(color: isSelected ? GWColors.gold.opacity(0.15) : Color.clear, radius: 8)
-        .onTapGesture {
-            action()
-        }
+        .buttonStyle(.plain)
     }
 }

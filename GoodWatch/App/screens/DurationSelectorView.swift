@@ -320,6 +320,7 @@ struct DurationCard: View {
                         .stroke(isSelected ? GWColors.gold : Color.clear, lineWidth: 2)
                 )
             }
+            .buttonStyle(.plain)
 
             // Warning message for series availability
             if let warning = warningMessage, isSelected {
