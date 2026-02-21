@@ -31,6 +31,13 @@ final class GWFeatureFlags {
     /// Check if a feature is enabled.
     /// Returns hardcoded default if remote flags haven't loaded.
     func isEnabled(_ key: String) -> Bool {
+        #if DEBUG
+        // Launch argument override for testing
+        if UserDefaults.standard.bool(forKey: "gw_forced_flag_\(key)") {
+            return true
+        }
+        #endif
+
         if let flag = flags[key] {
             return flag.enabled
         }

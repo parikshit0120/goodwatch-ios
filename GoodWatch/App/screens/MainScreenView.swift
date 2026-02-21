@@ -251,25 +251,21 @@ struct MainScreenView: View {
                     .foregroundColor(GWColors.lightGray)
                     .opacity(titleOpacity)
 
-                    // Genre Tag Chips
-                    if !movie.genreNames.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(movie.genreNames.prefix(3), id: \.self) { genre in
-                                Text(genre)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(GWColors.lightGray)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(GWColors.darkGray)
-                                    .cornerRadius(GWRadius.sm)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: GWRadius.sm)
-                                            .stroke(GWColors.surfaceBorder, lineWidth: 1)
-                                    )
-                            }
-                        }
-                        .padding(.top, 6)
-                        .opacity(titleOpacity)
+                    // Primary Genre
+                    if let primaryGenre = movie.genreNames.first {
+                        Text(primaryGenre)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(GWColors.lightGray)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(GWColors.darkGray)
+                            .cornerRadius(GWRadius.sm)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: GWRadius.sm)
+                                    .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                            )
+                            .padding(.top, 6)
+                            .opacity(titleOpacity)
                     }
 
                     // CAUSAL "WHY THIS" COPY
@@ -610,6 +606,7 @@ struct GoodScoreDisplay: View {
                 .font(GWTypography.tiny(weight: .semibold))
                 .foregroundColor(GWColors.lightGray)
                 .tracking(2)
+                .fixedSize()
                 .opacity(numberOpacity)
         }
         .frame(width: 140, height: 110)

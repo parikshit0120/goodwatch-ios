@@ -451,6 +451,25 @@ final class GWRecommendationEngine {
             ))
         }
 
+        // Rule 4B: Exclude shorts (< 40 min runtime for non-series content)
+        if !movie.isSeries && movie.runtime > 0 && movie.runtime < 40 {
+            return .invalid(.runtimeOutOfWindow(
+                runtime: movie.runtime,
+                window: (min: 40, max: profile.runtimeWindow.max)
+            ))
+        }
+
+        // Rule 4C: Exclude stand-up specials, concert films, behind-the-scenes
+        let genreLower = movie.genres.map { $0.lowercased() }
+        let titleLower = movie.title.lowercased()
+        let isStandUp = genreLower.contains(where: { $0.contains("stand-up") || $0.contains("stand up") || $0.contains("comedy special") })
+            || titleLower.contains("stand-up") || titleLower.contains("stand up") || titleLower.contains("comedy special")
+        let isConcert = genreLower.contains("concert") || titleLower.contains("concert film")
+        let isBehindScenes = titleLower.contains("behind the scenes") || titleLower.contains("making of")
+        if isStandUp || isConcert || isBehindScenes {
+            return .invalid(.contentTypeMismatch(expected: "movie", actual: "excluded_content"))
+        }
+
         // Rule 5: Content type match
         // If user requires series → exclude movies
         // If user does NOT require series → exclude series (prevent TV shows for movie users)

@@ -38,28 +38,14 @@ struct PickCardView: View {
         movie.bestMatchingProvider(for: userOTTs)
     }
 
-    // MARK: - "Why This" Copy
+    // MARK: - "Why This" Copy (Rank-Based)
 
-    private var whyThisCopy: String? {
-        guard let mood = userMood?.lowercased() else { return nil }
-        let movieTags = gwMovie.tags
-
-        switch mood {
-        case "feel-good", "feel_good", "feelgood":
-            if movieTags.contains("feel_good") || movieTags.contains("uplifting") {
-                return "Matches your feel-good mood."
-            }
-            return "Selected for your uplifting vibe."
-        case "easy_watch", "easy watch", "light":
-            return "Light and easy. Just what you wanted."
-        case "surprise_me", "surprise me", "neutral":
-            return "Our best pick for you."
-        case "gripping", "intense":
-            return "Gripping. You asked for it."
-        case "dark_&_heavy", "dark & heavy", "dark":
-            return "Dark and heavy. As requested."
-        default:
-            return nil
+    private var whyThisCopy: String {
+        switch position {
+        case 1: return "Our best pick for you"
+        case 2: return "Strong second choice"
+        case 3: return "Another great option"
+        default: return "Worth a watch"
         }
     }
 
@@ -69,13 +55,25 @@ struct PickCardView: View {
             VStack(spacing: 0) {
                 // Poster area
                 ZStack(alignment: .bottom) {
-                    // Movie poster
-                    GWCachedImage(url: movie.posterURL(size: .w342)) {
-                        posterSkeleton
+                    ZStack(alignment: .topTrailing) {
+                        // Movie poster
+                        GWCachedImage(url: movie.posterURL(size: .w342)) {
+                            posterSkeleton
+                        }
+                        .aspectRatio(2/3, contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+
+                        // Content type badge (Movie / Series)
+                        Text(movie.contentTypeLabel)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(GWColors.black)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(GWColors.gold)
+                            .cornerRadius(GWRadius.sm)
+                            .padding(8)
                     }
-                    .aspectRatio(2/3, contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
 
                     // Bottom gradient for text readability
                     LinearGradient(
@@ -94,18 +92,21 @@ struct PickCardView: View {
                 // Content area: compact GoodScore box left, title/metadata right
                 VStack(spacing: 8) {
                     HStack(alignment: .top, spacing: 12) {
-                        // Compact GoodScore box (bottom-left, 48px)
+                        // Compact GoodScore box (bottom-left)
                         VStack(spacing: 2) {
                             Text("\(goodScore)")
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
                                 .foregroundStyle(LinearGradient.goldGradient)
 
                             Text("GOODSCORE")
                                 .font(.system(size: 7, weight: .semibold))
                                 .foregroundColor(GWColors.lightGray)
-                                .tracking(1)
+                                .tracking(1.2)
+                                .fixedSize()
                         }
-                        .frame(width: 48, height: 48)
+                        .frame(minWidth: 64, minHeight: 48)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
                         .background(GWColors.darkGray)
                         .overlay(
                             RoundedRectangle(cornerRadius: GWRadius.sm)
@@ -130,19 +131,15 @@ struct PickCardView: View {
                             .font(.system(size: 12))
                             .foregroundColor(GWColors.lightGray)
 
-                            // Genre chips
-                            if !movie.genreNames.isEmpty {
-                                HStack(spacing: 4) {
-                                    ForEach(movie.genreNames.prefix(2), id: \.self) { genre in
-                                        Text(genre)
-                                            .font(.system(size: 10, weight: .medium))
-                                            .foregroundColor(GWColors.lightGray)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(GWColors.darkGray)
-                                            .cornerRadius(GWRadius.sm)
-                                    }
-                                }
+                            // Primary genre
+                            if let primaryGenre = movie.genreNames.first {
+                                Text(primaryGenre)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(GWColors.lightGray)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(GWColors.darkGray)
+                                    .cornerRadius(GWRadius.sm)
                             }
                         }
 
@@ -150,12 +147,20 @@ struct PickCardView: View {
                     }
                     .padding(.horizontal, 16)
 
-                    // "Why This" copy
-                    if let whyThis = whyThisCopy {
-                        Text(whyThis)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(GWColors.gold.opacity(0.9))
-                            .italic()
+                    // Rank-based "Why This" copy
+                    Text(whyThisCopy)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(GWColors.gold.opacity(0.9))
+                        .italic()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+
+                    // Movie overview (2-line summary)
+                    if let overview = movie.shortOverview {
+                        Text(overview)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(GWColors.lightGray.opacity(0.85))
+                            .lineLimit(2)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
                     }

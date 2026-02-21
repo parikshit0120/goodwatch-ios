@@ -9,6 +9,7 @@ import XCTest
 //   --interaction-points N: sets carousel tier
 //   --skip-loading-delay: skips ConfidenceMoment animation
 //   --reset-onboarding: clears all onboarding state
+//   --force-feature-flag <name>: forces a feature flag to enabled
 //
 // Saves PNGs to /tmp/goodwatch_screenshots/
 // Run: xcodebuild test -scheme GoodWatch -only-testing:GoodWatchUITests
@@ -26,7 +27,8 @@ final class GWScreenshotTests: XCTestCase {
             "--screenshot-mode",
             "--skip-loading-delay",
             "--reset-onboarding",
-            "--interaction-points", "0"  // Default: 5-card carousel
+            "--interaction-points", "200",   // Default: single pick
+            "--force-feature-flag", "progressive_picks"
         ]
 
         // Create screenshot directory
@@ -87,15 +89,15 @@ final class GWScreenshotTests: XCTestCase {
 
         // Fallback: find by visible text
         if let text = fallbackText {
-            let staticText = app.staticTexts[text].firstMatch
-            if staticText.waitForExistence(timeout: 3) && staticText.isHittable {
-                staticText.tap()
+            // Try as button label first
+            let button = app.buttons[text].firstMatch
+            if button.waitForExistence(timeout: 3) && button.isHittable {
+                button.tap()
                 return true
             }
-            // Also try as button label
-            let button = app.buttons[text].firstMatch
-            if button.waitForExistence(timeout: 2) && button.isHittable {
-                button.tap()
+            let staticText = app.staticTexts[text].firstMatch
+            if staticText.waitForExistence(timeout: 2) && staticText.isHittable {
+                staticText.tap()
                 return true
             }
         }
@@ -114,45 +116,56 @@ final class GWScreenshotTests: XCTestCase {
         return false
     }
 
-    /// Navigate through full onboarding: Landing -> Auth(skip) -> Mood -> Platform -> Duration
-    private func navigateThroughOnboarding() {
-        // 1. Landing -> tap Pick for me
+    // MARK: - Onboarding Navigation Helpers
+
+    /// Navigate from Landing to Auth screen
+    private func goToAuth() {
         _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
+        // Wait for auth screen to fully appear
+        _ = waitForScreen("auth_skip", fallbackText: "Continue without account", timeout: 8)
         sleep(1)
+    }
 
-        // 2. Auth -> tap Skip
+    /// Navigate from Landing past Auth to Mood screen
+    private func goToMood() {
+        goToAuth()
         _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        _ = waitForScreen("mood_card_0", fallbackText: "What's the vibe?", timeout: 8)
         sleep(1)
+    }
 
-        // 3. Mood selector -> tap first mood card (Feel-good)
-        if !tapElement("mood_card_0", timeout: 5) {
-            // Fallback: tap "Feel-good" text directly
-            let feelGood = app.staticTexts["Feel-good"].firstMatch
-            if feelGood.waitForExistence(timeout: 3) && feelGood.isHittable {
-                feelGood.tap()
-            }
-        }
+    /// Navigate from Landing past Auth+Mood to Platform screen
+    private func goToPlatform() {
+        goToMood()
+        // Select mood
+        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
         sleep(1)
-
-        // Tap mood Continue
         _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
+        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 8)
         sleep(1)
+    }
 
-        // 4. Platform selector -> should now show "Which platforms do you have?"
-        // Wait for platform screen to appear
-        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
+    /// Navigate from Landing to Duration screen
+    private func goToDuration() {
+        goToPlatform()
+        // Select platforms + language
+        selectPlatformsAndLanguage()
+        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
+        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
+        sleep(1)
+    }
 
-        // Tap "Select all" to quickly select all platforms
+    /// Select platforms (Select all) and English language on Platform screen
+    private func selectPlatformsAndLanguage() {
         let selectAll = app.buttons["Select all"].firstMatch
         if selectAll.waitForExistence(timeout: 3) && selectAll.isHittable {
             selectAll.tap()
         } else {
-            // Fallback: tap Netflix
             _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
         }
         sleep(1)
 
-        // Select English language — try button first (LanguageChip is a Button)
+        // English — LanguageChip is a Button
         let englishBtn = app.buttons["English"].firstMatch
         if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
             englishBtn.tap()
@@ -163,17 +176,13 @@ final class GWScreenshotTests: XCTestCase {
             }
         }
         sleep(1)
+    }
 
-        // Tap platform Continue
-        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
-        sleep(2)
-
-        // 5. Duration selector -> should show "How long do you want to watch?"
-        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
-
-        // Tap "2-2.5 hours" (index 1) — DurationCard is a Button
+    /// Navigate all the way through onboarding to recommendation screen
+    private func navigateThroughOnboarding() {
+        goToDuration()
+        // Select duration + continue
         if !tapElement("duration_card_1", timeout: 5) {
-            // Try tapping the button containing "2-2.5 hours"
             let fullMovie = app.buttons["2-2.5 hours"].firstMatch
             if fullMovie.waitForExistence(timeout: 3) && fullMovie.isHittable {
                 fullMovie.tap()
@@ -185,8 +194,6 @@ final class GWScreenshotTests: XCTestCase {
             }
         }
         sleep(1)
-
-        // Tap duration Continue
         _ = tapElement("duration_continue", fallbackText: "Continue", timeout: 3)
         sleep(2)
     }
@@ -196,246 +203,171 @@ final class GWScreenshotTests: XCTestCase {
     /// 1. Landing screen with poster grid
     func test01_LandingScreen() throws {
         app.launch()
-
-        // Wait for landing to fully load (posters take a moment)
         _ = waitForScreen("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(3)
+        sleep(3)  // Let poster grid load
         saveScreenshot("01_landing")
     }
 
-    /// 2. Auth screen
+    /// 2. Auth screen (Apple, Google, Facebook sign-in + Skip)
     func test02_AuthScreen() throws {
         app.launch()
-
-        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(1)
-
-        _ = waitForScreen("auth_skip", fallbackText: "Continue without account", timeout: 5)
+        goToAuth()
         sleep(1)
         saveScreenshot("02_auth")
     }
 
-    /// 3. Mood selector screen (no selection)
+    /// 3. Mood selector screen (no selection — gray Continue)
     func test03_MoodSelector() throws {
         app.launch()
-
-        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(1)
-
-        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
-        sleep(1)
-
-        // Wait for mood screen to appear
-        _ = waitForScreen("mood_card_0", fallbackText: "What's the vibe?", timeout: 5)
-        sleep(1)
+        goToMood()
         saveScreenshot("03_mood_selector")
     }
 
-    /// 4. Mood selected state (Feel-good highlighted)
+    /// 4. Mood selected state (Feel-good highlighted — gold Continue)
     func test04_MoodSelected() throws {
         app.launch()
-
-        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(1)
-
-        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
-        sleep(1)
-
-        // Wait for mood screen
-        _ = waitForScreen("mood_card_0", fallbackText: "What's the vibe?", timeout: 5)
-        sleep(1)
-
-        // Tap first mood to highlight it
+        goToMood()
         _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
         sleep(1)
         saveScreenshot("04_mood_selected")
     }
 
-    /// 5. Platform selector screen
+    /// 5. Platform selector with language chips
     func test05_PlatformSelector() throws {
         app.launch()
-
-        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(1)
-
-        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
-        sleep(1)
-
-        // Select mood + continue
-        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
-        sleep(1)
-        _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
-        sleep(1)
-
-        // Wait for platform screen
-        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
-        sleep(1)
+        goToPlatform()
         saveScreenshot("05_platform_selector")
     }
 
-    /// 6. Duration selector screen
+    /// 6. Duration selector (3 options: 90min / 2-2.5hr / Series)
     func test06_DurationSelector() throws {
         app.launch()
-
-        _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(1)
-
-        _ = tapElement("auth_skip", fallbackText: "Continue without account", timeout: 5)
-        sleep(1)
-
-        // Mood: select + continue
-        _ = tapElement("mood_card_0", fallbackText: "Feel-good", timeout: 5)
-        sleep(1)
-        _ = tapElement("mood_continue", fallbackText: "Continue", timeout: 3)
-        sleep(1)
-
-        // Platform: select all + English + continue
-        _ = waitForScreen("platform_netflix", fallbackText: "Which platforms do you have?", timeout: 5)
-        let selectAll = app.buttons["Select all"].firstMatch
-        if selectAll.waitForExistence(timeout: 3) && selectAll.isHittable {
-            selectAll.tap()
-        } else {
-            _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
-        }
-        sleep(1)
-
-        // English is a Button (LanguageChip uses Button with .buttonStyle(.plain))
-        let englishBtn = app.buttons["English"].firstMatch
-        if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
-            englishBtn.tap()
-        } else {
-            let english = app.staticTexts["English"].firstMatch
-            if english.waitForExistence(timeout: 2) && english.isHittable {
-                english.tap()
-            }
-        }
-        sleep(1)
-
-        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
-        sleep(2)
-
-        // Wait for duration screen
-        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
-        sleep(1)
+        goToDuration()
         saveScreenshot("06_duration_selector")
     }
 
-    /// 7. Confidence moment (loading screen)
+    /// 7. Confidence moment / loading screen
     func test07_ConfidenceMoment() throws {
-        // Don't skip loading delay for this screenshot
+        // DON'T skip loading delay — we want to capture the animation
         app.launchArguments = [
             "--screenshot-mode",
             "--reset-onboarding",
-            "--interaction-points", "0"
+            "--interaction-points", "200",
+            "--force-feature-flag", "progressive_picks"
         ]
         app.launch()
 
         navigateThroughOnboarding()
 
-        // ConfidenceMoment should appear — capture it quickly
+        // ConfidenceMoment should appear — capture immediately
         let confidence = app.otherElements["confidence_moment_screen"].firstMatch
         if confidence.waitForExistence(timeout: 5) {
-            sleep(1)
+            // Capture during animation (don't wait too long or it will transition)
             saveScreenshot("07_confidence_moment")
         } else {
-            // May have already transitioned — capture whatever is on screen
-            sleep(1)
+            // Might have already transitioned — capture whatever is showing
             saveScreenshot("07_confidence_moment")
         }
     }
 
-    /// 8. Main recommendation screen (single pick)
+    /// 8. Main recommendation screen — single pick with GoodScore
     func test08_MainScreen_SinglePick() throws {
-        // Set high interaction points for single-pick mode
         app.launchArguments = [
             "--screenshot-mode",
             "--skip-loading-delay",
             "--reset-onboarding",
-            "--interaction-points", "200"  // Single pick mode
+            "--interaction-points", "200",   // 160+ = single pick
+            "--force-feature-flag", "progressive_picks"
         ]
         app.launch()
 
         navigateThroughOnboarding()
 
-        // Wait for recommendation to load
+        // Wait for recommendation to load (poster + GoodScore)
         let watchNow = app.buttons["main_watch_now"].firstMatch
         if watchNow.waitForExistence(timeout: 15) {
-            sleep(3)  // Let poster load
+            sleep(3)  // Let poster fully render
             saveScreenshot("08_main_single_pick")
         } else {
-            // Recommendation may not have loaded (no network) — capture anyway
             sleep(5)
             saveScreenshot("08_main_single_pick")
         }
     }
 
-    /// 9. Main recommendation screen (carousel with multiple picks)
+    /// 9. Carousel — multiple picks (progressive picks flow)
     func test09_MainScreen_Carousel() throws {
-        // Set 0 interaction points for 5-card carousel
         app.launchArguments = [
             "--screenshot-mode",
             "--skip-loading-delay",
             "--reset-onboarding",
-            "--interaction-points", "0"  // 5-card carousel
+            "--interaction-points", "0",     // 0-19 = 5 picks carousel
+            "--force-feature-flag", "progressive_picks"
         ]
         app.launch()
 
         navigateThroughOnboarding()
 
-        // Wait for carousel to load
-        sleep(8)  // Let multiple posters load
+        // Wait for carousel to load — look for paging dots or the carousel itself
+        // Give it extra time for multiple movie fetches
+        sleep(10)
         saveScreenshot("09_main_carousel")
     }
 
-    /// 10. Enjoy screen (after watching)
-    func test10_EnjoyScreen() throws {
+    /// 10. Platform selector with selections made (Netflix + Hindi shown)
+    func test10_PlatformSelected() throws {
+        app.launch()
+        goToPlatform()
+
+        // Make selections to show the "selected" state
+        _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
+        sleep(1)
+
+        // Select Hindi language to show a different language selected
+        let hindi = app.buttons["Hindi"].firstMatch
+        if hindi.waitForExistence(timeout: 3) && hindi.isHittable {
+            hindi.tap()
+        }
+        sleep(1)
+        saveScreenshot("10_platform_selected")
+    }
+
+    /// 11. Duration selector with selection (2-2.5 hours highlighted)
+    func test11_DurationSelected() throws {
+        app.launch()
+        goToDuration()
+
+        // Select "2-2.5 hours" to show gold border + gold Continue
+        if !tapElement("duration_card_1", timeout: 5) {
+            let fullMovie = app.buttons["2-2.5 hours"].firstMatch
+            if fullMovie.waitForExistence(timeout: 3) && fullMovie.isHittable {
+                fullMovie.tap()
+            }
+        }
+        sleep(1)
+        saveScreenshot("11_duration_selected")
+    }
+
+    /// 12. GoodScore close-up — capture just the recommendation with score visible
+    func test12_GoodScoreCloseUp() throws {
         app.launchArguments = [
             "--screenshot-mode",
             "--skip-loading-delay",
             "--reset-onboarding",
-            "--interaction-points", "200"  // Single pick for simpler flow
+            "--interaction-points", "200",
+            "--force-feature-flag", "progressive_picks"
         ]
         app.launch()
 
         navigateThroughOnboarding()
 
-        // Wait for recommendation, then tap Watch Now
+        // Wait for recommendation with GoodScore
         let watchNow = app.buttons["main_watch_now"].firstMatch
         if watchNow.waitForExistence(timeout: 15) {
-            watchNow.tap()
-
-            // Enjoy screen should appear
-            sleep(2)
-            saveScreenshot("10_enjoy_screen")
+            sleep(4)  // Let everything render including GoodScore animation
+            saveScreenshot("12_goodscore")
         } else {
-            sleep(3)
-            saveScreenshot("10_enjoy_screen")
+            sleep(5)
+            saveScreenshot("12_goodscore")
         }
-    }
-
-    /// 11. Landing with Explore button visible
-    func test11_LandingWithExplore() throws {
-        app.launch()
-
-        let explore = app.buttons["landing_explore"].firstMatch
-        if explore.waitForExistence(timeout: 10) {
-            sleep(2)
-            saveScreenshot("11_landing_explore")
-        } else {
-            sleep(3)
-            saveScreenshot("11_landing_explore")
-        }
-    }
-
-    /// 12. Update banner (simulated — banner won't actually show unless version mismatch)
-    func test12_UpdateBanner() throws {
-        app.launch()
-
-        // The update banner only shows when App Store has a newer version.
-        // For screenshots, just capture the landing state — the banner
-        // will only be visible in production when an update exists.
-        _ = waitForScreen("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        sleep(2)
-        saveScreenshot("12_landing_clean")
     }
 }

@@ -133,6 +133,22 @@ struct GoodWatchApp: App {
             GWOnboardingMemory.shared.clear()
             UserContext.clearDefaults()
             UserDefaults.standard.removeObject(forKey: "notification_permission_asked")
+            // Clear cached user ID so auth screen appears
+            UserDefaults.standard.removeObject(forKey: "gw_user_id")
+            // Clear ALL interaction points and ratchet data for all users
+            let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
+            for key in allKeys {
+                if key.hasPrefix("gw_interaction_points_") || key.hasPrefix("gw_max_pick_tier_reached_") {
+                    UserDefaults.standard.removeObject(forKey: key)
+                }
+            }
+        }
+
+        // --force-feature-flag <name>: Force a feature flag to enabled
+        if let idx = args.firstIndex(of: "--force-feature-flag"),
+           idx + 1 < args.count {
+            let flagName = args[idx + 1]
+            UserDefaults.standard.set(true, forKey: "gw_forced_flag_\(flagName)")
         }
         #endif
     }

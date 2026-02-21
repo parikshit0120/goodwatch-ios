@@ -97,6 +97,14 @@ final class GWInteractionPoints {
     /// Returns the effective pick count for the current user.
     /// Respects the one-way ratchet: never shows more picks than the current tier.
     var effectivePickCount: Int {
+        #if DEBUG
+        // If debug interaction points override is set, use it directly (even without userId)
+        let debugPoints = UserDefaults.standard.integer(forKey: "gw_debug_interaction_points")
+        if debugPoints > 0 {
+            return pickCount(forInteractionPoints: debugPoints)
+        }
+        #endif
+
         guard let userId = currentUserId else { return 5 }
         let points = currentPoints
         let currentTier = pickCount(forInteractionPoints: points)

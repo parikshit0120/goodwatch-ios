@@ -222,7 +222,10 @@ struct Movie: Identifiable, Codable {
 
     /// Content type display label
     var contentTypeLabel: String {
-        isSeries ? "Series" : "Movie"
+        if isSeries { return "Series" }
+        let genreLower = genreNames.map { $0.lowercased() }
+        if genreLower.contains("documentary") { return "Documentary" }
+        return "Movie"
     }
 
     /// Display-friendly runtime string that accounts for series (per-episode) vs movie

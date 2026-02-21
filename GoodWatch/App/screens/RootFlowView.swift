@@ -543,7 +543,7 @@ struct RootFlowView: View {
             // (extended from 5s to account for review prompt)
             DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
                 if currentScreen == .enjoyScreen && !showReviewPrompt {
-                    returnToLanding()
+                    returnToLandingPreservingMemory()
                 }
             }
         }
@@ -569,7 +569,7 @@ struct RootFlowView: View {
         Spacer()
 
         Button {
-            returnToLanding()
+            returnToLandingPreservingMemory()
         } label: {
             Text("Pick another")
                 .font(GWTypography.button())
@@ -582,7 +582,7 @@ struct RootFlowView: View {
         .padding(.horizontal, GWSpacing.screenPadding)
 
         Button {
-            returnToLanding()
+            returnToLandingPreservingMemory()
         } label: {
             Text("Done for tonight")
                 .font(GWTypography.body(weight: .medium))
@@ -604,7 +604,7 @@ struct RootFlowView: View {
                 onComplete: {
                     // GWWatchFeedbackView handles enforcer + Supabase internally
                     pendingFeedback = nil
-                    navigateTo(.landing)
+                    returnToLandingPreservingMemory()
                 }
             )
         } else if let feedback = pendingFeedback {
@@ -612,15 +612,15 @@ struct RootFlowView: View {
                 feedbackData: feedback,
                 onCompleted: {
                     pendingFeedback = nil
-                    navigateTo(.landing)
+                    returnToLandingPreservingMemory()
                 },
                 onAbandoned: {
                     pendingFeedback = nil
-                    navigateTo(.landing)
+                    returnToLandingPreservingMemory()
                 },
                 onSkipped: {
                     pendingFeedback = nil
-                    navigateTo(.landing)
+                    returnToLandingPreservingMemory()
                 }
             )
         } else {
@@ -653,8 +653,18 @@ struct RootFlowView: View {
         }
     }
 
-    /// Return to landing, resetting session state
+    /// Return to landing, resetting session state (clears onboarding memory)
     private func returnToLanding() {
+        returnToLandingInternal(clearMemory: true)
+    }
+
+    /// Return to landing after watching / feedback — preserves onboarding memory
+    /// so user skips OTT/language/duration on next "Pick for me"
+    private func returnToLandingPreservingMemory() {
+        returnToLandingInternal(clearMemory: false)
+    }
+
+    private func returnToLandingInternal(clearMemory: Bool) {
         // Track onboarding abandonment if user is mid-onboarding
         if currentScreen.rawValue >= Screen.moodSelector.rawValue && currentScreen.rawValue <= Screen.emotionalHook.rawValue {
             MetricsService.shared.track(.onboardingAbandoned, properties: [
@@ -673,8 +683,10 @@ struct RootFlowView: View {
         userContext = .default
         UserContext.clearDefaults()
 
-        // FIX 1: Clear onboarding memory on Start Over
-        GWOnboardingMemory.shared.clear()
+        // Only clear onboarding memory on explicit "Start Over" / Home button
+        if clearMemory {
+            GWOnboardingMemory.shared.clear()
+        }
 
         // Reset multi-pick state
         recommendedPicks = []
@@ -947,7 +959,13 @@ struct RootFlowView: View {
                 GWInteractionPoints.shared.setUser(userId.uuidString)
                 let ppFlag = GWFeatureFlags.shared.isEnabled("progressive_picks")
                 let rawPickCount = GWInteractionPoints.shared.effectivePickCount
+                #if DEBUG
+                // In screenshot mode, always enable progressive picks
+                let screenshotCarousel = UserDefaults.standard.bool(forKey: "gw_screenshot_mode") && rawPickCount > 1
+                let effectivePickCount = (ppFlag || screenshotCarousel) ? rawPickCount : 1
+                #else
                 let effectivePickCount = ppFlag ? rawPickCount : 1
+                #endif
 
                 #if DEBUG
                 print("[CAROUSEL] === Carousel Debug ===")
@@ -969,7 +987,7 @@ struct RootFlowView: View {
 
                 // Use multi-pick when pickCount > 1
                 if effectivePickCount > 1 {
-                    let picks = engine.recommendMultiple(
+                    var picks = engine.recommendMultiple(
                         from: gwMoviePool,
                         profile: profile,
                         count: effectivePickCount
@@ -979,6 +997,24 @@ struct RootFlowView: View {
                     print("MULTI-PICK: \(effectivePickCount) picks requested, \(picks.count) returned")
                     for (i, pick) in picks.enumerated() {
                         print("   Pick[\(i)]: \(pick.title) | tags=\(pick.tags) | score=\(engine.computeScore(movie: pick, profile: profile))")
+                    }
+
+                    // Screenshot mode fallback: if multi-pick returned empty but we need
+                    // carousel, use top-scored movies from the pool directly
+                    if picks.isEmpty && UserDefaults.standard.bool(forKey: "gw_screenshot_mode") {
+                        print("[SCREENSHOT] Multi-pick empty, using raw movies for carousel")
+                        // Try filtered pool first, then fall back to ALL fetched movies
+                        var fallbackPool = gwMoviePool
+                        if fallbackPool.count < effectivePickCount {
+                            fallbackPool = movies.map { GWMovie(from: $0) }
+                        }
+                        // Sort by composite score (highest first)
+                        let scored = fallbackPool.sorted {
+                            ($0.composite_score > 0 ? $0.composite_score : $0.goodscore) >
+                            ($1.composite_score > 0 ? $1.composite_score : $1.goodscore)
+                        }
+                        picks = Array(scored.prefix(min(effectivePickCount, scored.count)))
+                        print("[SCREENSHOT] Fallback picks: \(picks.count)")
                     }
                     #endif
 
@@ -1075,6 +1111,69 @@ struct RootFlowView: View {
                     print("      tag intersection: \(movieTags.intersection(intentTags))")
                 } else {
                     print("   ❌ NO RECOMMENDATION: \(output.stopCondition?.description ?? "unknown")")
+                }
+                #endif
+
+                #if DEBUG
+                // Screenshot mode: if we wanted carousel but multi-pick failed,
+                // use single-pick results to build a fake carousel from top movies
+                if effectivePickCount > 1 && UserDefaults.standard.bool(forKey: "gw_screenshot_mode"),
+                   let mainPick = output.movie {
+                    print("[SCREENSHOT] Building carousel from single-pick + top movies")
+                    var carouselPicks = [mainPick]
+                    let allGW = movies.map { GWMovie(from: $0) }
+                    let sorted = allGW
+                        .filter { $0.id != mainPick.id }
+                        .sorted { ($0.composite_score > 0 ? $0.composite_score : $0.goodscore * 10) > ($1.composite_score > 0 ? $1.composite_score : $1.goodscore * 10) }
+                    carouselPicks.append(contentsOf: sorted.prefix(effectivePickCount - 1))
+                    print("[SCREENSHOT] Carousel built: \(carouselPicks.count) picks")
+
+                    if carouselPicks.count > 1 {
+                        await MainActor.run {
+                            self.recommendedPicks = carouselPicks
+                            self.rawMoviePool = movies
+                            self.validMoviePool = gwMoviePool
+                            self.pickCount = carouselPicks.count
+                            self.replacedPositions = []
+                            self.currentProfile = profile
+                            self.isLoadingRecommendation = false
+                            self.sessionRecommendationCount += 1
+                            self.recommendationShownTime = Date()
+                            if let firstRaw = movies.first(where: { $0.id.uuidString == carouselPicks[0].id }) {
+                                self.currentMovie = firstRaw
+                                self.currentGoodScore = carouselPicks[0].composite_score > 0 ? Int(round(carouselPicks[0].composite_score)) : Int(round(carouselPicks[0].goodscore * 10))
+                            }
+                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            self.recommendationReady = true
+                            self.tryTransitionToMainScreen()
+                        }
+                        return
+                    }
+                }
+
+                // Screenshot mode: if single-pick engine returned nil, use best raw movie
+                if output.movie == nil && UserDefaults.standard.bool(forKey: "gw_screenshot_mode") {
+                    let allGW = movies.map { GWMovie(from: $0) }
+                    let best = allGW
+                        .sorted { ($0.composite_score > 0 ? $0.composite_score : $0.goodscore * 10) > ($1.composite_score > 0 ? $1.composite_score : $1.goodscore * 10) }
+                        .first
+                    if let pick = best {
+                        print("[SCREENSHOT] Single-pick fallback: \(pick.title)")
+                        await MainActor.run {
+                            if let rawMovie = movies.first(where: { $0.id.uuidString == pick.id }) {
+                                self.currentMovie = rawMovie
+                                self.currentGoodScore = pick.composite_score > 0 ? Int(round(pick.composite_score)) : Int(round(pick.goodscore * 10))
+                            }
+                            self.sessionRecommendationCount += 1
+                            self.isLoadingRecommendation = false
+                            self.recommendationShownTime = Date()
+                            self.pickCount = 1
+                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            self.recommendationReady = true
+                            self.tryTransitionToMainScreen()
+                        }
+                        return
+                    }
                 }
                 #endif
 
