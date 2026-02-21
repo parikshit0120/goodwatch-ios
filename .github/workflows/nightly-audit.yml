@@ -1,0 +1,88 @@
+name: GoodWatch Nightly Audit
+
+on:
+  schedule:
+    # Every day at 6:30 PM IST (1:00 PM UTC)
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      trigger_type:
+        description: 'Trigger type'
+        default: 'manual'
+        type: string
+
+env:
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+  AUDIT_TRIGGER: ${{ github.event.inputs.trigger_type || 'cron' }}
+
+jobs:
+  audit:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout iOS repo
+        uses: actions/checkout@v4
+        with:
+          path: goodwatch-ios
+
+      - name: Checkout web repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/goodwatch-web
+          path: goodwatch-web
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Boot iOS Simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          for runtime,devices in d['devices'].items():
+            if 'iOS' in runtime:
+              for dev in devices:
+                if 'iPhone 16 Pro Max' in dev['name'] or 'iPhone 15 Pro Max' in dev['name']:
+                  print(dev['udid']); sys.exit()
+          for runtime,devices in d['devices'].items():
+            if 'iOS' in runtime:
+              for dev in devices:
+                if 'iPhone' in dev['name']:
+                  print(dev['udid']); sys.exit()
+          ")
+          echo "SIMULATOR_UDID=$DEVICE_ID" >> $GITHUB_ENV
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+
+      - name: Run Audit Agent
+        env:
+          IOS_REPO_PATH: ${{ github.workspace }}/goodwatch-ios
+          WEB_REPO_PATH: ${{ github.workspace }}/goodwatch-web
+        run: |
+          python3 goodwatch-ios/.github/scripts/audit_agent.py
+        continue-on-error: true
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-results-${{ github.run_number }}
+          path: /tmp/goodwatch_audit_results.json
+          retention-days: 30
+        continue-on-error: true
+
+      - name: Notify on critical failures
+        if: failure()
+        run: |
+          echo "::error::Audit detected critical failures. Check goodwatch.movie/command-center/audit"
