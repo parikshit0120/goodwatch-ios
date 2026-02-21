@@ -152,18 +152,36 @@ def run_section_a():
           null_tags == 0, "0 nulls", null_tags, source_ref="INV-R05")
 
     # A05: Tag categories (sample 50)
+    # Tags are a flat list of 5 strings, one per category:
+    #   CognitiveLoad: light, medium, heavy
+    #   EmotionalOutcome: feel_good, uplifting, dark, disturbing, bittersweet
+    #   EnergyLevel: calm, tense, high_energy
+    #   AttentionLevel: background_friendly, full_attention, rewatchable
+    #   RegretRisk: safe_bet, polarizing, acquired_taste
     r = supabase_query("movies?select=tags&tags=not.is.null&limit=50")
-    required_cats = {"weight", "mood", "energy", "rewatchability", "risk"}
+    tag_categories = {
+        "cognitive_load": {"light", "medium", "heavy"},
+        "emotional_outcome": {"feel_good", "uplifting", "dark", "disturbing", "bittersweet"},
+        "energy_level": {"calm", "tense", "high_energy"},
+        "attention_level": {"background_friendly", "full_attention", "rewatchable"},
+        "regret_risk": {"safe_bet", "polarizing", "acquired_taste"},
+    }
     bad_tags = 0
     for movie in r.get("data", []):
-        tags = movie.get("tags", {})
+        tags = movie.get("tags", [])
         if isinstance(tags, str):
             try:
                 tags = json.loads(tags)
             except:
-                tags = {}
-        if not required_cats.issubset(set(tags.keys())):
+                tags = []
+        if not isinstance(tags, list):
             bad_tags += 1
+            continue
+        tag_set = set(tags)
+        for cat_values in tag_categories.values():
+            if not tag_set & cat_values:
+                bad_tags += 1
+                break
     check("A05", "data_integrity", "Each movie has 5 tag categories", "high",
           bad_tags == 0, "0 missing", f"{bad_tags}/50 sampled", source_ref="Tag system spec")
 
