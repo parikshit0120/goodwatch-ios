@@ -4,6 +4,7 @@ import Foundation
 enum AuthProvider: String, Codable {
     case google
     case apple
+    case facebook
     case anonymous
 }
 
@@ -130,6 +131,11 @@ enum InteractionAction: String, Codable {
     case watch_now
     case not_tonight
     case already_seen
+    // Progressive pick system actions
+    case not_interested
+    case already_seen_card
+    case implicit_skip
+    case replacement_shown
 }
 
 struct InteractionContext: Codable {

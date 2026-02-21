@@ -167,6 +167,7 @@ struct LandingView: View {
                             .background(LinearGradient.goldGradient)
                             .cornerRadius(30)
                     }
+                    .accessibilityIdentifier("landing_pick_for_me")
 
                     // Explore / Search button — always visible, auth gate inside ExploreView
                     if let explore = onExplore {
@@ -187,6 +188,7 @@ struct LandingView: View {
                                     .stroke(GWColors.surfaceBorder, lineWidth: 1)
                             )
                         }
+                        .accessibilityIdentifier("landing_explore")
                     }
                 }
                 .padding(.horizontal, 40)
@@ -210,35 +212,38 @@ struct LandingView: View {
 
     private func preloadPosters() {
         Task {
-            await withTaskGroup(of: (Int, Image?).self) { group in
-                for (index, path) in backdropPosters.enumerated() {
-                    group.addTask {
-                        guard let url = URL(string: "https://image.tmdb.org/t/p/w200\(path)") else {
-                            return (index, nil)
-                        }
-                        do {
-                            let (data, _) = try await URLSession.shared.data(from: url)
-                            if let uiImage = UIImage(data: data) {
+            var loaded: [Int: Image] = [:]
+            let concurrency = 4 // Throttle: max 4 concurrent downloads
+
+            // Process in batches to avoid 32 simultaneous URLSession requests
+            for batchStart in stride(from: 0, to: backdropPosters.count, by: concurrency) {
+                let batchEnd = min(batchStart + concurrency, backdropPosters.count)
+                let batch = Array(batchStart..<batchEnd)
+
+                await withTaskGroup(of: (Int, Image?).self) { group in
+                    for index in batch {
+                        let path = backdropPosters[index]
+                        group.addTask {
+                            let urlString = TMDBImageSize.url(path: path, size: .w154)
+                            if let uiImage = await GWImageCache.shared.loadImage(from: urlString) {
                                 return (index, Image(uiImage: uiImage))
                             }
-                        } catch {}
-                        return (index, nil)
+                            return (index, nil)
+                        }
+                    }
+                    for await (index, image) in group {
+                        if let image = image {
+                            loaded[index] = image
+                        }
                     }
                 }
+            }
 
-                var loaded: [Int: Image] = [:]
-                for await (index, image) in group {
-                    if let image = image {
-                        loaded[index] = image
-                    }
-                }
-
-                // Update all at once on main thread
-                await MainActor.run {
-                    posterImages = loaded
-                    withAnimation(.easeOut(duration: 0.6)) {
-                        postersReady = true
-                    }
+            // Update all at once on main thread (single state update)
+            await MainActor.run {
+                posterImages = loaded
+                withAnimation(.easeOut(duration: 0.6)) {
+                    postersReady = true
                 }
             }
         }

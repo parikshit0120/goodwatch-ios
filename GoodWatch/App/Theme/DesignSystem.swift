@@ -92,6 +92,31 @@ extension Color {
     }
 }
 
+// MARK: - Progressive Pick Design Tokens
+
+enum GWDesignTokens {
+    // Pick card
+    static let pickCardCornerRadius: CGFloat = 16
+    static let pickCardShadow: CGFloat = 8
+    static let pickCardPeekRatio: CGFloat = 0.08
+    static let pickCardScaleAdjacent: CGFloat = 0.85
+    static let pickCardDimAdjacent: Double = 0.6
+
+    // Position badge
+    static let positionBadgeSize: CGFloat = 32
+    static let positionBadgeFont: Font = .system(size: 14, weight: .bold, design: .rounded)
+
+    // Rejection overlay
+    static let rejectionFlipDuration: Double = 0.25
+    static let rejectionGoldFlashDuration: Double = 0.15
+    static let rejectionButtonCornerRadius: CGFloat = 12
+    static let rejectionButtonHeight: CGFloat = 48
+
+    // Progress dots
+    static let progressDotSize: CGFloat = 8
+    static let progressDotSpacing: CGFloat = 6
+}
+
 // MARK: - Gold Gradient for CTA
 extension LinearGradient {
     static var goldGradient: LinearGradient {

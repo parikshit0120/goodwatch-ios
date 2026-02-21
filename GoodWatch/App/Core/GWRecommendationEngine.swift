@@ -45,6 +45,7 @@ enum GWValidationFailure: CustomStringConvertible {
     case movieUnavailable
     case contentTypeMismatch(expected: String, actual: String?)
     case qualityGateFailed(rating: Double, voteCount: Int)
+    case recencyGateFailed(year: Int)
 
     var ruleLabel: String {
         switch self {
@@ -57,6 +58,7 @@ enum GWValidationFailure: CustomStringConvertible {
         case .movieUnavailable: return "unavailable"
         case .contentTypeMismatch: return "contentType"
         case .qualityGateFailed: return "qualityGate"
+        case .recencyGateFailed: return "recencyGate"
         }
     }
 
@@ -80,6 +82,8 @@ enum GWValidationFailure: CustomStringConvertible {
             return "CONTENT_TYPE_MISMATCH: expected \(expected), got \(actual ?? "nil")"
         case .qualityGateFailed(let rating, let voteCount):
             return "QUALITY_GATE_FAILED: rating \(rating), votes \(voteCount)"
+        case .recencyGateFailed(let year):
+            return "RECENCY_GATE_FAILED: movie year \(year) < 2010"
         }
     }
 }
@@ -153,6 +157,9 @@ struct GWUserProfileComplete {
     var requiresSeries: Bool
     var platformBias: GWPlatformBias
     var dimensionalLearning: GWDimensionalLearning
+    var tasteProfile: GWUserTasteProfile?
+    var moodMapping: GWMoodMapping?
+    var applyRecencyGate: Bool  // true when interaction_points < 10 and feature flag enabled
 
     /// All excluded movie IDs (seen + notTonight + abandoned)
     var allExcludedIds: Set<String> {
@@ -177,7 +184,10 @@ struct GWUserProfileComplete {
         tagWeights: [String: Double],
         requiresSeries: Bool = false,
         platformBias: GWPlatformBias = GWPlatformBias(),
-        dimensionalLearning: GWDimensionalLearning = GWDimensionalLearning()
+        dimensionalLearning: GWDimensionalLearning = GWDimensionalLearning(),
+        tasteProfile: GWUserTasteProfile? = nil,
+        moodMapping: GWMoodMapping? = nil,
+        applyRecencyGate: Bool = false
     ) {
         self.userId = userId
         self.preferredLanguages = preferredLanguages
@@ -199,6 +209,9 @@ struct GWUserProfileComplete {
         self.requiresSeries = requiresSeries
         self.platformBias = platformBias
         self.dimensionalLearning = dimensionalLearning
+        self.tasteProfile = tasteProfile
+        self.moodMapping = moodMapping
+        self.applyRecencyGate = applyRecencyGate
     }
 
     /// Build from UserContext (used in EmotionalHookView and MovieFilter)
@@ -208,13 +221,33 @@ struct GWUserProfileComplete {
             userId: UUID(uuidString: userId) ?? UUID()
         )
 
+        // Load taste profile from cache (computed after each feedback submission)
+        let tasteProfile = GWTasteEngine.shared.getCachedProfile(userId: userId)
+
+        // Load remote mood mapping (INV-R11)
+        let moodKey = context.intent.mood
+        let moodMapping = GWMoodConfigService.shared.getMoodMapping(for: moodKey)
+
+        // Populate intentTags from remote mapping if available, else use hardcoded
+        let resolvedIntentTags: [String]
+        if let mapping = moodMapping, mapping.version > 0 {
+            resolvedIntentTags = mapping.compatibleTags
+        } else {
+            resolvedIntentTags = context.intent.intent_tags
+        }
+
+        // Recency gate: exclude pre-2010 movies for new users (interaction_points < 10)
+        let recencyGateEnabled = GWFeatureFlags.shared.isEnabled("new_user_recency_gate")
+        GWInteractionPoints.shared.setUser(userId)
+        let shouldApplyRecencyGate = recencyGateEnabled && GWInteractionPoints.shared.currentPoints < 10
+
         return GWUserProfileComplete(
             userId: userId,
             preferredLanguages: context.languages.map { $0.rawValue },
             platforms: context.otts.map { $0.rawValue },
             runtimeWindow: GWRuntimeWindow(min: context.minDuration, max: context.maxDuration),
             mood: context.mood.rawValue,
-            intentTags: context.intent.intent_tags,
+            intentTags: resolvedIntentTags,
             seen: [],
             notTonight: Set(excludedIds),
             abandoned: [],
@@ -222,7 +255,10 @@ struct GWUserProfileComplete {
             tagWeights: TagWeightStore.shared.getWeights(),
             requiresSeries: context.requiresSeries,
             platformBias: learningData.platformBias,
-            dimensionalLearning: learningData.dimensional
+            dimensionalLearning: learningData.dimensional,
+            tasteProfile: tasteProfile,
+            moodMapping: moodMapping,
+            applyRecencyGate: shouldApplyRecencyGate
         )
     }
 }
@@ -429,13 +465,39 @@ final class GWRecommendationEngine {
             }
         }
 
+        // Rule 5B: Recency gate for new users
+        // Exclude pre-2010 movies when interaction_points < 10 (feature-flagged)
+        if profile.applyRecencyGate && movie.year < 2010 {
+            return .invalid(.recencyGateFailed(year: movie.year))
+        }
+
         // Rule 6: GoodScore threshold
         // If composite_score is available (> 0), prefer it for the threshold check
-        let threshold = gwGoodscoreThreshold(
+        var threshold = gwGoodscoreThreshold(
             mood: profile.mood,
             timeOfDay: GWTimeOfDay.current,
             style: profile.recommendationStyle
         )
+
+        // Language-aware threshold adjustment:
+        // Languages with fewer than ~20 movies at 8.0+ (composite_score >= 8.0)
+        // get a 10-point threshold reduction so users see ~50+ quality titles.
+        // If user has BOTH English and a small-catalog language, the adjustment
+        // applies only to the small-catalog language content.
+        let smallCatalogLanguages: Set<String> = [
+            "hi", "hindi", "ta", "tamil", "te", "telugu",
+            "ml", "malayalam", "kn", "kannada", "mr", "marathi",
+            "ko", "korean", "ja", "japanese"
+        ]
+        let movieLangLower = movie.language.lowercased()
+        let isSmallCatalogLanguage = smallCatalogLanguages.contains(movieLangLower)
+
+        if isSmallCatalogLanguage {
+            // Lower threshold by 10 for small-catalog languages (80 -> 70, 88 -> 78)
+            // Floor at 65 to maintain minimum quality
+            threshold = max(65, threshold - 10)
+        }
+
         let scoreForCheck: Double
         if movie.composite_score > 0 {
             // composite_score is already on 0-100 scale
@@ -450,19 +512,129 @@ final class GWRecommendationEngine {
             ))
         }
 
-        // Rule 7: Tag intersection
-        if !profile.intentTags.isEmpty {
-            let movieTags = Set(movie.tags)
-            let intentTags = Set(profile.intentTags)
-            if movieTags.intersection(intentTags).isEmpty {
+        // Rule 7: Mood filter (dimensional + tag)
+        // If remote mood mapping with dimensional ranges is available and movie has emotional profile,
+        // use dimensional range checks + anti-tag filtering.
+        // Otherwise, fall back to tag intersection (original behavior).
+        if let mapping = profile.moodMapping, mapping.version > 0 {
+            if !passesRemoteMoodFilter(movie: movie, mapping: mapping, intentTags: profile.intentTags) {
                 return .invalid(.noMatchingTags(
                     movieTags: movie.tags,
                     intentTags: profile.intentTags
                 ))
             }
+        } else {
+            // Fallback: original tag intersection
+            if !profile.intentTags.isEmpty {
+                let movieTags = Set(movie.tags)
+                let intentTags = Set(profile.intentTags)
+                if movieTags.intersection(intentTags).isEmpty {
+                    return .invalid(.noMatchingTags(
+                        movieTags: movie.tags,
+                        intentTags: profile.intentTags
+                    ))
+                }
+            }
         }
 
         return .valid
+    }
+
+    // ============================================
+    // SECTION 3B: Remote Mood Filtering (INV-R11)
+    // ============================================
+
+    /// Dimensional range check + anti-tag filtering using remote mood mapping.
+    /// Falls back to tag intersection for movies without emotional_profile.
+    private func passesRemoteMoodFilter(movie: GWMovie, mapping: GWMoodMapping, intentTags: [String]) -> Bool {
+        guard let ep = movie.emotionalProfile else {
+            // No emotional profile: fall back to tag check if compatible_tags is non-empty
+            if !mapping.compatibleTags.isEmpty {
+                let movieTags = Set(movie.tags)
+                return !movieTags.intersection(Set(mapping.compatibleTags)).isEmpty
+            }
+            return true // Surprise me (empty tags) -- allow through
+        }
+
+        // Check each dimension against min/max range
+        if let min = mapping.targetComfortMin, (ep.comfort ?? 5) < min { return false }
+        if let max = mapping.targetComfortMax, (ep.comfort ?? 5) > max { return false }
+        if let min = mapping.targetDarknessMin, (ep.darkness ?? 5) < min { return false }
+        if let max = mapping.targetDarknessMax, (ep.darkness ?? 5) > max { return false }
+        if let min = mapping.targetEmotionalIntensityMin, (ep.emotionalIntensity ?? 5) < min { return false }
+        if let max = mapping.targetEmotionalIntensityMax, (ep.emotionalIntensity ?? 5) > max { return false }
+        if let min = mapping.targetEnergyMin, (ep.energy ?? 5) < min { return false }
+        if let max = mapping.targetEnergyMax, (ep.energy ?? 5) > max { return false }
+        if let min = mapping.targetComplexityMin, (ep.complexity ?? 5) < min { return false }
+        if let max = mapping.targetComplexityMax, (ep.complexity ?? 5) > max { return false }
+        if let min = mapping.targetRewatchabilityMin, (ep.rewatchability ?? 5) < min { return false }
+        if let max = mapping.targetRewatchabilityMax, (ep.rewatchability ?? 5) > max { return false }
+        if let min = mapping.targetHumourMin, (ep.humour ?? 5) < min { return false }
+        if let max = mapping.targetHumourMax, (ep.humour ?? 5) > max { return false }
+        if let min = mapping.targetMentalstimulationMin, (ep.mentalStimulation ?? 5) < min { return false }
+        if let max = mapping.targetMentalstimulationMax, (ep.mentalStimulation ?? 5) > max { return false }
+
+        // Anti-tag check: reject if movie has anti-tags
+        if !mapping.antiTags.isEmpty {
+            let movieTags = Set(movie.tags)
+            if !movieTags.intersection(Set(mapping.antiTags)).isEmpty { return false }
+        }
+
+        return true
+    }
+
+    /// Weighted dimensional distance from ideal center across all 8 dimensions.
+    /// Returns 0.0 to 1.0 where 1.0 = perfect match.
+    /// Falls back to tag alignment for movies without emotional_profile.
+    private func computeMoodAffinity(movie: GWMovie, mapping: GWMoodMapping, intentTags: Set<String>, tagWeights: [String: Double]) -> Double {
+        guard let ep = movie.emotionalProfile else {
+            // No emotional profile: fall back to tag alignment
+            return computeTagAlignmentFallback(movie: movie, intentTags: intentTags, tagWeights: tagWeights)
+        }
+
+        let dimensions: [(movieVal: Double, ideal: Double, weight: Double)] = [
+            (Double(ep.comfort ?? 5), mapping.idealComfort ?? 5.0, mapping.weightComfort),
+            (Double(ep.darkness ?? 5), mapping.idealDarkness ?? 5.0, mapping.weightDarkness),
+            (Double(ep.emotionalIntensity ?? 5), mapping.idealEmotionalIntensity ?? 5.0, mapping.weightEmotionalIntensity),
+            (Double(ep.energy ?? 5), mapping.idealEnergy ?? 5.0, mapping.weightEnergy),
+            (Double(ep.complexity ?? 5), mapping.idealComplexity ?? 5.0, mapping.weightComplexity),
+            (Double(ep.rewatchability ?? 5), mapping.idealRewatchability ?? 5.0, mapping.weightRewatchability),
+            (Double(ep.humour ?? 5), mapping.idealHumour ?? 5.0, mapping.weightHumour),
+            (Double(ep.mentalStimulation ?? 5), mapping.idealMentalstimulation ?? 5.0, mapping.weightMentalstimulation),
+        ]
+
+        var totalWeightedDistance: Double = 0
+        var totalWeight: Double = 0
+
+        for dim in dimensions {
+            let distance = abs(dim.movieVal - dim.ideal) / 10.0 // Normalize to 0-1
+            totalWeightedDistance += distance * dim.weight
+            totalWeight += dim.weight
+        }
+
+        guard totalWeight > 0 else { return 0.5 }
+
+        let avgWeightedDistance = totalWeightedDistance / totalWeight
+        let affinity = 1.0 - avgWeightedDistance
+        return affinity // 0.0 to 1.0
+    }
+
+    /// Tag alignment fallback for movies without emotional_profile
+    private func computeTagAlignmentFallback(movie: GWMovie, intentTags: Set<String>, tagWeights: [String: Double]) -> Double {
+        let movieTags = Set(movie.tags)
+        let intersection = movieTags.intersection(intentTags)
+        var weightedAlignment = 0.0
+        var totalWeight = 0.0
+
+        for tag in intentTags {
+            let weight = tagWeights[tag] ?? 1.0
+            totalWeight += weight
+            if intersection.contains(tag) {
+                weightedAlignment += weight
+            }
+        }
+
+        return totalWeight > 0 ? weightedAlignment / totalWeight : 0.0
     }
 
     // ============================================
@@ -589,20 +761,36 @@ final class GWRecommendationEngine {
         let movieTags = Set(movie.tags)
         let intentTags = Set(profile.intentTags)
 
-        // 1. Tag alignment with weights
-        let intersection = movieTags.intersection(intentTags)
-        var weightedAlignment = 0.0
-        var totalWeight = 0.0
+        // 1. Mood affinity (replaces tag alignment when remote mapping available)
+        let tagAlignment: Double
+        if let mapping = profile.moodMapping, mapping.version > 0 {
+            // Remote mood mapping: use dimensional distance scoring
+            var affinity = computeMoodAffinity(movie: movie, mapping: mapping, intentTags: intentTags, tagWeights: profile.tagWeights)
 
-        for tag in intentTags {
-            let weight = profile.tagWeights[tag] ?? 1.0
-            totalWeight += weight
-            if intersection.contains(tag) {
-                weightedAlignment += weight
+            // Anti-tag penalty in scoring (not just filtering)
+            if !mapping.antiTags.isEmpty {
+                let antiOverlap = movieTags.intersection(Set(mapping.antiTags))
+                let antiPenalty = Double(antiOverlap.count) * 0.10
+                affinity = max(0, affinity - antiPenalty)
             }
-        }
 
-        let tagAlignment = totalWeight > 0 ? weightedAlignment / totalWeight : 0.0
+            tagAlignment = affinity
+        } else {
+            // Fallback: original tag alignment with weights
+            let intersection = movieTags.intersection(intentTags)
+            var weightedAlignment = 0.0
+            var totalWeight = 0.0
+
+            for tag in intentTags {
+                let weight = profile.tagWeights[tag] ?? 1.0
+                totalWeight += weight
+                if intersection.contains(tag) {
+                    weightedAlignment += weight
+                }
+            }
+
+            tagAlignment = totalWeight > 0 ? weightedAlignment / totalWeight : 0.0
+        }
 
         // 2. Regret safety (weighted)
         let regretSafety: Double
@@ -622,13 +810,39 @@ final class GWRecommendationEngine {
         // 4. Dimensional learning: penalize movies that match rejection patterns
         let dimensionalPenalty = computeDimensionalPenalty(movie: movie, learning: profile.dimensionalLearning)
 
-        // Weighted combination
-        let baseScore = (tagAlignment * 0.50) +
-                         (normalizedRegretSafety * 0.25) +
-                         (platformBiasScore * 0.15) +
-                         ((1.0 - dimensionalPenalty) * 0.10)
+        // 5. Taste graph score (INV-L06)
+        // Normalized 0-1. Weight scales from 0% (<3 feedbacks) to 15% (20+ feedbacks).
+        // Remaining weight distributed proportionally to existing components.
+        // Gated by taste_engine feature flag.
+        let tasteScore: Double
+        let tasteWeight: Double
+        if GWFeatureFlags.shared.isEnabled("taste_engine") {
+            tasteScore = GWTasteEngine.shared.computeTasteScore(
+                movieProfile: movie.emotionalProfile,
+                tasteProfile: profile.tasteProfile,
+                context: .current()
+            )
 
-        // 5. Threshold-gated confidence boost
+            // Compute taste weight per INV-L06
+            let feedbackCount = profile.tasteProfile?.totalFeedbackCount ?? 0
+            if feedbackCount < 3 { tasteWeight = 0.0 }
+            else if feedbackCount < 10 { tasteWeight = 0.075 }   // 7.5%
+            else if feedbackCount < 20 { tasteWeight = 0.12 }    // 12%
+            else { tasteWeight = 0.15 }                           // 15%
+        } else {
+            tasteScore = 0.0
+            tasteWeight = 0.0
+        }
+
+        // Scale existing weights proportionally to make room for taste
+        let existingScale = 1.0 - tasteWeight
+        let baseScore = (tagAlignment * 0.50 * existingScale) +
+                         (normalizedRegretSafety * 0.25 * existingScale) +
+                         (platformBiasScore * 0.15 * existingScale) +
+                         ((1.0 - dimensionalPenalty) * 0.10 * existingScale) +
+                         (tasteScore * tasteWeight)
+
+        // 6. Threshold-gated confidence boost
         // Once we have enough learned tag data (≥10 tags deviated from default 1.0),
         // amplify tag alignment by up to 10% to make personalization more decisive.
         // Below threshold: confidenceBoost = 0 (no effect on score).
@@ -899,6 +1113,196 @@ final class GWRecommendationEngine {
     // ============================================
     // Catalog Availability Check (Pre-check before recommendation)
     // ============================================
+
+    // ============================================
+    // SECTION 13: Multi-Pick Selection (Progressive Pick System)
+    // ============================================
+
+    /// Select N diverse movies from the valid candidate pool.
+    /// Diversity is enforced by penalizing genre overlap with already-selected picks.
+    /// Each pick must come from the top-10 at the time of selection (after diversity adjustment).
+    func recommendMultiple(
+        from movies: [GWMovie],
+        profile: GWUserProfileComplete,
+        count: Int
+    ) -> [GWMovie] {
+        guard count > 0 else { return [] }
+
+        // Single pick: use standard pipeline
+        if count == 1 {
+            let output = recommend(from: movies, profile: profile)
+            if let movie = output.movie { return [movie] }
+            return []
+        }
+
+        // Try with strict profile first, then relax if not enough valid movies
+        let profiles = buildProfileCascade(profile)
+
+        var validMovies: [GWMovie] = []
+        var activeProfile = profile
+
+        for candidate in profiles {
+            validMovies = []
+            for movie in movies {
+                if case .valid = isValidMovie(movie, profile: candidate) {
+                    validMovies.append(movie)
+                }
+            }
+            activeProfile = candidate
+            #if DEBUG
+            print("   recommendMultiple: \(validMovies.count) valid with profile cascade (intentTags=\(candidate.intentTags.prefix(3)), runtime=\(candidate.runtimeWindow.min)-\(candidate.runtimeWindow.max))")
+            #endif
+            if validMovies.count >= count { break }
+        }
+
+        guard !validMovies.isEmpty else { return [] }
+
+        // Score all valid movies
+        var scoredMovies = validMovies.map { movie -> (GWMovie, Double) in
+            (movie, computeScore(movie: movie, profile: activeProfile))
+        }
+
+        var selected: [GWMovie] = []
+        var selectedGenres: Set<String> = []
+
+        for _ in 0..<count {
+            guard !scoredMovies.isEmpty else { break }
+
+            // Apply genre diversity bonus/penalty
+            let adjusted = scoredMovies.map { (movie, score) -> (GWMovie, Double) in
+                let movieGenres = Set(movie.genres.map { $0.lowercased() })
+                let overlap = movieGenres.intersection(selectedGenres)
+                let penalty = Double(overlap.count) * 0.15
+                return (movie, score - penalty)
+            }
+
+            // Sort by adjusted score
+            let sorted = adjusted.sorted { $0.1 > $1.1 }
+
+            // Weighted random from top-10
+            let topN = Array(sorted.prefix(10))
+            guard let picked = weightedRandomPick(from: topN) else { break }
+
+            selected.append(picked)
+            selectedGenres.formUnion(picked.genres.map { $0.lowercased() })
+
+            // Remove picked from pool
+            scoredMovies.removeAll { $0.0.id == picked.id }
+        }
+
+        return selected
+    }
+
+    /// Builds a cascade of progressively relaxed profiles for multi-pick fallback.
+    /// Level 0: Original profile (strict)
+    /// Level 1: Expanded intent tags (add related tags)
+    /// Level 2: Expanded tags + relaxed runtime (+/-15 min)
+    private func buildProfileCascade(_ profile: GWUserProfileComplete) -> [GWUserProfileComplete] {
+        var cascade = [profile]
+
+        // Level 1: Expand intent tags to include related tags
+        var relaxed1 = profile
+        var expandedTags = Set(profile.intentTags)
+        // Tag family expansion: if user wants feel_good, also accept uplifting, calm, etc.
+        let tagFamilies: [String: [String]] = [
+            "feel_good": ["uplifting", "calm", "light", "rewatchable"],
+            "uplifting": ["feel_good", "calm", "light"],
+            "dark": ["tense", "heavy", "acquired_taste"],
+            "tense": ["dark", "high_energy", "full_attention"],
+            "calm": ["feel_good", "light", "background_friendly", "uplifting"],
+            "high_energy": ["tense", "full_attention"],
+            "light": ["calm", "feel_good", "background_friendly", "rewatchable"],
+            "heavy": ["dark", "full_attention", "acquired_taste"],
+            "safe_bet": ["feel_good", "rewatchable", "uplifting"],
+            "polarizing": ["acquired_taste", "full_attention"],
+            "acquired_taste": ["polarizing", "dark", "heavy"],
+        ]
+        for tag in profile.intentTags {
+            if let family = tagFamilies[tag] {
+                expandedTags.formUnion(family)
+            }
+        }
+        relaxed1.intentTags = Array(expandedTags)
+        cascade.append(relaxed1)
+
+        // Level 2: Also relax runtime window
+        var relaxed2 = relaxed1
+        relaxed2.runtimeWindow = GWRuntimeWindow(
+            min: max(30, profile.runtimeWindow.min - 15),
+            max: min(240, profile.runtimeWindow.max + 15)
+        )
+        cascade.append(relaxed2)
+
+        return cascade
+    }
+
+    /// Convenience: recommendMultiple from raw Movie array + content filter
+    func recommendMultiple(
+        fromRawMovies movies: [Movie],
+        profile: GWUserProfileComplete,
+        contentFilter: GWNewUserContentFilter,
+        count: Int
+    ) -> [GWMovie] {
+        let gwMovies = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
+        return recommendMultiple(from: gwMovies, profile: profile, count: count)
+    }
+
+    /// Find a replacement for a rejected card.
+    /// - contrasting strategy for "Not Interested" (penalize shared tags)
+    /// - similar strategy for "Already Seen" (boost shared tags)
+    func findReplacement(
+        from movies: [GWMovie],
+        profile: GWUserProfileComplete,
+        rejectedMovie: GWMovie,
+        reason: GWCardRejectionReason,
+        currentPicks: [GWMovie]
+    ) -> GWMovie? {
+        let rejectedTags = Set(rejectedMovie.tags)
+        let rejectedGenres = Set(rejectedMovie.genres.map { $0.lowercased() })
+        let currentIds = Set(currentPicks.map { $0.id })
+
+        // Filter valid movies not already in current picks
+        let validMovies = movies.filter { movie in
+            guard !currentIds.contains(movie.id) else { return false }
+            if case .valid = isValidMovie(movie, profile: profile) { return true }
+            return false
+        }
+
+        guard !validMovies.isEmpty else { return nil }
+
+        let scored = validMovies.map { movie -> (GWMovie, Double) in
+            var score = computeScore(movie: movie, profile: profile)
+            let movieTags = Set(movie.tags)
+            let movieGenres = Set(movie.genres.map { $0.lowercased() })
+
+            switch reason {
+            case .notInterested:
+                // Contrasting: penalize shared tags + genres with rejected movie
+                let tagOverlap = movieTags.intersection(rejectedTags)
+                let genreOverlap = movieGenres.intersection(rejectedGenres)
+                score -= Double(tagOverlap.count) / max(Double(movieTags.count), 1.0) * 0.30
+                score -= Double(genreOverlap.count) / max(Double(movieGenres.count), 1.0) * 0.20
+
+            case .alreadySeen:
+                // Similar: boost shared tags + genres (user likes this type)
+                let tagOverlap = movieTags.intersection(rejectedTags)
+                let genreOverlap = movieGenres.intersection(rejectedGenres)
+                score += Double(tagOverlap.count) / max(Double(movieTags.count), 1.0) * 0.15
+                score += Double(genreOverlap.count) / max(Double(movieGenres.count), 1.0) * 0.10
+            }
+
+            // Diversity penalty vs current picks
+            let currentGenres = Set(currentPicks.flatMap { $0.genres.map { $0.lowercased() } })
+            let overlapWithPicks = movieGenres.intersection(currentGenres)
+            score -= Double(overlapWithPicks.count) * 0.05
+
+            return (movie, score)
+        }
+
+        let sorted = scored.sorted { $0.1 > $1.1 }
+        let topN = Array(sorted.prefix(10))
+        return weightedRandomPick(from: topN)
+    }
 
     func checkCatalogAvailability(
         movies: [GWMovie],

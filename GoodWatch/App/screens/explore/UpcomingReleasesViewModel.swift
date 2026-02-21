@@ -89,11 +89,18 @@ class UpcomingReleasesViewModel: ObservableObject {
     @Published var selectedSection: Section = .theatrical
     @Published var selectedPlatform: String?
     @Published var selectedContentType: String?
-    @Published var selectedGenre: String?
     @Published var selectedMovie: Movie?
     @Published var sectionCounts: [Section: Int] = [:]
     @Published var platformCounts: [String: Int] = [:]
-    @Published var enrichedMovies: [Int: Movie] = [:] // tmdb_id → Movie
+    @Published var enrichedMovies: [Int: Movie] = [:] // tmdb_id -> Movie
+
+    // Multi-select filters (client-side on fetched results)
+    @Published var activeGenres: Set<String> = []
+    @Published var activeLanguages: Set<String> = []
+
+    // Sheet states
+    @Published var showGenreFilter: Bool = false
+    @Published var showLanguageFilter: Bool = false
 
     // MARK: - Options
 
@@ -109,10 +116,33 @@ class UpcomingReleasesViewModel: ObservableObject {
         "Thriller", "Science Fiction", "Animation", "Crime", "Documentary"
     ]
 
+    // MARK: - Computed Properties
+
+    var hasActiveFilters: Bool {
+        !activeGenres.isEmpty || !activeLanguages.isEmpty
+    }
+
+    var activeFilterTags: [String] {
+        var tags: [String] = []
+        tags.append(contentsOf: activeGenres)
+        tags.append(contentsOf: activeLanguages)
+        return tags
+    }
+
     // MARK: - Private
 
     private var cancellables = Set<AnyCancellable>()
     private var currentFetchTask: Task<Void, Never>?
+    private var unfilteredItems: [UpcomingRelease] = []
+
+    private static let languageToISO: [String: String] = [
+        "english": "en", "hindi": "hi", "japanese": "ja",
+        "tamil": "ta", "telugu": "te", "malayalam": "ml",
+        "spanish": "es", "korean": "ko", "kannada": "kn",
+        "bengali": "bn", "marathi": "mr", "french": "fr",
+        "chinese": "zh", "portuguese": "pt", "punjabi": "pa",
+        "gujarati": "gu"
+    ]
 
     // MARK: - Init
 
@@ -122,13 +152,36 @@ class UpcomingReleasesViewModel: ObservableObject {
         fetchSectionCounts()
     }
 
+    // MARK: - Methods
+
+    func clearAllFilters() {
+        activeGenres.removeAll()
+        activeLanguages.removeAll()
+        applyClientFilters()
+    }
+
+    func removeFilter(_ tag: String) {
+        activeGenres.remove(tag)
+        activeLanguages.remove(tag)
+        applyClientFilters()
+    }
+
     // MARK: - Publishers
 
     private func setupPublishers() {
-        Publishers.CombineLatest4($selectedSection, $selectedPlatform, $selectedContentType, $selectedGenre)
+        // Server-side triggers: section, platform, contentType
+        Publishers.CombineLatest3($selectedSection, $selectedPlatform, $selectedContentType)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .sink { [weak self] _, _, _, _ in
+            .sink { [weak self] _, _, _ in
                 self?.fetchItems()
+            }
+            .store(in: &cancellables)
+
+        // Client-side filters
+        Publishers.CombineLatest($activeGenres, $activeLanguages)
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .sink { [weak self] _, _ in
+                self?.applyClientFilters()
             }
             .store(in: &cancellables)
     }
@@ -141,20 +194,12 @@ class UpcomingReleasesViewModel: ObservableObject {
 
         currentFetchTask = Task {
             do {
-                var fetched = try await ExploreService.shared.fetchUpcomingReleases(
+                let fetched = try await ExploreService.shared.fetchUpcomingReleases(
                     section: selectedSection.rawValue,
                     platform: selectedPlatform,
                     contentType: selectedContentType,
                     limit: 200
                 )
-
-                // Client-side genre filter
-                if let genre = selectedGenre {
-                    fetched = fetched.filter { item in
-                        guard let genres = item.genreNames else { return false }
-                        return genres.contains(genre)
-                    }
-                }
 
                 // For OTT items, cross-reference movies table for ratings
                 let tmdbIds = fetched.map { $0.tmdb_id }
@@ -170,8 +215,9 @@ class UpcomingReleasesViewModel: ObservableObject {
                 }
 
                 await MainActor.run {
-                    self.items = fetched
+                    self.unfilteredItems = fetched
                     self.enrichedMovies = enriched
+                    self.applyClientFilters()
                     self.isLoading = false
                 }
             } catch {
@@ -183,6 +229,28 @@ class UpcomingReleasesViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func applyClientFilters() {
+        var filtered = unfilteredItems
+
+        // Genre filter (multi-select)
+        if !activeGenres.isEmpty {
+            filtered = filtered.filter { item in
+                guard let genres = item.genreNames else { return false }
+                return !activeGenres.isDisjoint(with: Set(genres))
+            }
+        }
+
+        // Language filter (multi-select)
+        if !activeLanguages.isEmpty {
+            let isoCodes = Set(activeLanguages.compactMap { Self.languageToISO[$0.lowercased()] })
+            filtered = filtered.filter { item in
+                isoCodes.contains(item.original_language.lowercased())
+            }
+        }
+
+        items = filtered
     }
 
     // MARK: - Section Counts

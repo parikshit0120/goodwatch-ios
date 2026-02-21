@@ -8,6 +8,18 @@ final class InteractionService {
     private var baseURL: String { SupabaseConfig.url }
     private var anonKey: String { SupabaseConfig.anonKey }
 
+    // MARK: - Maturity Cache (avoid 2 RPCs per recommendation)
+    private var cachedMaturity: UserMaturityInfo?
+    private var cachedMaturityUserId: UUID?
+    private var cachedMaturityDate: Date?
+
+    /// Invalidate maturity cache (call after watch_now or new interaction that changes maturity)
+    func invalidateMaturityCache() {
+        cachedMaturity = nil
+        cachedMaturityUserId = nil
+        cachedMaturityDate = nil
+    }
+
     // MARK: - Record Interaction
     func recordInteraction(
         userId: UUID,
@@ -36,7 +48,7 @@ final class InteractionService {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(interaction)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 201 else {
@@ -70,6 +82,8 @@ final class InteractionService {
     // MARK: - Record Watch Now
     func recordWatchNow(userId: UUID, movieId: UUID) async throws {
         try await recordInteraction(userId: userId, movieId: movieId, action: .watch_now)
+        // Invalidate maturity cache since watch count increased
+        invalidateMaturityCache()
         // Note: Post-watch feedback is handled by GWFeedbackEnforcer.schedulePostWatchFeedback()
         // which is called from RootFlowView.handleWatchNow()
     }
@@ -110,7 +124,7 @@ final class InteractionService {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(rejection)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
@@ -139,7 +153,7 @@ final class InteractionService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
 
         struct RejectionRow: Codable {
             let movie_id: UUID
@@ -163,7 +177,7 @@ final class InteractionService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
 
         struct InteractionRow: Codable {
             let movie_id: UUID
@@ -187,7 +201,7 @@ final class InteractionService {
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
         request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
         // Count is returned in the Content-Range header
         if let httpResponse = response as? HTTPURLResponse,
@@ -217,7 +231,7 @@ final class InteractionService {
         let body = ["p_user_id": userId.uuidString]
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         // If RPC doesn't exist, fall back to false (treat as new user)
         if let httpResponse = response as? HTTPURLResponse,
@@ -260,14 +274,29 @@ final class InteractionService {
     }
 
     func getUserMaturityInfo(userId: UUID) async -> UserMaturityInfo {
+        // Return cached maturity if same user and within 10 minutes
+        if let cached = cachedMaturity,
+           cachedMaturityUserId == userId,
+           let cacheDate = cachedMaturityDate,
+           Date().timeIntervalSince(cacheDate) < 600 {
+            return cached
+        }
+
         do {
             async let watchCount = getWatchNowCount(userId: userId)
             async let hasDocumentary = hasWatchedDocumentary(userId: userId)
 
-            return UserMaturityInfo(
+            let info = UserMaturityInfo(
                 watchNowCount: try await watchCount,
                 hasWatchedDocumentary: try await hasDocumentary
             )
+
+            // Cache the result
+            cachedMaturity = info
+            cachedMaturityUserId = userId
+            cachedMaturityDate = Date()
+
+            return info
         } catch {
             #if DEBUG
             print("⚠️ Failed to get user maturity info: \(error)")
@@ -293,7 +322,7 @@ final class InteractionService {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(feedback)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 201 else {
@@ -346,7 +375,7 @@ final class InteractionService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
 
         struct InteractionRow: Codable {
             let movie_id: UUID

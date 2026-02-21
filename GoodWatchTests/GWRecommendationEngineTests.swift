@@ -770,7 +770,7 @@ final class GWRecommendationEngineTests: XCTestCase {
 // MARK: - GWMovie Test Initializer Extension
 
 extension GWMovie {
-    /// Test-only initializer for creating fixture movies
+    /// Test-only initializer for creating fixture movies via JSON round-trip
     init(
         id: String,
         title: String,
@@ -786,19 +786,25 @@ extension GWMovie {
         available: Bool,
         contentType: String? = nil
     ) {
-        self.id = id
-        self.title = title
-        self.year = year
-        self.runtime = runtime
-        self.language = language
-        self.platforms = platforms
-        self.poster_url = poster_url
-        self.overview = overview
-        self.genres = genres
-        self.tags = tags
-        self.goodscore = goodscore
-        self.voteCount = 1000 // Default passing value for test fixtures
-        self.available = available
-        self.contentType = contentType
+        var json: [String: Any] = [
+            "id": id,
+            "title": title,
+            "year": year,
+            "runtime": runtime,
+            "language": language,
+            "platforms": platforms,
+            "genres": genres,
+            "tags": tags,
+            "goodscore": goodscore,
+            "composite_score": goodscore * 10,
+            "voteCount": 1000,
+            "available": available
+        ]
+        if let poster_url = poster_url { json["poster_url"] = poster_url }
+        if let overview = overview { json["overview"] = overview }
+        if let contentType = contentType { json["contentType"] = contentType }
+
+        let data = try! JSONSerialization.data(withJSONObject: json)
+        self = try! JSONDecoder().decode(GWMovie.self, from: data)
     }
 }

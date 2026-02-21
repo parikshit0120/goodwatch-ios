@@ -129,3 +129,266 @@ SESSION: 2026-02-13 (Part 2) — PRD + App Flow Documentation
 - [PENDING] Commit and push web + marketing repo uncommitted changes
 - [PENDING] Verify app compiles and runs on simulator
 - [PENDING] Push all commits to origin/main
+
+================================================================================
+SESSION: 2026-02-13 (Part 3) — Product Invariants + Safety Rails
+================================================================================
+
+## Context
+- Code review identified potential risks: future sessions could break recommendation engine,
+  UX journey, tag weight system, or scoring formula without realizing it
+- Parikshit asked: "how would I know if you are violating my app constructs or the
+  recommendation engine or the user experience/journey that I had thought and need?"
+- Solution: machine-verifiable invariants with automated tests
+
+## Completed This Session
+
+[DONE] INVARIANTS.md — 22 product invariants across 4 domains
+  - INV-R (9 rules): Recommendation engine behavioral contracts
+    - Single movie output, availability gate, language respect, no repeats,
+      runtime window, quality floor, content type, tag intersection, maturity gating
+  - INV-U (6 rules): UX/journey contracts
+    - Two separate journeys, linear onboarding, UI never filters,
+      MainScreen 4-action contract, Explore auth mandatory, back always works
+  - INV-D (4 rules): Data contracts
+    - GoodScore priority chain, tag derivation (no emotional_profile ≠ safe_bet),
+      per-user tag weights, Supabase as source of truth
+  - INV-L (5 rules): Learning system contracts
+    - Exact tag deltas, scoring formula weights, confidence boost threshold,
+      weighted random selection, not-tonight avoidance
+  - Pre-commit checklist linking invariants to file changes
+  - Instructions for adding new invariants
+
+[DONE] GWProductInvariantTests.swift — 30+ automated tests encoding all invariants
+  - Every test name maps to an invariant ID (testInvariant_R01, testInvariant_R02, etc.)
+  - Fixed test fixtures (zero randomness where possible)
+  - Tests cover: validation rules, scoring formula, tag weight deltas,
+    content filtering, stop conditions, recommendation output contracts
+  - Rule: if an invariant test fails, the CODE is wrong — not the test
+
+[DONE] CLAUDE.md Section 12 — Product Invariants quick reference table
+  - 22-row table with ID, rule, domain
+  - Pre-commit rule: run invariant tests before every commit
+  - Links to INVARIANTS.md for full spec
+
+## Files Created
+- ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/INVARIANTS.md
+- ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/GoodWatchTests/GWProductInvariantTests.swift
+
+## Files Modified
+- ~/Desktop/Personal/CLAUDE.md (added Section 12)
+- ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/progress.txt (this update)
+
+## Blockers
+- None
+
+## Pending / Not Started
+- [PENDING] Commit invariants + tests + CLAUDE.md update
+- [PENDING] Run invariant tests on simulator to verify they compile and pass
+- [PENDING] Commit and push web + marketing repo uncommitted changes
+- [PENDING] Verify full app compiles and runs on simulator
+- [PENDING] Push all commits to origin/main
+
+## Notes for Next Session
+- INVARIANTS.md is the source of truth for product behavior — read it first
+- Before ANY code change, check which invariants are affected
+- Run invariant tests: xcodebuild test ... -only-testing:GoodWatchTests/GWProductInvariantTests
+- If adding new features that change behavior, ADD new invariants first
+- The existing GWRecommendationEngineTests.swift still works — invariant tests are additive
+
+================================================================================
+SESSION: 2026-02-13 (Part 3b) — Gap Analysis + Invariant Hardening
+================================================================================
+
+## Context
+- Parikshit identified 6 gaps in the invariant system:
+  1. "Spirit vs letter" — structural correctness doesn't guarantee quality
+  2. No rule requiring new invariants for new features
+  3. Server-side scoring blind spot
+  4. No mutation protection on invariant files themselves
+  5. Completeness of invariant coverage
+  6. Pre-commit gate vs continuous validation
+
+## Completed This Session
+
+[DONE] INV-R10 added — Top-N Quality Guarantee
+  - Returned movie must come from top-10 scored candidates
+  - Test: testInvariant_R10_ReturnedMovieIsFromTopCandidates
+  - Test: testInvariant_R10_NeverReturnsInvalidMovieFromPool
+  - Closes gap #1 (spirit vs letter)
+
+[DONE] INV-D05 added — Client-Side Scoring Only
+  - All scoring/filtering happens in Swift, not server-side
+  - Test: testInvariant_D05_ScoringWorksWithoutNetwork
+  - Closes gap #3 (server-side blind spot)
+
+[DONE] Invariant files added to protected files list (CLAUDE.md)
+  - INVARIANTS.md, GWProductInvariantTests.swift, GWRecommendationEngineTests.swift
+  - Rule: "NEVER modify without approval. Weakening a test to make code pass is a violation."
+  - Closes gap #4 (mutation protection)
+
+[DONE] "New behavior = New invariant first" rule added to CLAUDE.md
+  - If adding behavior touching recommendation, scoring, UX flow, or learning:
+    propose invariant BEFORE writing code
+  - Closes gap #2 (new feature coverage)
+
+[DONE] Continuous validation rule added to CLAUDE.md + INVARIANTS.md
+  - Run invariant tests after modifying ANY file in Core/, Services/, or screens/
+  - Not just at commit time — mid-session validation
+  - Closes gap #6 (pre-commit vs continuous)
+
+## Files Modified
+- INVARIANTS.md (added INV-R10, INV-D05, protected files section, continuous validation section)
+- GWProductInvariantTests.swift (added 3 new tests)
+- CLAUDE.md (added 3 new rules to 1.1 table, added INV-R10 + INV-D05 to quick ref)
+- progress.txt (this update)
+
+## Gap Analysis Results
+- Gap #5 (completeness): Acknowledged — invariants will grow with each incident/feature.
+  Every past breakage should map to an invariant. If it doesn't, a new one is added.
+  Current coverage: 24 invariants across 4 domains. Not complete, but foundational.
+
+## Pending
+- [PENDING] Commit all changes
+- [PENDING] Run invariant tests to verify compilation
+- [PENDING] Push to origin/main
+
+================================================================================
+SESSION: 2026-02-14 — Auth Unification + Website Fixes
+================================================================================
+
+## Context
+- Facebook OAuth added to iOS and Android (Supabase web flow via ASWebAuthenticationSession/Custom Tabs)
+- Website explore pages audited and fixed for multiple issues
+- Auth unification verified — shared session across Pick For Me and Explore
+
+## Completed This Session
+
+[DONE] Facebook Sign-In — iOS
+  - UserModels.swift: added `case facebook` to AuthProvider enum
+  - UserService.swift: added `signInWithFacebook()` using ASWebAuthenticationSession
+  - AuthView.swift + ExploreAuthView.swift: Facebook sign-in button added
+  - project.yml: `goodwatch://auth/callback` URL scheme added
+  - iOS build verified: BUILD SUCCEEDED
+
+[DONE] Facebook Sign-In — Android
+  - UserModels.kt: added `FACEBOOK("facebook")` to AuthProvider
+  - UserService.kt: added `signInWithFacebook(accessToken)` + `fetchSupabaseUserEmail()`
+  - AuthScreen.kt + ExploreAuthScreen.kt: Facebook sign-in button added
+  - MainActivity.kt: OAuth callback deep link handling
+  - AndroidManifest.xml: intent filter for `goodwatch://auth/callback`
+  - Fixed: SupabaseConfig.url → SupabaseConfig.URL, anonKey → ANON_KEY (uppercase constants)
+  - Android build verified: BUILD SUCCESSFUL
+
+[DONE] Website Explore Fixes
+  - Golden "My Watchlist" button (shown when signed in, #D4AF37 accent)
+  - SVG sizing fixed: explicit width="14" height="14" instead of Tailwind classes
+  - Movie count standardized to "22,500+" across all pages
+  - Results count below genre removed (only shows when filters active)
+  - Search X button fixed: added `flex` to class + `cursor-pointer`
+  - 404 fix: added `composite_score=not.is.null` filter to explore.js Supabase queries
+    (ensures all explore results have corresponding static pages — INV-D06)
+
+[DONE] New Invariants Added
+  - INV-D06: Explore ↔ Static Page Consistency (Web) — explore.js and generate_movie_pages.py
+    must use matching filters to prevent 404s
+  - INV-D07: GoodScore Display Sources — movie pages show ALL available rating sources
+
+[DONE] Documentation Updates
+  - INVARIANTS.md (iOS + Android): added INV-D06 and INV-D07
+  - CLAUDE.md (master): updated invariant count to 26, added INV-D06/D07 to table,
+    updated known issues (composite score now at 91%, added issues #8 and #9)
+  - progress.txt: this update
+
+## Key Findings
+- 20,629 of 22,663 movies (91%) now have composite_score — up from ~255 previously
+- 2,034 movies still lack composite_score and have no static pages
+- Cloudflare Pages 20K file limit prevents generating pages for ALL movies
+- Movie ratings display is correct (shows all available) — apparent "TMDB only" is a data gap
+- IMDb ratings display is legally fine — OMDB API is a licensed data provider
+
+## Blockers
+- None
+
+## Pending / Not Started
+- [PENDING] Commit and push all changes
+- [PENDING] Full end-to-end testing of Facebook OAuth flow on device
+- [PENDING] Play Store submission for Android
+
+================================================================================
+SESSION: 2026-02-14 (Part 2) — Fail-Safe Audit: Zero 404s, Zero Wrong Links
+================================================================================
+
+## Context
+- User reported that 404 errors should "never have happened" — demanded system-wide fail-safe
+- Full pipeline audit revealed 5 mismatch vectors between explore.js and static pages
+- Root causes: client-side slugify couldn't handle deduped slugs, non-Latin titles, or duplicate slugs
+
+## Root Causes Found (5 Vectors)
+
+1. **Query filter mismatch** — explore.js didn't filter on composite_score [FIXED in Part 1]
+2. **Slugify mismatch** — Python vs JS slug functions [NOT A RISK: both strip non-ASCII identically]
+3. **Duplicate slug collision** — 42 movies had same title+year → wrong page linked
+   e.g., "power-2014" had 3 different movies, explore.js linked them all to the same page
+4. **Non-Latin titles** — 13 CJK/Cyrillic movies produced empty/colliding slugs
+5. **Null year** — 14 movies with null year, contributed to slug collision pool
+
+## Completed This Session
+
+[DONE] generate_movie_pages.py — Slug manifest format changed
+  - OLD: `_slugs.json` was a list of raw slugs (19,770 entries, 41 duplicates)
+  - NEW: `_slugs.json` is a dict {movie_id: actual_slug} (19,764 entries, 0 duplicates)
+  - Deduped slugs tracked with `id_to_slug[movie_id] = actual_slug`
+  - Handles cases like `power-2014` → `power-2014` for first, `power-2014-a1b2c3d4` for dupes
+
+[DONE] explore.js — Manifest-based slug resolution
+  - Added `_slugManifest` variable, loads `/movies/_slugs.json` on page load
+  - Added `resolveSlug(movie)` function: looks up movie.id in manifest
+  - If movie has no manifest entry → card renders without link (no 404, no wrong page)
+  - Replaced all `slugify()` calls with `resolveSlug()` in `renderMovieCard()`
+
+[DONE] Watchlist page — Same manifest-based fix
+  - Added slug manifest loading + `resolveSlug()` to watchlist inline script
+  - Updated `renderCard()` to use manifest instead of direct `slugify()`
+
+[DONE] validate_deploy.py — Pre-deploy validation script (NEW FILE)
+  - Check 1: Slug manifest integrity (no duplicates, all slugs have pages, orphan detection)
+  - Check 2: Cloudflare file count (currently 19,999, limit is 20,000)
+  - Check 3: explore.js invariants (composite_score filter, _slugManifest, resolveSlug)
+  - Exit code 0 = safe to deploy, 1 = issues found
+  - MUST run before every deploy
+
+[DONE] Slug manifest regenerated via disk-scanning
+  - Scanned 19,765 actual movie directories on disk
+  - Matched to Supabase movie IDs via computed slugs
+  - Result: 19,764 resolved, 0 missing pages, 865 unresolved (no page on disk)
+  - Note: algorithmic regeneration caused 864 ordering-drift mismatches — disk scan is authoritative
+
+[DONE] Cache-busting version bumps
+  - All explore pages: explore.js?v=6, auth.js?v=6, watchlist.js?v=6
+
+[DONE] INV-D06 strengthened in INVARIANTS.md (iOS + Android)
+  - Now documents the 3-layer fail-safe: query filter + slug manifest + pre-deploy validation
+  - "Violated if" expanded to cover all bypass vectors
+
+[DONE] CLAUDE.md updated
+  - INV-D06 description updated to mention 3-layer fail-safe
+  - Website section: added pre-deploy validation step, updated file counts, added cache-bust gotcha
+
+[DONE] Deployed to Cloudflare Pages — https://59cc8264.goodwatch-web.pages.dev
+
+## Three-Layer Fail-Safe System (INV-D06)
+
+| Layer | What It Catches | Where |
+|-------|----------------|-------|
+| 1. Query filter (`composite_score=not.is.null`) | Movies without static pages | explore.js |
+| 2. Slug manifest (`resolveSlug()`) | Duplicate slugs, non-Latin titles, dedup suffixes | explore.js + watchlist |
+| 3. Pre-deploy validation (`validate_deploy.py`) | Manifest drift, file count, code invariants | Before deploy |
+
+## Blockers
+- None
+
+## Pending / Not Started
+- [PENDING] Commit and push all changes
+- [PENDING] Full end-to-end testing of Facebook OAuth flow on device
+- [PENDING] Play Store submission for Android

@@ -21,6 +21,7 @@ class PlatformViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private var cancellables = Set<AnyCancellable>()
+    private var currentFetchTask: Task<Void, Never>?
 
     // MARK: - Platform Options
 
@@ -59,9 +60,10 @@ class PlatformViewModel: ObservableObject {
             return
         }
 
+        currentFetchTask?.cancel()
         isLoading = true
 
-        Task {
+        currentFetchTask = Task {
             do {
                 let fetchedMovies = try await ExploreService.shared.fetchMoviesByPlatform(
                     platform: platform,

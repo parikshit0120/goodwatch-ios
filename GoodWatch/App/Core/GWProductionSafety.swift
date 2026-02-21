@@ -29,6 +29,16 @@ struct GWFallbackLog: Codable {
     let relaxedProfile: String   // JSON summary
     let timestamp: Date
 
+    // Actual user context for Supabase logging
+    let mood: String
+    let timeOfDay: String
+    let platforms: [String]
+    let language: String
+    let intentTags: [String]
+    let goodscoreThreshold: Double
+    let candidateCountBeforeFallback: Int
+    let movieGoodscore: Double
+
     func toJSON() -> [String: Any] {
         [
             "fallback_level": fallbackLevel.rawValue,
@@ -59,14 +69,26 @@ extension GWRecommendationEngine {
         profile: GWUserProfileComplete
     ) -> (output: GWRecommendationOutput, fallbackLevel: GWFallbackLevel, fallbackLog: GWFallbackLog?) {
 
+        // Count candidates that pass validation at each level for logging
+        let originalValidCount = movies.filter { movie in
+            if case .valid = isValidMovie(movie, profile: profile) { return true }
+            return false
+        }.count
+
         // Step 1: Try with original profile
         let originalResult = recommend(from: movies, profile: profile)
         if originalResult.movie != nil {
             return (originalResult, .none, nil)
         }
 
-        // Step 2: Fallback Level 1 - Relax intent_tags (same genre family)
+        // Step 2: Fallback Level 1 - Relax mood filter
         var relaxedProfile = profile
+
+        // If using remote mood mapping, expand dimensional ranges by +/-2 and remove anti-tags
+        // If using fallback (tag-only), expand intent tags to genre family
+        if let originalMapping = profile.moodMapping, originalMapping.version > 0 {
+            relaxedProfile.moodMapping = relaxMoodMapping(originalMapping)
+        }
         relaxedProfile.intentTags = expandToGenreFamily(profile.intentTags)
 
         let level1Result = recommend(from: movies, profile: relaxedProfile)
@@ -76,17 +98,20 @@ extension GWRecommendationEngine {
                 userId: profile.userId,
                 movieId: level1Result.movie?.id,
                 original: profile,
-                relaxed: relaxedProfile
+                relaxed: relaxedProfile,
+                candidateCount: originalValidCount,
+                movieGoodscore: level1Result.movie?.goodscore ?? 0
             )
             logFallback(log)
             return (level1Result, .relaxedTags, log)
         }
 
-        // Step 3: Fallback Level 2 - Relax runtime by +15 min
+        // Step 3: Fallback Level 2 - Relax runtime by +15 min + drop recency gate
         relaxedProfile.runtimeWindow = GWRuntimeWindow(
             min: max(30, profile.runtimeWindow.min - 15),
             max: min(240, profile.runtimeWindow.max + 15)
         )
+        relaxedProfile.applyRecencyGate = false
 
         let level2Result = recommend(from: movies, profile: relaxedProfile)
         if level2Result.movie != nil {
@@ -95,7 +120,9 @@ extension GWRecommendationEngine {
                 userId: profile.userId,
                 movieId: level2Result.movie?.id,
                 original: profile,
-                relaxed: relaxedProfile
+                relaxed: relaxedProfile,
+                candidateCount: originalValidCount,
+                movieGoodscore: level2Result.movie?.goodscore ?? 0
             )
             logFallback(log)
             return (level2Result, .relaxedRuntime, log)
@@ -107,7 +134,9 @@ extension GWRecommendationEngine {
             userId: profile.userId,
             movieId: nil,
             original: profile,
-            relaxed: relaxedProfile
+            relaxed: relaxedProfile,
+            candidateCount: originalValidCount,
+            movieGoodscore: 0
         )
         logFallback(log)
 
@@ -122,6 +151,58 @@ extension GWRecommendationEngine {
     ) -> (output: GWRecommendationOutput, fallbackLevel: GWFallbackLevel, fallbackLog: GWFallbackLog?) {
         let gwMovies = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
         return recommendWithFallback(from: gwMovies, profile: profile)
+    }
+
+    /// Relax a mood mapping: expand dimensional ranges by +/-2, remove anti-tags
+    private func relaxMoodMapping(_ mapping: GWMoodMapping) -> GWMoodMapping {
+        func relaxMin(_ val: Int?) -> Int? {
+            guard let v = val else { return nil }
+            return max(0, v - 2)
+        }
+        func relaxMax(_ val: Int?) -> Int? {
+            guard let v = val else { return nil }
+            return min(10, v + 2)
+        }
+        return GWMoodMapping(
+            moodKey: mapping.moodKey,
+            displayName: mapping.displayName,
+            targetComfortMin: relaxMin(mapping.targetComfortMin),
+            targetComfortMax: relaxMax(mapping.targetComfortMax),
+            targetDarknessMin: relaxMin(mapping.targetDarknessMin),
+            targetDarknessMax: relaxMax(mapping.targetDarknessMax),
+            targetEmotionalIntensityMin: relaxMin(mapping.targetEmotionalIntensityMin),
+            targetEmotionalIntensityMax: relaxMax(mapping.targetEmotionalIntensityMax),
+            targetEnergyMin: relaxMin(mapping.targetEnergyMin),
+            targetEnergyMax: relaxMax(mapping.targetEnergyMax),
+            targetComplexityMin: relaxMin(mapping.targetComplexityMin),
+            targetComplexityMax: relaxMax(mapping.targetComplexityMax),
+            targetRewatchabilityMin: relaxMin(mapping.targetRewatchabilityMin),
+            targetRewatchabilityMax: relaxMax(mapping.targetRewatchabilityMax),
+            targetHumourMin: relaxMin(mapping.targetHumourMin),
+            targetHumourMax: relaxMax(mapping.targetHumourMax),
+            targetMentalstimulationMin: relaxMin(mapping.targetMentalstimulationMin),
+            targetMentalstimulationMax: relaxMax(mapping.targetMentalstimulationMax),
+            idealComfort: mapping.idealComfort,
+            idealDarkness: mapping.idealDarkness,
+            idealEmotionalIntensity: mapping.idealEmotionalIntensity,
+            idealEnergy: mapping.idealEnergy,
+            idealComplexity: mapping.idealComplexity,
+            idealRewatchability: mapping.idealRewatchability,
+            idealHumour: mapping.idealHumour,
+            idealMentalstimulation: mapping.idealMentalstimulation,
+            compatibleTags: mapping.compatibleTags,
+            antiTags: [], // Remove anti-tags at fallback level
+            weightComfort: mapping.weightComfort,
+            weightDarkness: mapping.weightDarkness,
+            weightEmotionalIntensity: mapping.weightEmotionalIntensity,
+            weightEnergy: mapping.weightEnergy,
+            weightComplexity: mapping.weightComplexity,
+            weightRewatchability: mapping.weightRewatchability,
+            weightHumour: mapping.weightHumour,
+            weightMentalstimulation: mapping.weightMentalstimulation,
+            archetypeMovieIds: mapping.archetypeMovieIds,
+            version: mapping.version
+        )
     }
 
     /// Expand intent tags to same genre family
@@ -157,15 +238,30 @@ extension GWRecommendationEngine {
         userId: String,
         movieId: String?,
         original: GWUserProfileComplete,
-        relaxed: GWUserProfileComplete
+        relaxed: GWUserProfileComplete,
+        candidateCount: Int,
+        movieGoodscore: Double
     ) -> GWFallbackLog {
-        GWFallbackLog(
+        let threshold = gwGoodscoreThreshold(
+            mood: original.mood,
+            timeOfDay: GWTimeOfDay.current,
+            style: original.recommendationStyle
+        )
+        return GWFallbackLog(
             fallbackLevel: level,
             userId: userId,
             movieId: movieId,
             originalProfile: "tags:\(original.intentTags.joined(separator: ",")) runtime:\(original.runtimeWindow.min)-\(original.runtimeWindow.max)",
             relaxedProfile: "tags:\(relaxed.intentTags.joined(separator: ",")) runtime:\(relaxed.runtimeWindow.min)-\(relaxed.runtimeWindow.max)",
-            timestamp: Date()
+            timestamp: Date(),
+            mood: original.mood,
+            timeOfDay: GWTimeOfDay.current.rawValue,
+            platforms: original.platforms,
+            language: original.preferredLanguages.joined(separator: ","),
+            intentTags: original.intentTags,
+            goodscoreThreshold: threshold,
+            candidateCountBeforeFallback: candidateCount,
+            movieGoodscore: movieGoodscore
         )
     }
 
@@ -176,6 +272,14 @@ extension GWRecommendationEngine {
         print("   Original: \(log.originalProfile)")
         print("   Relaxed: \(log.relaxedProfile)")
         #endif
+
+        // Track fallback event for dashboard analytics
+        MetricsService.shared.track(.recommendationFallback, properties: [
+            "fallback_level": log.fallbackLevel.rawValue,
+            "mood": log.mood,
+            "candidate_count": log.candidateCountBeforeFallback,
+            "movie_id": log.movieId ?? "none"
+        ])
 
         // Log to Supabase
         Task {
@@ -195,20 +299,24 @@ extension GWRecommendationEngine {
                 "user_id": log.userId,
                 "movie_id": log.movieId ?? "00000000-0000-0000-0000-000000000000",
                 "movie_title": "FALLBACK_LEVEL_\(log.fallbackLevel.rawValue)",
-                "goodscore": 0.0,
-                "threshold_used": 0.0,
-                "mood": "",
-                "time_of_day": "",
-                "candidate_count": 0,
-                "platforms_matched": [],
-                "language_matched": "",
-                "intent_tags_matched": []
+                "goodscore": log.movieGoodscore,
+                "threshold_used": log.goodscoreThreshold,
+                "mood": log.mood,
+                "time_of_day": log.timeOfDay,
+                "candidate_count": log.candidateCountBeforeFallback,
+                "platforms_matched": log.platforms,
+                "language_matched": log.language,
+                "intent_tags_matched": log.intentTags
             ]
 
             try await insertToSupabase(table: "recommendation_logs", data: insertData)
-            print("📊 Fallback logged to Supabase: Level \(log.fallbackLevel.rawValue)")
+            #if DEBUG
+            print("Fallback logged to Supabase: Level \(log.fallbackLevel.rawValue) | mood:\(log.mood) | threshold:\(log.goodscoreThreshold) | candidates:\(log.candidateCountBeforeFallback)")
+            #endif
         } catch {
-            print("🚨 Failed to log fallback: \(error)")
+            #if DEBUG
+            print("Failed to log fallback: \(error)")
+            #endif
         }
     }
 

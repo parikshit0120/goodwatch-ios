@@ -58,6 +58,7 @@ struct AuthView: View {
                     .cornerRadius(25)
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
+                .accessibilityIdentifier("auth_apple_sign_in")
 
                 Spacer().frame(height: 12)
 
@@ -78,6 +79,28 @@ struct AuthView: View {
                     .cornerRadius(25)
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
+                .accessibilityIdentifier("auth_google_sign_in")
+
+                Spacer().frame(height: 12)
+
+                // Sign in with Facebook
+                Button {
+                    handleFacebookSignIn()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "f.circle.fill")
+                            .font(.system(size: 22, weight: .medium))
+                        Text("Continue with Facebook")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(Color(hex: "1877F2"))
+                    .cornerRadius(25)
+                }
+                .padding(.horizontal, GWSpacing.screenPadding)
+                .accessibilityIdentifier("auth_facebook_sign_in")
 
                 // Error message
                 if let error = errorMessage {
@@ -151,6 +174,7 @@ struct AuthView: View {
                         )
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
+                .accessibilityIdentifier("auth_skip")
                 .padding(.bottom, 48)
             }
             .opacity(contentOpacity)
@@ -310,6 +334,42 @@ struct AuthView: View {
                     print("Supabase Google auth error: \(error.localizedDescription)")
                     await handleFallbackToAnonymous(provider: "Google")
                 }
+            }
+        }
+    }
+
+    private func handleFacebookSignIn() {
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let user = try await UserService.shared.signInWithFacebook()
+                // Cache display name from email if available
+                if let email = user.email, !email.isEmpty {
+                    let name = email.components(separatedBy: "@").first ?? email
+                    if UserDefaults.standard.string(forKey: "gw_user_display_name") == nil {
+                        UserDefaults.standard.set(name, forKey: "gw_user_display_name")
+                    }
+                }
+                await subscribeToNewsletterIfOptedIn()
+                await MainActor.run {
+                    isLoading = false
+                    onContinue()
+                }
+            } catch {
+                let nsError = error as NSError
+                // ASWebAuthenticationSessionError.canceledLogin = 1
+                if nsError.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && nsError.code == 1 {
+                    // User cancelled - no error message needed
+                    await MainActor.run { isLoading = false }
+                    return
+                }
+                // Facebook Sign-In failed - fall back to anonymous
+                #if DEBUG
+                print("Facebook Sign-In error: \(error.localizedDescription)")
+                #endif
+                await handleFallbackToAnonymous(provider: "Facebook")
             }
         }
     }

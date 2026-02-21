@@ -39,6 +39,7 @@ class DiscoverViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private var cancellables = Set<AnyCancellable>()
+    private var currentFetchTask: Task<Void, Never>?
     private var currentPage = 0
     private let pageSize = 30
 
@@ -122,6 +123,7 @@ class DiscoverViewModel: ObservableObject {
     }
 
     private func setupSearchDebounce() {
+        // Search query has longer debounce (user typing)
         $searchQuery
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -129,35 +131,36 @@ class DiscoverViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        Publishers.CombineLatest4(
+        // All filter + sort changes consolidated into a single pipeline
+        // This prevents duplicate fetches when multiple filters change simultaneously
+        let filterStream = Publishers.CombineLatest4(
             $activeGenres,
             $activeLanguages,
             $activeMoods,
             $activeDurations
-        )
-        .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-        .sink { [weak self] _, _, _, _ in
-            self?.fetchMovies()
-        }
-        .store(in: &cancellables)
+        ).map { _ in () }
 
-        Publishers.CombineLatest3(
+        let secondaryStream = Publishers.CombineLatest3(
             $activeRatings,
             $activeDecades,
             $sortOption
-        )
-        .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-        .sink { [weak self] _, _, _ in
-            self?.fetchMovies()
-        }
-        .store(in: &cancellables)
+        ).map { _ in () }
+
+        Publishers.Merge(filterStream, secondaryStream)
+            .debounce(for: .milliseconds(150), scheduler: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.fetchMovies()
+            }
+            .store(in: &cancellables)
     }
 
     func fetchMovies() {
+        // Cancel any in-flight fetch to prevent stale results overwriting newer ones
+        currentFetchTask?.cancel()
         isLoading = true
         currentPage = 0
 
-        Task {
+        currentFetchTask = Task {
             do {
                 let fetchedMovies = try await ExploreService.shared.searchMovies(
                     query: searchQuery.isEmpty ? nil : searchQuery,

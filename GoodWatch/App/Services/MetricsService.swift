@@ -25,6 +25,8 @@ enum MetricEvent: String {
     // Onboarding
     case onboardingStart = "onboarding_start"
     case onboardingComplete = "onboarding_complete"
+    case onboardingStepCompleted = "onboarding_step_completed"
+    case onboardingAbandoned = "onboarding_abandoned"
 
     // Auth
     case signIn = "sign_in"
@@ -32,6 +34,33 @@ enum MetricEvent: String {
     // Engagement
     case firstRecommendation = "first_recommendation"
     case feedbackGiven = "feedback_given"
+
+    // Recommendation details
+    case recommendationShown = "recommendation_shown"
+    case recommendationAccepted = "recommendation_accepted"
+    case recommendationRejected = "recommendation_rejected"
+    case recommendationAlreadySeen = "recommendation_already_seen"
+    case recommendationFallback = "recommendation_fallback"
+
+    // Push notifications
+    case pushPermissionGranted = "push_permission_granted"
+    case pushPermissionDenied = "push_permission_denied"
+    case pushTapped = "push_tapped"
+
+    // Session lifecycle
+    case sessionStart = "session_start"
+    case sessionEnd = "session_end"
+
+    // UGC
+    case reviewSubmitted = "review_submitted"
+    case reviewSkipped = "review_skipped"
+
+    // Taste Graph Feedback
+    case feedbackStage1Completed = "feedback_stage1_completed"
+    case feedbackStage2Completed = "feedback_stage2_completed"
+    case feedbackStage2Skipped = "feedback_stage2_skipped"
+    case feedbackExpired = "feedback_expired"
+    case feedbackTimeout = "feedback_timeout"
 }
 
 // MARK: - Log Entry
@@ -64,9 +93,16 @@ class MetricsService {
     private let bufferFlushThreshold = 20
     private let queue = DispatchQueue(label: "com.goodwatch.metrics", qos: .utility)
 
-    // User context (set after auth)
-    private(set) var userId: String?
-    private(set) var deviceId: String?
+    // User context (set after auth) — access must go through `queue`
+    private var _userId: String?
+    private var _deviceId: String?
+
+    var userId: String? {
+        queue.sync { _userId }
+    }
+    var deviceId: String? {
+        queue.sync { _deviceId }
+    }
 
     private var baseURL: String { SupabaseConfig.url }
     private var anonKey: String { SupabaseConfig.anonKey }
@@ -74,11 +110,11 @@ class MetricsService {
     private init() {
         // Generate a stable device ID for anonymous tracking
         if let stored = UserDefaults.standard.string(forKey: "gw_device_id") {
-            deviceId = stored
+            _deviceId = stored
         } else {
             let newId = UUID().uuidString
             UserDefaults.standard.set(newId, forKey: "gw_device_id")
-            deviceId = newId
+            _deviceId = newId
         }
     }
 
@@ -86,7 +122,9 @@ class MetricsService {
 
     /// Call after authentication to associate events with a user
     func setUser(id: String, authType: String) {
-        self.userId = id
+        queue.sync {
+            self._userId = id
+        }
 
         // Set Firebase user properties
         Analytics.setUserID(id)
@@ -149,6 +187,10 @@ class MetricsService {
             let eventsToSend = self.supabaseBuffer
             self.supabaseBuffer.removeAll()
 
+            // Capture user context while on queue
+            let currentUserId = self._userId
+            let currentDeviceId = self._deviceId
+
             let isoFormatter = ISO8601DateFormatter()
             isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
@@ -166,10 +208,10 @@ class MetricsService {
                     "created_at": isoFormatter.string(from: entry.timestamp)
                 ]
 
-                if let uid = self.userId {
+                if let uid = currentUserId {
                     dict["user_id"] = uid
                 }
-                if let did = self.deviceId {
+                if let did = currentDeviceId {
                     dict["device_id"] = did
                 }
 
@@ -205,14 +247,14 @@ class MetricsService {
                 return
             }
 
-            URLSession.shared.dataTask(with: request) { data, response, error in
+            GWNetworkSession.shared.dataTask(with: request) { [weak self] data, response, error in
                 if let error = error {
                     #if DEBUG
                     print("❌ [METRIC] Supabase upload failed: \(error.localizedDescription)")
                     #endif
                     // Re-buffer on network failure
-                    self.queue.async {
-                        self.supabaseBuffer.insert(contentsOf: eventsToSend, at: 0)
+                    self?.queue.async {
+                        self?.supabaseBuffer.insert(contentsOf: eventsToSend, at: 0)
                     }
                     return
                 }

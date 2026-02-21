@@ -108,28 +108,15 @@ struct MovieDetailSheet: View {
     private var backdropArea: some View {
         ZStack(alignment: .bottomLeading) {
             // Backdrop image
-            if let url = movie.posterURL, let imageURL = URL(string: url) {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(height: 250)
-                            .clipped()
-                            .blur(radius: 8)
-                            .brightness(-0.3)
-                    default:
-                        Rectangle()
-                            .fill(GWColors.darkGray)
-                            .frame(height: 250)
-                    }
-                }
-            } else {
+            GWCachedImage(url: movie.posterURL(size: .w500)) {
                 Rectangle()
                     .fill(GWColors.darkGray)
-                    .frame(height: 250)
             }
+            .aspectRatio(contentMode: .fill)
+            .frame(height: 250)
+            .clipped()
+            .blur(radius: 8)
+            .brightness(-0.3)
 
             // Gradient overlay
             LinearGradient(
@@ -142,21 +129,13 @@ struct MovieDetailSheet: View {
             // Poster and metadata
             HStack(alignment: .bottom, spacing: 14) {
                 // Poster
-                if let url = movie.posterURL, let imageURL = URL(string: url) {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(2/3, contentMode: .fit)
-                                .frame(width: 100)
-                                .cornerRadius(GWRadius.md)
-                                .shadow(color: .black.opacity(0.5), radius: 12)
-                        default:
-                            EmptyView()
-                        }
-                    }
+                GWCachedImage(url: movie.posterURL(size: .w342)) {
+                    Rectangle().fill(Color.clear)
                 }
+                .aspectRatio(2/3, contentMode: .fit)
+                .frame(width: 100)
+                .cornerRadius(GWRadius.md)
+                .shadow(color: .black.opacity(0.5), radius: 12)
 
                 // Runtime pill
                 VStack(alignment: .leading, spacing: 6) {

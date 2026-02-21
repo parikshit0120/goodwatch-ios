@@ -7,21 +7,26 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		012476112C571E753C93AD50 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E33C5C9D83C784E1FCD6CC8D /* PrivacyInfo.xcprivacy */; };
 		04E906831FDDCAF41498F8D5 /* DecisionReadyScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 11F4107215BA5609003E49E7 /* DecisionReadyScreen.ts */; };
 		0637FC9397C95A056788E330 /* PreEntryScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = A0D6DDD288ED205AAE7D4AA9 /* PreEntryScreen.ts */; };
 		0A6C9D6F60DD530A6B7D7F5F /* ProfileTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE77B014A6CDD80396907A5E /* ProfileTab.swift */; };
 		0A8586DA7E28A2ED746A8627 /* EmotionalHookView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30F73075EE5C70FFF06D891 /* EmotionalHookView.swift */; };
 		0D055E01E2D9847A9DCA86FC /* UserService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BAD4A30B832689D018002F /* UserService.swift */; };
+		15E71713B548B5B974725194 /* GWProductInvariantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E19311EE4ABA22790595809 /* GWProductInvariantTests.swift */; };
 		1972F60B303E257DF3B6C38C /* GoodWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F15077CC45FE9B9EF768B8 /* GoodWatchApp.swift */; };
 		1987FC59E02C532178FBF4DD /* DiscoverTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B441182CE3E7943A87A6A51 /* DiscoverTab.swift */; };
 		20D64F408AA02988B18D4CA4 /* RejectionSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9BBAE5B23F106F0A2ED045C /* RejectionSheetView.swift */; };
 		29EF8123691EFE1E035E909A /* ConfidenceMomentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69659707E38C597B8EDCA358 /* ConfidenceMomentView.swift */; };
+		2AFE1D6B4F65E899DF959251 /* GWMoodConfigService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D997CC2ACE21DA52D34F3D /* GWMoodConfigService.swift */; };
 		2D6DB1B6D0BA0399C5235792 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FEC1D61375C48F0C6A2698E5 /* GoogleService-Info.plist */; };
+		2EEC3179AB3F59B36A39293B /* UpcomingReleasesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EEF638F0378E3AF4A32C6CE /* UpcomingReleasesViewModel.swift */; };
 		2F805204991028BD98615F01 /* backfill.ts in Resources */ = {isa = PBXBuildFile; fileRef = 96E7A2DBECD838DAA184DB03 /* backfill.ts */; };
 		2F8A6ABC0CA17BA6AE39603A /* GWSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A373759193D27FB232F3C90 /* GWSpec.swift */; };
 		34064848C8C0DCF3F28840FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E53B09000B6C3C0D3AA8C57 /* Assets.xcassets */; };
 		346166337784C14B60F6610B /* ExploreAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 514896DF7F0AC20C7A04A8FA /* ExploreAuthView.swift */; };
 		3725443453199AAE090CF3C1 /* MovieDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C0145371D7D1977F5474B3 /* MovieDetailSheet.swift */; };
+		37D3645E54774AAE94D893C7 /* GWScreenshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BCCED16C51E2BF7BAE590AE /* GWScreenshotTests.swift */; };
 		3958ED88158B854C30EC9403 /* CalibrationScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 2C35594D76AFA87E6F619984 /* CalibrationScreen.ts */; };
 		3AE3C7EF4EA505382FFAC58F /* OTTLanguageAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B2BAEE73BC9A53FECB1223 /* OTTLanguageAvailability.swift */; };
 		3C65A61239A8CCE8B31B3056 /* SupabaseSanityCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0090127F9675FAB876B4C0A5 /* SupabaseSanityCheck.swift */; };
@@ -29,10 +34,15 @@
 		3E81929164E92841973FE34D /* LandingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAEC5A07AC78AFB1EA88823C /* LandingView.swift */; };
 		403E0AA9B60F019E59BAA9BD /* SortMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70020CC3BD9F730D6833095A /* SortMenuSheet.swift */; };
 		43FB48E1BAE9DA76AEFCBBE2 /* stateMachine.ts in Resources */ = {isa = PBXBuildFile; fileRef = 95899A7C8C8DB8391962ADB4 /* stateMachine.ts */; };
+		45108D121C9BDE19F9B71D2A /* GWFeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */; };
 		4D4A607E6F8C37E568CFDCBA /* GWProductionSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE34CEBB2236E731ED446866 /* GWProductionSafety.swift */; };
+		4EDABE021A0FB067232856BF /* PickCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5AC8621EDF913B84D3D975 /* PickCardView.swift */; };
+		50A7A3A06765E716FAAA9859 /* GWUpdateBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C96369B569536ED504A91E /* GWUpdateBanner.swift */; };
 		51731C3EA326B45523DBC16A /* availabilitySync.ts in Resources */ = {isa = PBXBuildFile; fileRef = 3377E19402BF28E23B742052 /* availabilitySync.ts */; };
 		539BDED51ABFA50CE886204F /* WatchlistTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4031A5701BDDF50C3D4451E3 /* WatchlistTab.swift */; };
 		53D8FE2500D18E44F9022DB9 /* MetricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B289BFB29DC6CB8CBA12432F /* MetricsService.swift */; };
+		5554DA2BF0352914D1927C79 /* GWRecommendationEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */; };
+		58481B14EE7BBFC15B898491 /* GWInvariantTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13E5109D77CD2D073D32BD9A /* GWInvariantTests.swift */; };
 		5968A732170512143AC21062 /* GWRecommendationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B418401C12F6C367E9A0F3DC /* GWRecommendationEngine.swift */; };
 		5D265F82BFA346CCFE4D54B5 /* selector.ts in Resources */ = {isa = PBXBuildFile; fileRef = 7730D97980E8D641040A438A /* selector.ts */; };
 		60988A017B5389D9291A4D2C /* PlatformTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784251F3935F87E88A0F7F25 /* PlatformTab.swift */; };
@@ -41,7 +51,10 @@
 		6ACC3F863FC810B8BEE58A3D /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBEBE8C061FC49856191BCA /* FilterSheet.swift */; };
 		706EB4F3683D02C083261C02 /* MainScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA940CB30FDF068EBDDE09C /* MainScreenView.swift */; };
 		73A7ECC0A3075ADDBF25A712 /* types.ts in Resources */ = {isa = PBXBuildFile; fileRef = AE59CE31DC635AE5C90D6EEC /* types.ts */; };
+		78BB1BED3A329CE06C4CE81F /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 372B4762F5EB10691A3AC899 /* GoogleSignIn */; };
 		7919C00907DA95DA1C5CF6FC /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EC66AFB5F09B72445B5596 /* SupabaseConfig.swift */; };
+		7CCCED3C1D85173B7413F119 /* RejectionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */; };
+		7FA596640A2E608B06C4C74C /* PickCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4407D158C0A98E29854C91B8 /* PickCarouselView.swift */; };
 		86DC1924D15872BB95DA498A /* WatchlistManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 750A5A708A8482F7A66F300D /* WatchlistManager.swift */; };
 		871A06AD86EC1B95D365ED20 /* platforms.ts in Resources */ = {isa = PBXBuildFile; fileRef = D687D143389986CBD5CB8867 /* platforms.ts */; };
 		889AF3B84B46DC1E01A0617A /* UserModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D7B46CE2F833EFB525B4AD /* UserModels.swift */; };
@@ -51,10 +64,17 @@
 		927740D880C0CC51E347F4FF /* MovieRecommendationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E140670E7EDA1B6334C75A6 /* MovieRecommendationService.swift */; };
 		92F78163190BD0B57312BADC /* PlatformViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 692568534A97109CCC217339 /* PlatformViewModel.swift */; };
 		96630B55EC185315C7F16866 /* ExploreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23CC8B783B6C504A98173E4F /* ExploreView.swift */; };
+		977DCBD3D3E0BF48CF05469E /* ClientMovieFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F56FE09101049E0EE121D59 /* ClientMovieFilter.swift */; };
 		984BDCCBF993AAD9A43A0022 /* EntryScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 82A539EFD028BA3B6530331D /* EntryScreen.ts */; };
+		A2611A3C1451556D948C8D0B /* GWReviewPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C82251C64BD79997551505FA /* GWReviewPromptView.swift */; };
+		A2889B050A180FE56EF28D78 /* GWNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD316AAEB902F503E14F59A1 /* GWNetworkSession.swift */; };
 		A610E040F242731D097B2BBD /* PlatformSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D63004C5E291906E862F7A8 /* PlatformSelectorView.swift */; };
+		A89B5CF89C0FA242C0238607 /* UpcomingReleasesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6ADE8AF7AEB54533BE3DF64 /* UpcomingReleasesTab.swift */; };
 		AA226C7D8AB5A5FDCF135783 /* MovieGridCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03465604C2AC0D7FDA3B8529 /* MovieGridCard.swift */; };
+		AE61F3BF768A5FA2A05EC97D /* GWInteractionPoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E88932C5B7466F79912DC0 /* GWInteractionPoints.swift */; };
 		B0624CAD7615069C548B039D /* PostWatchFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8FB06502ACEBAE47DB28F0 /* PostWatchFeedbackView.swift */; };
+		B2D32D94786EA19B1B5A0447 /* GWTasteEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A661FCACFC49E8410CBE34E7 /* GWTasteEngine.swift */; };
+		BCBB515353D9DAD62CD8E853 /* GWImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B344E8034126B89D91AA298 /* GWImageCache.swift */; };
 		BCC3A57A8E3CC8A197D3DACC /* AppLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550A876344894398CC2A19CB /* AppLogo.swift */; };
 		BDB08C62F47D5169CE163653 /* UserContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7E1D117BD458B2CF2DAC9E /* UserContext.swift */; };
 		C31FB750B81F771F65B1DC56 /* DurationSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AA9D1A11A2E8161C4E809D6 /* DurationSelectorView.swift */; };
@@ -64,7 +84,9 @@
 		D1F97F0E09C049B638E160A0 /* RootFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32557794E40998ABC4DA3F1F /* RootFlowView.swift */; };
 		D2524E398084DEC392CF39C5 /* normalization.ts in Resources */ = {isa = PBXBuildFile; fileRef = E2F7B83190F86F50945DA103 /* normalization.ts */; };
 		D4DD4B140A94EF5395763120 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3D18F53786AB723744FAAB /* AuthView.swift */; };
-		D5A9E63B0ED70D87786237EB /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 372B4762F5EB10691A3AC899 /* GoogleSignIn */; };
+		D4FD557739D08C06248F9E70 /* GWNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91814AC413AF9D407A984C /* GWNotificationService.swift */; };
+		D5650A5CC054E512451AD1B0 /* GWOnboardingMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2C84974B05C229CA5BE9C0 /* GWOnboardingMemory.swift */; };
+		D5A9E63B0ED70D87786237EB /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = D825EC231C95C60CF334939D /* FirebaseMessaging */; };
 		D6CABDDA0D1AD92B7A0E2ED3 /* AuthGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76CDAC3F7A5C333BFAFDBE7A /* AuthGuard.swift */; };
 		DA8ECAF5228B23CACB84F1DE /* ShowPickScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 2E466F9A0E89D8CBF27A1BE6 /* ShowPickScreen.ts */; };
 		DE566559708CBFD8B600A60F /* ExploreService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A87FBA547041F02E44100EF9 /* ExploreService.swift */; };
@@ -72,21 +94,44 @@
 		E0D1309C47BD4CB7747404C8 /* RejectedSoftScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 5BE473E3265F0350793E9903 /* RejectedSoftScreen.ts */; };
 		E1FA63947CAC91CD60D4FA4B /* InteractionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759CDECA94FBDD99491FEC9E /* InteractionService.swift */; };
 		E3D25A45E796B93C6FE87720 /* NewReleasesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B1EC6CA4ADCDAB22CCAE644 /* NewReleasesViewModel.swift */; };
+		E475DBFFC371A451B7EECBC5 /* GWWatchFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */; };
 		E90767BE8723FF38E69762C3 /* session.ts in Resources */ = {isa = PBXBuildFile; fileRef = D15CB9E37A050B077C57C311 /* session.ts */; };
 		F0D765EAC05FBEEA160C0F8B /* PrimaryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5806EF988D4E5A4174A12EDD /* PrimaryButton.swift */; };
 		F689A7ED70087E6E0E9A3CC1 /* Movie.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBE1F077748EC2E60EC88090 /* Movie.swift */; };
 		F8638E5B265EFE927784F467 /* GWKeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E43F82E01CDFB86CC6D12A0 /* GWKeychainManager.swift */; };
+		FB28DE3378E0CC6E5F72BFFA /* GWUpdateChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1585A3FA981DE71AF2BC241 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D9927CAA71E709F80AC13CFC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EEB2505B1EB95356A19335E3;
+			remoteInfo = GoodWatch;
+		};
+		C30EC977D841E31DD3393E1D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D9927CAA71E709F80AC13CFC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = EEB2505B1EB95356A19335E3;
+			remoteInfo = GoodWatch;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		0090127F9675FAB876B4C0A5 /* SupabaseSanityCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseSanityCheck.swift; sourceTree = "<group>"; };
 		03465604C2AC0D7FDA3B8529 /* MovieGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieGridCard.swift; sourceTree = "<group>"; };
+		0869AD29A254EBA53E089797 /* GoodWatchTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GoodWatchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B1EC6CA4ADCDAB22CCAE644 /* NewReleasesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewReleasesViewModel.swift; sourceTree = "<group>"; };
 		0B441182CE3E7943A87A6A51 /* DiscoverTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverTab.swift; sourceTree = "<group>"; };
+		0BCCED16C51E2BF7BAE590AE /* GWScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWScreenshotTests.swift; sourceTree = "<group>"; };
 		0E53B09000B6C3C0D3AA8C57 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		11F4107215BA5609003E49E7 /* DecisionReadyScreen.ts */ = {isa = PBXFileReference; path = DecisionReadyScreen.ts; sourceTree = "<group>"; };
+		13E5109D77CD2D073D32BD9A /* GWInvariantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWInvariantTests.swift; sourceTree = "<group>"; };
 		18D7B46CE2F833EFB525B4AD /* UserModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserModels.swift; sourceTree = "<group>"; };
 		18ECB7E92CE50A9EB7640F5F /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		19D997CC2ACE21DA52D34F3D /* GWMoodConfigService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWMoodConfigService.swift; sourceTree = "<group>"; };
 		23CC8B783B6C504A98173E4F /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		25BFA2B7983D4A039D3C9320 /* RentViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentViewModel.swift; sourceTree = "<group>"; };
 		2C35594D76AFA87E6F619984 /* CalibrationScreen.ts */ = {isa = PBXFileReference; path = CalibrationScreen.ts; sourceTree = "<group>"; };
@@ -95,21 +140,30 @@
 		2E466F9A0E89D8CBF27A1BE6 /* ShowPickScreen.ts */ = {isa = PBXFileReference; path = ShowPickScreen.ts; sourceTree = "<group>"; };
 		32557794E40998ABC4DA3F1F /* RootFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootFlowView.swift; sourceTree = "<group>"; };
 		3377E19402BF28E23B742052 /* availabilitySync.ts */ = {isa = PBXFileReference; path = availabilitySync.ts; sourceTree = "<group>"; };
+		3B344E8034126B89D91AA298 /* GWImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWImageCache.swift; sourceTree = "<group>"; };
 		3D8FB06502ACEBAE47DB28F0 /* PostWatchFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostWatchFeedbackView.swift; sourceTree = "<group>"; };
+		3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RejectionOverlayView.swift; sourceTree = "<group>"; };
 		3F3D18F53786AB723744FAAB /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		4031A5701BDDF50C3D4451E3 /* WatchlistTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistTab.swift; sourceTree = "<group>"; };
+		4407D158C0A98E29854C91B8 /* PickCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickCarouselView.swift; sourceTree = "<group>"; };
 		44B2BAEE73BC9A53FECB1223 /* OTTLanguageAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTTLanguageAvailability.swift; sourceTree = "<group>"; };
 		514896DF7F0AC20C7A04A8FA /* ExploreAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreAuthView.swift; sourceTree = "<group>"; };
 		550A876344894398CC2A19CB /* AppLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogo.swift; sourceTree = "<group>"; };
 		5806EF988D4E5A4174A12EDD /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
 		5A373759193D27FB232F3C90 /* GWSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWSpec.swift; sourceTree = "<group>"; };
 		5BE473E3265F0350793E9903 /* RejectedSoftScreen.ts */ = {isa = PBXFileReference; path = RejectedSoftScreen.ts; sourceTree = "<group>"; };
+		60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWFeatureFlags.swift; sourceTree = "<group>"; };
 		64DE2C07D40E144A3BC1386F /* MoodSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodSelectorView.swift; sourceTree = "<group>"; };
+		65E88932C5B7466F79912DC0 /* GWInteractionPoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWInteractionPoints.swift; sourceTree = "<group>"; };
 		692568534A97109CCC217339 /* PlatformViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformViewModel.swift; sourceTree = "<group>"; };
 		69659707E38C597B8EDCA358 /* ConfidenceMomentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceMomentView.swift; sourceTree = "<group>"; };
 		6A7E1D117BD458B2CF2DAC9E /* UserContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserContext.swift; sourceTree = "<group>"; };
+		6D2C84974B05C229CA5BE9C0 /* GWOnboardingMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWOnboardingMemory.swift; sourceTree = "<group>"; };
+		6E19311EE4ABA22790595809 /* GWProductInvariantTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWProductInvariantTests.swift; sourceTree = "<group>"; };
+		6EEF638F0378E3AF4A32C6CE /* UpcomingReleasesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingReleasesViewModel.swift; sourceTree = "<group>"; };
 		70020CC3BD9F730D6833095A /* SortMenuSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortMenuSheet.swift; sourceTree = "<group>"; };
 		700F709C4BEBAEEFE8B4FF19 /* availability.ts */ = {isa = PBXFileReference; path = availability.ts; sourceTree = "<group>"; };
+		74C96369B569536ED504A91E /* GWUpdateBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWUpdateBanner.swift; sourceTree = "<group>"; };
 		750A5A708A8482F7A66F300D /* WatchlistManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistManager.swift; sourceTree = "<group>"; };
 		759CDECA94FBDD99491FEC9E /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
 		76CDAC3F7A5C333BFAFDBE7A /* AuthGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGuard.swift; sourceTree = "<group>"; };
@@ -119,33 +173,45 @@
 		7E140670E7EDA1B6334C75A6 /* MovieRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieRecommendationService.swift; sourceTree = "<group>"; };
 		7FBEBE8C061FC49856191BCA /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
 		82A539EFD028BA3B6530331D /* EntryScreen.ts */ = {isa = PBXFileReference; path = EntryScreen.ts; sourceTree = "<group>"; };
+		83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWUpdateChecker.swift; sourceTree = "<group>"; };
 		87BAD4A30B832689D018002F /* UserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserService.swift; sourceTree = "<group>"; };
+		8F56FE09101049E0EE121D59 /* ClientMovieFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMovieFilter.swift; sourceTree = "<group>"; };
+		9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWWatchFeedbackView.swift; sourceTree = "<group>"; };
 		95899A7C8C8DB8391962ADB4 /* stateMachine.ts */ = {isa = PBXFileReference; path = stateMachine.ts; sourceTree = "<group>"; };
 		96E7A2DBECD838DAA184DB03 /* backfill.ts */ = {isa = PBXFileReference; path = backfill.ts; sourceTree = "<group>"; };
 		96F15077CC45FE9B9EF768B8 /* GoodWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoodWatchApp.swift; sourceTree = "<group>"; };
 		9AA9D1A11A2E8161C4E809D6 /* DurationSelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationSelectorView.swift; sourceTree = "<group>"; };
+		9C5AC8621EDF913B84D3D975 /* PickCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickCardView.swift; sourceTree = "<group>"; };
+		A04700CDA2D3C3213B9E1420 /* GoodWatchUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GoodWatchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A0D6DDD288ED205AAE7D4AA9 /* PreEntryScreen.ts */ = {isa = PBXFileReference; path = PreEntryScreen.ts; sourceTree = "<group>"; };
+		A661FCACFC49E8410CBE34E7 /* GWTasteEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWTasteEngine.swift; sourceTree = "<group>"; };
 		A87FBA547041F02E44100EF9 /* ExploreService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreService.swift; sourceTree = "<group>"; };
 		A8EC66AFB5F09B72445B5596 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		A9D6639D9E5440C545CF74CE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		AAEC5A07AC78AFB1EA88823C /* LandingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandingView.swift; sourceTree = "<group>"; };
+		AC91814AC413AF9D407A984C /* GWNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWNotificationService.swift; sourceTree = "<group>"; };
 		AE59CE31DC635AE5C90D6EEC /* types.ts */ = {isa = PBXFileReference; path = types.ts; sourceTree = "<group>"; };
 		B289BFB29DC6CB8CBA12432F /* MetricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricsService.swift; sourceTree = "<group>"; };
 		B418401C12F6C367E9A0F3DC /* GWRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWRecommendationEngine.swift; sourceTree = "<group>"; };
 		B9C0145371D7D1977F5474B3 /* MovieDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailSheet.swift; sourceTree = "<group>"; };
+		BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWRecommendationEngineTests.swift; sourceTree = "<group>"; };
 		BE34CEBB2236E731ED446866 /* GWProductionSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWProductionSafety.swift; sourceTree = "<group>"; };
 		BE77B014A6CDD80396907A5E /* ProfileTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTab.swift; sourceTree = "<group>"; };
 		C21A6780AABF63D38E2F49E0 /* RejectedHardScreen.ts */ = {isa = PBXFileReference; path = RejectedHardScreen.ts; sourceTree = "<group>"; };
+		C82251C64BD79997551505FA /* GWReviewPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWReviewPromptView.swift; sourceTree = "<group>"; };
 		CBE1F077748EC2E60EC88090 /* Movie.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Movie.swift; sourceTree = "<group>"; };
 		CD46058E9A26DFAED1D0A4A2 /* GoodWatch.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GoodWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D15CB9E37A050B077C57C311 /* session.ts */ = {isa = PBXFileReference; path = session.ts; sourceTree = "<group>"; };
 		D687D143389986CBD5CB8867 /* platforms.ts */ = {isa = PBXFileReference; path = platforms.ts; sourceTree = "<group>"; };
 		DBD1FF4F2E02A29FF7858222 /* DiscoverViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverViewModel.swift; sourceTree = "<group>"; };
+		DD316AAEB902F503E14F59A1 /* GWNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWNetworkSession.swift; sourceTree = "<group>"; };
 		E2F7B83190F86F50945DA103 /* normalization.ts */ = {isa = PBXFileReference; path = normalization.ts; sourceTree = "<group>"; };
 		E30F73075EE5C70FFF06D891 /* EmotionalHookView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmotionalHookView.swift; sourceTree = "<group>"; };
+		E33C5C9D83C784E1FCD6CC8D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E86825268F3A575D0831273C /* NewReleasesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewReleasesTab.swift; sourceTree = "<group>"; };
 		EB6DC8D2572AB08BE65E23B1 /* GoodWatch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GoodWatch.entitlements; sourceTree = "<group>"; };
 		EE626D47974FC77AFE994962 /* GWFeedbackEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWFeedbackEnforcer.swift; sourceTree = "<group>"; };
+		F6ADE8AF7AEB54533BE3DF64 /* UpcomingReleasesTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingReleasesTab.swift; sourceTree = "<group>"; };
 		F9BBAE5B23F106F0A2ED045C /* RejectionSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RejectionSheetView.swift; sourceTree = "<group>"; };
 		FD55AFC314DA0AB61D3A0F86 /* RentTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentTab.swift; sourceTree = "<group>"; };
 		FEC1D61375C48F0C6A2698E5 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -157,7 +223,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				66679A950A976D2F9AD038B9 /* FirebaseAnalytics in Frameworks */,
-				D5A9E63B0ED70D87786237EB /* GoogleSignIn in Frameworks */,
+				D5A9E63B0ED70D87786237EB /* FirebaseMessaging in Frameworks */,
+				78BB1BED3A329CE06C4CE81F /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,6 +252,8 @@
 			isa = PBXGroup;
 			children = (
 				CD46058E9A26DFAED1D0A4A2 /* GoodWatch.app */,
+				0869AD29A254EBA53E089797 /* GoodWatchTests.xctest */,
+				A04700CDA2D3C3213B9E1420 /* GoodWatchUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -205,6 +274,8 @@
 				FD55AFC314DA0AB61D3A0F86 /* RentTab.swift */,
 				25BFA2B7983D4A039D3C9320 /* RentViewModel.swift */,
 				70020CC3BD9F730D6833095A /* SortMenuSheet.swift */,
+				F6ADE8AF7AEB54533BE3DF64 /* UpcomingReleasesTab.swift */,
+				6EEF638F0378E3AF4A32C6CE /* UpcomingReleasesViewModel.swift */,
 				4031A5701BDDF50C3D4451E3 /* WatchlistTab.swift */,
 			);
 			path = explore;
@@ -214,9 +285,19 @@
 			isa = PBXGroup;
 			children = (
 				76CDAC3F7A5C333BFAFDBE7A /* AuthGuard.swift */,
+				8F56FE09101049E0EE121D59 /* ClientMovieFilter.swift */,
 				A87FBA547041F02E44100EF9 /* ExploreService.swift */,
+				60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */,
 				EE626D47974FC77AFE994962 /* GWFeedbackEnforcer.swift */,
+				3B344E8034126B89D91AA298 /* GWImageCache.swift */,
+				65E88932C5B7466F79912DC0 /* GWInteractionPoints.swift */,
 				2E43F82E01CDFB86CC6D12A0 /* GWKeychainManager.swift */,
+				19D997CC2ACE21DA52D34F3D /* GWMoodConfigService.swift */,
+				DD316AAEB902F503E14F59A1 /* GWNetworkSession.swift */,
+				AC91814AC413AF9D407A984C /* GWNotificationService.swift */,
+				6D2C84974B05C229CA5BE9C0 /* GWOnboardingMemory.swift */,
+				A661FCACFC49E8410CBE34E7 /* GWTasteEngine.swift */,
+				83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */,
 				759CDECA94FBDD99491FEC9E /* InteractionService.swift */,
 				B289BFB29DC6CB8CBA12432F /* MetricsService.swift */,
 				7E140670E7EDA1B6334C75A6 /* MovieRecommendationService.swift */,
@@ -226,6 +307,16 @@
 				750A5A708A8482F7A66F300D /* WatchlistManager.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		6923DD271C1043A268FEA236 /* GoodWatchTests */ = {
+			isa = PBXGroup;
+			children = (
+				13E5109D77CD2D073D32BD9A /* GWInvariantTests.swift */,
+				6E19311EE4ABA22790595809 /* GWProductInvariantTests.swift */,
+				BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */,
+			);
+			path = GoodWatchTests;
 			sourceTree = "<group>";
 		};
 		6A29F911F9F9A69B3ADC243F /* Core */ = {
@@ -254,14 +345,20 @@
 				82A539EFD028BA3B6530331D /* EntryScreen.ts */,
 				514896DF7F0AC20C7A04A8FA /* ExploreAuthView.swift */,
 				23CC8B783B6C504A98173E4F /* ExploreView.swift */,
+				C82251C64BD79997551505FA /* GWReviewPromptView.swift */,
+				74C96369B569536ED504A91E /* GWUpdateBanner.swift */,
+				9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */,
 				AAEC5A07AC78AFB1EA88823C /* LandingView.swift */,
 				7AA940CB30FDF068EBDDE09C /* MainScreenView.swift */,
 				64DE2C07D40E144A3BC1386F /* MoodSelectorView.swift */,
+				9C5AC8621EDF913B84D3D975 /* PickCardView.swift */,
+				4407D158C0A98E29854C91B8 /* PickCarouselView.swift */,
 				2D63004C5E291906E862F7A8 /* PlatformSelectorView.swift */,
 				3D8FB06502ACEBAE47DB28F0 /* PostWatchFeedbackView.swift */,
 				A0D6DDD288ED205AAE7D4AA9 /* PreEntryScreen.ts */,
 				C21A6780AABF63D38E2F49E0 /* RejectedHardScreen.ts */,
 				5BE473E3265F0350793E9903 /* RejectedSoftScreen.ts */,
+				3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */,
 				F9BBAE5B23F106F0A2ED045C /* RejectionSheetView.swift */,
 				32557794E40998ABC4DA3F1F /* RootFlowView.swift */,
 				2E466F9A0E89D8CBF27A1BE6 /* ShowPickScreen.ts */,
@@ -292,6 +389,7 @@
 				EB6DC8D2572AB08BE65E23B1 /* GoodWatch.entitlements */,
 				FEC1D61375C48F0C6A2698E5 /* GoogleService-Info.plist */,
 				A9D6639D9E5440C545CF74CE /* Info.plist */,
+				E33C5C9D83C784E1FCD6CC8D /* PrivacyInfo.xcprivacy */,
 				885E3305ECE947537DDB4956 /* App */,
 				6A29F911F9F9A69B3ADC243F /* Core */,
 				4218D156C5B32C7B7E9972D6 /* Services */,
@@ -303,6 +401,8 @@
 			isa = PBXGroup;
 			children = (
 				AB8F3D1A3BD424FBF705854D /* GoodWatch */,
+				6923DD271C1043A268FEA236 /* GoodWatchTests */,
+				E6C91006D456F3655A9749A2 /* GoodWatchUITests */,
 				4686EF051051248D795FA58C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -313,6 +413,14 @@
 				A8EC66AFB5F09B72445B5596 /* SupabaseConfig.swift */,
 			);
 			path = Config;
+			sourceTree = "<group>";
+		};
+		E6C91006D456F3655A9749A2 /* GoodWatchUITests */ = {
+			isa = PBXGroup;
+			children = (
+				0BCCED16C51E2BF7BAE590AE /* GWScreenshotTests.swift */,
+			);
+			path = GoodWatchUITests;
 			sourceTree = "<group>";
 		};
 		FE8E096F64DDD768EADB8541 /* Core */ = {
@@ -331,6 +439,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2B5305331601E725419C0CCF /* GoodWatchUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3038D7E3D65C78F788FB7C45 /* Build configuration list for PBXNativeTarget "GoodWatchUITests" */;
+			buildPhases = (
+				05021D397626D803DA81EEA4 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				28B676E2CC332FBCF0CB648C /* PBXTargetDependency */,
+			);
+			name = GoodWatchUITests;
+			packageProductDependencies = (
+			);
+			productName = GoodWatchUITests;
+			productReference = A04700CDA2D3C3213B9E1420 /* GoodWatchUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		EEB2505B1EB95356A19335E3 /* GoodWatch */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 2708ECFF80D30E9B25542BC8 /* Build configuration list for PBXNativeTarget "GoodWatch" */;
@@ -346,11 +472,30 @@
 			name = GoodWatch;
 			packageProductDependencies = (
 				2CCB4DD61DE785CA77246F0E /* FirebaseAnalytics */,
+				D825EC231C95C60CF334939D /* FirebaseMessaging */,
 				372B4762F5EB10691A3AC899 /* GoogleSignIn */,
 			);
 			productName = GoodWatch;
 			productReference = CD46058E9A26DFAED1D0A4A2 /* GoodWatch.app */;
 			productType = "com.apple.product-type.application";
+		};
+		F6D5C4C5E4655C87169ED141 /* GoodWatchTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3DCAFDB1C8DC68819D1BA5C /* Build configuration list for PBXNativeTarget "GoodWatchTests" */;
+			buildPhases = (
+				BF377A5D81887133473F024A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F66F902F1B98D0FE526D19E1 /* PBXTargetDependency */,
+			);
+			name = GoodWatchTests;
+			packageProductDependencies = (
+			);
+			productName = GoodWatchTests;
+			productReference = 0869AD29A254EBA53E089797 /* GoodWatchTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -361,7 +506,16 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					2B5305331601E725419C0CCF = {
+						DevelopmentTeam = H827NY6Y9W;
+						ProvisioningStyle = Automatic;
+						TestTargetID = EEB2505B1EB95356A19335E3;
+					};
 					EEB2505B1EB95356A19335E3 = {
+						DevelopmentTeam = H827NY6Y9W;
+						ProvisioningStyle = Automatic;
+					};
+					F6D5C4C5E4655C87169ED141 = {
 						DevelopmentTeam = H827NY6Y9W;
 						ProvisioningStyle = Automatic;
 					};
@@ -386,6 +540,8 @@
 			projectRoot = "";
 			targets = (
 				EEB2505B1EB95356A19335E3 /* GoodWatch */,
+				F6D5C4C5E4655C87169ED141 /* GoodWatchTests */,
+				2B5305331601E725419C0CCF /* GoodWatchUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -401,6 +557,7 @@
 				984BDCCBF993AAD9A43A0022 /* EntryScreen.ts in Resources */,
 				2D6DB1B6D0BA0399C5235792 /* GoogleService-Info.plist in Resources */,
 				0637FC9397C95A056788E330 /* PreEntryScreen.ts in Resources */,
+				012476112C571E753C93AD50 /* PrivacyInfo.xcprivacy in Resources */,
 				CFA34DDA22B85F8B8E9DB320 /* RejectedHardScreen.ts in Resources */,
 				E0D1309C47BD4CB7747404C8 /* RejectedSoftScreen.ts in Resources */,
 				DA8ECAF5228B23CACB84F1DE /* ShowPickScreen.ts in Resources */,
@@ -419,6 +576,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		05021D397626D803DA81EEA4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				37D3645E54774AAE94D893C7 /* GWScreenshotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1009502488F273EE362AFC6E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -426,6 +591,7 @@
 				BCC3A57A8E3CC8A197D3DACC /* AppLogo.swift in Sources */,
 				D6CABDDA0D1AD92B7A0E2ED3 /* AuthGuard.swift in Sources */,
 				D4DD4B140A94EF5395763120 /* AuthView.swift in Sources */,
+				977DCBD3D3E0BF48CF05469E /* ClientMovieFilter.swift in Sources */,
 				29EF8123691EFE1E035E909A /* ConfidenceMomentView.swift in Sources */,
 				609A6C3851C2BC3FC7172EE2 /* DesignSystem.swift in Sources */,
 				1987FC59E02C532178FBF4DD /* DiscoverTab.swift in Sources */,
@@ -436,11 +602,23 @@
 				DE566559708CBFD8B600A60F /* ExploreService.swift in Sources */,
 				96630B55EC185315C7F16866 /* ExploreView.swift in Sources */,
 				6ACC3F863FC810B8BEE58A3D /* FilterSheet.swift in Sources */,
+				45108D121C9BDE19F9B71D2A /* GWFeatureFlags.swift in Sources */,
 				DE9FFF522EFE1AFEF68D6A00 /* GWFeedbackEnforcer.swift in Sources */,
+				BCBB515353D9DAD62CD8E853 /* GWImageCache.swift in Sources */,
+				AE61F3BF768A5FA2A05EC97D /* GWInteractionPoints.swift in Sources */,
 				F8638E5B265EFE927784F467 /* GWKeychainManager.swift in Sources */,
+				2AFE1D6B4F65E899DF959251 /* GWMoodConfigService.swift in Sources */,
+				A2889B050A180FE56EF28D78 /* GWNetworkSession.swift in Sources */,
+				D4FD557739D08C06248F9E70 /* GWNotificationService.swift in Sources */,
+				D5650A5CC054E512451AD1B0 /* GWOnboardingMemory.swift in Sources */,
 				4D4A607E6F8C37E568CFDCBA /* GWProductionSafety.swift in Sources */,
 				5968A732170512143AC21062 /* GWRecommendationEngine.swift in Sources */,
+				A2611A3C1451556D948C8D0B /* GWReviewPromptView.swift in Sources */,
 				2F8A6ABC0CA17BA6AE39603A /* GWSpec.swift in Sources */,
+				B2D32D94786EA19B1B5A0447 /* GWTasteEngine.swift in Sources */,
+				50A7A3A06765E716FAAA9859 /* GWUpdateBanner.swift in Sources */,
+				FB28DE3378E0CC6E5F72BFFA /* GWUpdateChecker.swift in Sources */,
+				E475DBFFC371A451B7EECBC5 /* GWWatchFeedbackView.swift in Sources */,
 				1972F60B303E257DF3B6C38C /* GoodWatchApp.swift in Sources */,
 				E1FA63947CAC91CD60D4FA4B /* InteractionService.swift in Sources */,
 				3E81929164E92841973FE34D /* LandingView.swift in Sources */,
@@ -454,12 +632,15 @@
 				C55735956DD391010DB2C640 /* NewReleasesTab.swift in Sources */,
 				E3D25A45E796B93C6FE87720 /* NewReleasesViewModel.swift in Sources */,
 				3AE3C7EF4EA505382FFAC58F /* OTTLanguageAvailability.swift in Sources */,
+				4EDABE021A0FB067232856BF /* PickCardView.swift in Sources */,
+				7FA596640A2E608B06C4C74C /* PickCarouselView.swift in Sources */,
 				A610E040F242731D097B2BBD /* PlatformSelectorView.swift in Sources */,
 				60988A017B5389D9291A4D2C /* PlatformTab.swift in Sources */,
 				92F78163190BD0B57312BADC /* PlatformViewModel.swift in Sources */,
 				B0624CAD7615069C548B039D /* PostWatchFeedbackView.swift in Sources */,
 				F0D765EAC05FBEEA160C0F8B /* PrimaryButton.swift in Sources */,
 				0A6C9D6F60DD530A6B7D7F5F /* ProfileTab.swift in Sources */,
+				7CCCED3C1D85173B7413F119 /* RejectionOverlayView.swift in Sources */,
 				20D64F408AA02988B18D4CA4 /* RejectionSheetView.swift in Sources */,
 				8F68A2C33169580B723C5570 /* RentTab.swift in Sources */,
 				8D41C6240DE55B96FD237A0C /* RentViewModel.swift in Sources */,
@@ -467,6 +648,8 @@
 				403E0AA9B60F019E59BAA9BD /* SortMenuSheet.swift in Sources */,
 				7919C00907DA95DA1C5CF6FC /* SupabaseConfig.swift in Sources */,
 				3C65A61239A8CCE8B31B3056 /* SupabaseSanityCheck.swift in Sources */,
+				A89B5CF89C0FA242C0238607 /* UpcomingReleasesTab.swift in Sources */,
+				2EEC3179AB3F59B36A39293B /* UpcomingReleasesViewModel.swift in Sources */,
 				BDB08C62F47D5169CE163653 /* UserContext.swift in Sources */,
 				889AF3B84B46DC1E01A0617A /* UserModels.swift in Sources */,
 				0D055E01E2D9847A9DCA86FC /* UserService.swift in Sources */,
@@ -475,9 +658,70 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BF377A5D81887133473F024A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				58481B14EE7BBFC15B898491 /* GWInvariantTests.swift in Sources */,
+				15E71713B548B5B974725194 /* GWProductInvariantTests.swift in Sources */,
+				5554DA2BF0352914D1927C79 /* GWRecommendationEngineTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		28B676E2CC332FBCF0CB648C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EEB2505B1EB95356A19335E3 /* GoodWatch */;
+			targetProxy = C30EC977D841E31DD3393E1D /* PBXContainerItemProxy */;
+		};
+		F66F902F1B98D0FE526D19E1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = EEB2505B1EB95356A19335E3 /* GoodWatch */;
+			targetProxy = A1585A3FA981DE71AF2BC241 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		05F5564DFD6B947B8497E17C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = H827NY6Y9W;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.parikshit.goodwatch.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GoodWatch;
+			};
+			name = Release;
+		};
+		1B476AF2E680F1265EE65CCE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = H827NY6Y9W;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.parikshit.goodwatch.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GoodWatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GoodWatch";
+			};
+			name = Debug;
+		};
 		2020C6130B1B254F54F4762D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -540,6 +784,44 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
+		};
+		96B5E210749DF992D873C4C6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = H827NY6Y9W;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.parikshit.goodwatch.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GoodWatch;
+			};
+			name = Debug;
+		};
+		9E732DC91A6BA6615B50D3CD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = H827NY6Y9W;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.parikshit.goodwatch.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GoodWatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GoodWatch";
+			};
+			name = Release;
 		};
 		9F9EF9EBE068E73E9D37BAA1 /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -604,14 +886,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -625,14 +907,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -651,11 +933,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		3038D7E3D65C78F788FB7C45 /* Build configuration list for PBXNativeTarget "GoodWatchUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				96B5E210749DF992D873C4C6 /* Debug */,
+				05F5564DFD6B947B8497E17C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5403DED1FB10F62892436AC3 /* Build configuration list for PBXProject "GoodWatch" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2020C6130B1B254F54F4762D /* Debug */,
 				9F9EF9EBE068E73E9D37BAA1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C3DCAFDB1C8DC68819D1BA5C /* Build configuration list for PBXNativeTarget "GoodWatchTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1B476AF2E680F1265EE65CCE /* Debug */,
+				9E732DC91A6BA6615B50D3CD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -691,6 +991,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BB0AD9A702E44DAFB9BD85AD /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
 			productName = GoogleSignIn;
+		};
+		D825EC231C95C60CF334939D /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CF3B07EE8A5CFEBB468F4973 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

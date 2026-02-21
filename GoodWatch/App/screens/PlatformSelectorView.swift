@@ -46,7 +46,7 @@ struct PlatformSelectorView: View {
 
                     Spacer()
 
-                    Text("2/4")
+                    Text("2/3")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
 
@@ -109,6 +109,7 @@ struct PlatformSelectorView: View {
                                         togglePlatform(platform)
                                     }
                                 )
+                                .accessibilityIdentifier("platform_\(platform.rawValue)")
                             }
                         }
                         .padding(.horizontal, GWSpacing.screenPadding)
@@ -172,6 +173,7 @@ struct PlatformSelectorView: View {
                             try? await UserService.shared.updateLanguages(languageStrings)
                         }
                         GWKeychainManager.shared.storeOnboardingStep(3)
+                        ctx.saveToDefaults()
                         onNext()
                     }
                 } label: {
@@ -188,11 +190,19 @@ struct PlatformSelectorView: View {
                         .cornerRadius(GWRadius.lg)
                 }
                 .disabled(!canProceed)
+                .accessibilityIdentifier("platform_continue")
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.bottom, 16)
                 .background(GWColors.black)
             }
             .edgesIgnoringSafeArea(.bottom)
+        }
+        .onAppear {
+            // Pre-select from onboarding memory if available and fields are empty
+            if ctx.otts.isEmpty, let saved = GWOnboardingMemory.shared.load() {
+                ctx.otts = saved.otts
+                ctx.languages = saved.languages
+            }
         }
     }
 

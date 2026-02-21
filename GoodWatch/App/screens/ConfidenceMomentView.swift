@@ -96,6 +96,7 @@ struct ConfidenceMomentView: View {
                 Spacer().frame(height: 60)
             }
         }
+        .accessibilityIdentifier("confidence_moment_screen")
         .onAppear {
             currentTrivia = randomTrivia
             startAnimation()
@@ -103,6 +104,18 @@ struct ConfidenceMomentView: View {
     }
 
     private func startAnimation() {
+        #if DEBUG
+        // Skip animation delay when running screenshot tests
+        if UserDefaults.standard.bool(forKey: "gw_skip_loading_delay") {
+            textOpacity = 1
+            triviaOpacity = 1
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                onComplete()
+            }
+            return
+        }
+        #endif
+
         // Fade in text
         withAnimation(.easeOut(duration: 0.3)) {
             textOpacity = 1

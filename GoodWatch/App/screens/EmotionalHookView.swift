@@ -1,6 +1,10 @@
 import SwiftUI
 
-// Screen 4: Emotional Hook
+// DEPRECATED: Removed from onboarding flow in v1.3.
+// EmotionalHook screen skipped -- availability pre-check moved to ConfidenceMoment.
+// Kept for rollback reference. Not navigated to by any active code path.
+
+// Screen 4: Emotional Hook (DEPRECATED)
 // The pitch - "Your perfect pick is ready"
 // Also performs catalog availability pre-check before proceeding
 struct EmotionalHookView: View {
@@ -370,30 +374,22 @@ struct BlurredPosterPreview: View {
     var body: some View {
         ZStack {
             // The blurred poster
-            AsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w500\(teaserPosters[Int.random(in: 0..<teaserPosters.count)])")) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 180, height: 250)
-                        .blur(radius: 10)
-                        .brightness(-0.2)
-                        .scaleEffect(1.15)
-                        .clipped()
-                default:
-                    // Fallback: gold gradient placeholder
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(
-                                colors: [GWColors.gold.opacity(0.15), GWColors.darkGray],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
+            GWCachedImage(url: TMDBImageSize.url(path: teaserPosters[Int.random(in: 0..<teaserPosters.count)], size: .w185)) {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(
+                        LinearGradient(
+                            colors: [GWColors.gold.opacity(0.15), GWColors.darkGray],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
                         )
-                        .frame(width: 180, height: 250)
-                }
+                    )
             }
+            .aspectRatio(contentMode: .fill)
+            .frame(width: 180, height: 250)
+            .blur(radius: 10)
+            .brightness(-0.2)
+            .scaleEffect(1.15)
+            .clipped()
 
             // Dark overlay
             RoundedRectangle(cornerRadius: 20)

@@ -190,6 +190,9 @@ struct Movie: Identifiable, Codable {
     let director: String?            // Director name
     let cast_list: [String]?         // Top cast members from enrichment
 
+    // TMDB identifier (used for enriching upcoming releases)
+    let tmdb_id: Int?
+
     // MARK: - Computed Properties
 
     /// Rating (prefers composite_score, then IMDb, then TMDB)
@@ -241,11 +244,21 @@ struct Movie: Identifiable, Codable {
         }
     }
 
-    /// Poster URL (full TMDB URL)
+    /// Poster URL (full TMDB URL) — default w500 for backward compat
     var posterURL: String? {
         guard let path = poster_path, !path.isEmpty else { return nil }
         if path.hasPrefix("http") { return path }
         return "https://image.tmdb.org/t/p/w500\(path)"
+    }
+
+    /// Size-appropriate poster URL for different UI contexts
+    /// - w154: list thumbnails (78px wide cards)
+    /// - w185: grid cards (3-column grid ~110px)
+    /// - w342: detail sheet poster
+    /// - w500: hero/backdrop (full-width)
+    func posterURL(size: TMDBImageSize) -> String? {
+        guard let path = poster_path, !path.isEmpty else { return nil }
+        return TMDBImageSize.url(path: path, size: size)
     }
 
     /// Year as display string
@@ -437,6 +450,9 @@ struct Movie: Identifiable, Codable {
         }
     }
 
+    // Shared decoder for inline JSON string fallbacks (ott_providers, genres stored as text)
+    private static let sharedDecoder = JSONDecoder()
+
     // MARK: - Codable
 
     enum CodingKeys: String, CodingKey {
@@ -447,6 +463,7 @@ struct Movie: Identifiable, Codable {
         case rt_critics_score, rt_audience_score, metacritic_score
         case composite_score, rating_confidence
         case director, cast_list
+        case tmdb_id
     }
 
     init(from decoder: Decoder) throws {
@@ -471,7 +488,7 @@ struct Movie: Identifiable, Codable {
         } else if let jsonString = try? container.decodeIfPresent(String.self, forKey: .ott_providers),
                   let jsonData = jsonString.data(using: .utf8) {
             // Try decoding the string as [OTTProvider]
-            if let parsed = try? JSONDecoder().decode([OTTProvider].self, from: jsonData) {
+            if let parsed = try? Movie.sharedDecoder.decode([OTTProvider].self, from: jsonData) {
                 ott_providers = parsed
             } else if let rawArray = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] {
                 // Fallback: manually extract from dictionaries (handles provider_id vs id, logo vs logo_path)
@@ -496,12 +513,13 @@ struct Movie: Identifiable, Codable {
         rating_confidence = try container.decodeIfPresent(Double.self, forKey: .rating_confidence)
         director = try container.decodeIfPresent(String.self, forKey: .director)
         cast_list = try container.decodeIfPresent([String].self, forKey: .cast_list)
+        tmdb_id = try container.decodeIfPresent(Int.self, forKey: .tmdb_id)
         // genres may be a proper JSONB array OR a JSON string — handle both gracefully.
         if let directArray = try? container.decodeIfPresent([Genre].self, forKey: .genres) {
             genres = directArray
         } else if let jsonString = try? container.decodeIfPresent(String.self, forKey: .genres),
                   let jsonData = jsonString.data(using: .utf8),
-                  let parsed = try? JSONDecoder().decode([Genre].self, from: jsonData) {
+                  let parsed = try? Movie.sharedDecoder.decode([Genre].self, from: jsonData) {
             genres = parsed
         } else {
             genres = nil
@@ -533,6 +551,7 @@ struct Movie: Identifiable, Codable {
         try container.encodeIfPresent(rating_confidence, forKey: .rating_confidence)
         try container.encodeIfPresent(director, forKey: .director)
         try container.encodeIfPresent(cast_list, forKey: .cast_list)
+        try container.encodeIfPresent(tmdb_id, forKey: .tmdb_id)
     }
 
     // Direct initializer for programmatic creation
@@ -559,7 +578,8 @@ struct Movie: Identifiable, Codable {
         composite_score: Double? = nil,
         rating_confidence: Double? = nil,
         director: String? = nil,
-        cast_list: [String]? = nil
+        cast_list: [String]? = nil,
+        tmdb_id: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -584,6 +604,7 @@ struct Movie: Identifiable, Codable {
         self.rating_confidence = rating_confidence
         self.director = director
         self.cast_list = cast_list
+        self.tmdb_id = tmdb_id
     }
 }
 
@@ -607,7 +628,7 @@ final class SupabaseService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -662,7 +683,7 @@ final class SupabaseService {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {

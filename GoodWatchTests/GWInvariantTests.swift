@@ -277,8 +277,8 @@ final class GWInvariantTests: XCTestCase {
         // INVARIANT: Must NOT return a recommendation
         XCTAssertNil(output.movie,
             "INVARIANT VIOLATION: Recommendation returned for incomplete profile (empty languages)")
-        XCTAssertTrue(output.isProfileIncomplete,
-            "INVARIANT VIOLATION: Profile incomplete flag not set")
+        XCTAssertNotNil(output.stopCondition,
+            "INVARIANT VIOLATION: Stop condition not set for incomplete profile")
     }
 
     func testInvariant_IncompleteProfile_EmptyPlatforms_NoRecommendation() {
@@ -302,8 +302,8 @@ final class GWInvariantTests: XCTestCase {
 
         XCTAssertNil(output.movie,
             "INVARIANT VIOLATION: Recommendation returned for incomplete profile (empty platforms)")
-        XCTAssertTrue(output.isProfileIncomplete,
-            "INVARIANT VIOLATION: Profile incomplete flag not set")
+        XCTAssertNotNil(output.stopCondition,
+            "INVARIANT VIOLATION: Stop condition not set for incomplete profile")
     }
 
     func testInvariant_IncompleteProfile_EmptyIntentTags_NoRecommendation() {
@@ -327,8 +327,8 @@ final class GWInvariantTests: XCTestCase {
 
         XCTAssertNil(output.movie,
             "INVARIANT VIOLATION: Recommendation returned for incomplete profile (empty intent tags)")
-        XCTAssertTrue(output.isProfileIncomplete,
-            "INVARIANT VIOLATION: Profile incomplete flag not set")
+        XCTAssertNotNil(output.stopCondition,
+            "INVARIANT VIOLATION: Stop condition not set for incomplete profile")
     }
 
     // ============================================

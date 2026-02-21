@@ -99,8 +99,8 @@ struct ExploreView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
+        .padding(.top, 0)
+        .padding(.bottom, 2)
     }
 
     // MARK: - Bottom Tab Bar

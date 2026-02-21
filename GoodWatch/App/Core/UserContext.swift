@@ -125,4 +125,23 @@ struct UserContext: Codable {
             risk_tolerance: .medium
         )
     }
+
+    // MARK: - Onboarding Persistence
+
+    private static let storageKey = "gw_onboarding_context"
+
+    func saveToDefaults() {
+        if let data = try? JSONEncoder().encode(self) {
+            UserDefaults.standard.set(data, forKey: Self.storageKey)
+        }
+    }
+
+    static func loadFromDefaults() -> UserContext? {
+        guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else { return nil }
+        return try? JSONDecoder().decode(UserContext.self, from: data)
+    }
+
+    static func clearDefaults() {
+        UserDefaults.standard.removeObject(forKey: Self.storageKey)
+    }
 }

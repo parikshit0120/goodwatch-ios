@@ -8,6 +8,7 @@ import SwiftUI
 struct DiscoverTab: View {
 
     @StateObject private var viewModel = DiscoverViewModel()
+    @ObservedObject private var watchlist = WatchlistManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -169,7 +170,7 @@ struct DiscoverTab: View {
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
                     ForEach(viewModel.movies, id: \.id) { movie in
-                        MovieGridCard(movie: movie) {
+                        MovieGridCard(movie: movie, isInWatchlist: watchlist.isInWatchlist(movie.id.uuidString)) {
                             viewModel.selectedMovie = movie
                         }
                     }

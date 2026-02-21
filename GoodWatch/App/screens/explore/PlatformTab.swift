@@ -9,6 +9,7 @@ import SwiftUI
 struct PlatformTab: View {
 
     @StateObject private var viewModel = PlatformViewModel()
+    @ObservedObject private var watchlist = WatchlistManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -115,7 +116,7 @@ struct PlatformTab: View {
                     GridItem(.flexible(), spacing: 12)
                 ], spacing: 16) {
                     ForEach(viewModel.movies, id: \.id) { movie in
-                        MovieGridCard(movie: movie) {
+                        MovieGridCard(movie: movie, isInWatchlist: watchlist.isInWatchlist(movie.id.uuidString)) {
                             viewModel.selectedMovie = movie
                         }
                     }

@@ -81,7 +81,7 @@ struct DurationSelectorView: View {
 
                     Spacer()
 
-                    Text("3/4")
+                    Text("3/3")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
 
@@ -119,7 +119,7 @@ struct DurationSelectorView: View {
 
                 // Duration Cards
                 VStack(spacing: 16) {
-                    ForEach(DurationOption.allCases, id: \.self) { option in
+                    ForEach(Array(DurationOption.allCases.enumerated()), id: \.element) { index, option in
                         DurationCard(
                             title: option.title,
                             subtitle: option.subtitle,
@@ -140,6 +140,7 @@ struct DurationSelectorView: View {
                                 }
                             }
                         )
+                        .accessibilityIdentifier("duration_card_\(index)")
                     }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
@@ -165,6 +166,7 @@ struct DurationSelectorView: View {
                         }
                         // Persist onboarding step to Keychain for resume support
                         GWKeychainManager.shared.storeOnboardingStep(4)
+                        ctx.saveToDefaults()
                         onNext()
                     }
                 } label: {
@@ -181,8 +183,24 @@ struct DurationSelectorView: View {
                         .cornerRadius(GWRadius.lg)
                 }
                 .disabled(selectedDuration == nil)
+                .accessibilityIdentifier("duration_continue")
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.bottom, 40)
+            }
+        }
+        .onAppear {
+            // Pre-select from onboarding memory if available
+            if selectedDuration == nil, let saved = GWOnboardingMemory.shared.load() {
+                if saved.requiresSeries {
+                    selectedDuration = .series
+                } else if saved.maxDuration <= 90 {
+                    selectedDuration = .quick
+                } else {
+                    selectedDuration = .full
+                }
+                ctx.minDuration = saved.minDuration
+                ctx.maxDuration = saved.maxDuration
+                ctx.requiresSeries = saved.requiresSeries
             }
         }
     }

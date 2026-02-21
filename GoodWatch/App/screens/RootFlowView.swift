@@ -61,6 +61,14 @@ struct RootFlowView: View {
     // Session tracking
     @State private var sessionRecommendationCount: Int = 0
 
+    // Multi-pick state (Progressive Pick System)
+    @State private var recommendedPicks: [GWMovie] = []
+    @State private var validMoviePool: [GWMovie] = []    // Cached valid GWMovie pool for replacements
+    @State private var rawMoviePool: [Movie] = []        // Cached raw Movie pool for lookups
+    @State private var pickCount: Int = 1                // How many picks to show (5/4/3/2/1)
+    @State private var replacedPositions: Set<Int> = []  // Positions that got replacements
+    @State private var currentProfile: GWUserProfileComplete? = nil  // Cached profile for replacements
+
     // Decision timing: tracks when current recommendation was shown
     // Used to measure how long user deliberates before accept/reject
     @State private var recommendationShownTime: Date? = nil
@@ -68,11 +76,19 @@ struct RootFlowView: View {
     // Feedback state
     @State private var pendingFeedback: FeedbackPromptData? = nil
 
+    // UGC Review state
+    @State private var showReviewPrompt: Bool = false
+    @State private var reviewMovieTitle: String = ""
+    @State private var reviewMovieId: String = ""
+
     // Transition animation
     @State private var screenTransition: AnyTransition = .asymmetric(
         insertion: .move(edge: .trailing).combined(with: .opacity),
         removal: .move(edge: .leading).combined(with: .opacity)
     )
+
+    // Update checker
+    @StateObject private var updateChecker = GWUpdateChecker.shared
 
     // Services
     private let engine = GWRecommendationEngine.shared
@@ -111,10 +127,88 @@ struct RootFlowView: View {
             if isLoadingRecommendation && currentScreen == .mainScreen {
                 recommendationLoadingOverlay
             }
+
+            // Update available banner (top of screen, non-blocking)
+            VStack {
+                GWUpdateBanner(checker: updateChecker)
+                Spacer()
+            }
+            .animation(.easeInOut(duration: 0.3), value: updateChecker.updateAvailable)
+
+            // UGC Review prompt overlay (shown on enjoy screen after delay)
+            if showReviewPrompt {
+                GWReviewPromptView(
+                    movieTitle: reviewMovieTitle,
+                    movieId: reviewMovieId,
+                    onSubmit: { rating, text in
+                        guard let userId = AuthGuard.shared.currentUserId else { return }
+                        Task {
+                            await GWReviewService.submitReview(
+                                userId: userId.uuidString,
+                                movieId: reviewMovieId,
+                                rating: rating,
+                                reviewText: text
+                            )
+                        }
+                    },
+                    onSkip: {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showReviewPrompt = false
+                        }
+                    }
+                )
+                .transition(.opacity)
+                .animation(.easeOut(duration: 0.3), value: showReviewPrompt)
+                .zIndex(100)
+            }
         }
         .onAppear {
             resumeFromSavedState()
             checkForPendingFeedback()
+            // Check for app updates (rate-limited, non-blocking)
+            updateChecker.checkForUpdate()
+            // Fetch remote mood config and feature flags early (non-blocking)
+            Task {
+                await GWMoodConfigService.shared.fetchRemoteConfig()
+                await GWFeatureFlags.shared.fetchFlags()
+            }
+            // Reconcile interaction points (non-blocking)
+            if let userId = AuthGuard.shared.currentUserId {
+                Task {
+                    await GWInteractionPoints.shared.reconcile(userId: userId.uuidString)
+                }
+            }
+            // Sync watchlist + tag weights from Supabase (3-second timeout, non-blocking)
+            Task {
+                await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        await WatchlistManager.shared.syncFromRemote()
+                    }
+                    group.addTask {
+                        await TagWeightStore.shared.syncFromRemote()
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 3_000_000_000)
+                        throw CancellationError()
+                    }
+                    // Wait for whichever finishes first: both syncs or the timeout
+                    do {
+                        for try await _ in group {
+                            // Each completion arrives here
+                        }
+                    } catch {
+                        // Timeout fired — cancel remaining tasks and move on
+                        group.cancelAll()
+                    }
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .gwNavigateToRecommendation)) { _ in
+            // User tapped a notification — take them to landing to start a fresh pick
+            // This handles: weekend pick taps, re-engagement taps, rich notification taps
+            if currentScreen != .landing {
+                returnToLanding()
+            }
         }
     }
 
@@ -173,7 +267,29 @@ struct RootFlowView: View {
             MoodSelectorView(
                 ctx: $userContext,
                 onNext: {
-                    navigateTo(.platformSelector)
+                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "mood_selector", "step_number": 1])
+
+                    // FIX 1: If onboarding memory exists (within 30 days), skip to recommendations
+                    if let saved = GWOnboardingMemory.shared.load() {
+                        userContext.otts = saved.otts
+                        userContext.languages = saved.languages
+                        userContext.minDuration = saved.minDuration
+                        userContext.maxDuration = saved.maxDuration
+                        userContext.requiresSeries = saved.requiresSeries
+                        // Persist to Supabase (fire-and-forget)
+                        Task {
+                            let platformStrings = saved.otts.map { $0.rawValue }
+                            let languageStrings = saved.languages.map { $0.rawValue }
+                            try? await UserService.shared.updatePlatforms(platformStrings)
+                            try? await UserService.shared.updateLanguages(languageStrings)
+                        }
+                        GWKeychainManager.shared.storeOnboardingStep(4)
+                        userContext.saveToDefaults()
+                        navigateTo(.confidenceMoment)
+                        fetchRecommendation()
+                    } else {
+                        navigateTo(.platformSelector)
+                    }
                 },
                 onBack: {
                     navigateBack(to: .auth)
@@ -187,6 +303,7 @@ struct RootFlowView: View {
             PlatformSelectorView(
                 ctx: $userContext,
                 onNext: {
+                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "platform_selector", "step_number": 2])
                     navigateTo(.durationSelector)
                 },
                 onBack: {
@@ -201,7 +318,10 @@ struct RootFlowView: View {
             DurationSelectorView(
                 ctx: $userContext,
                 onNext: {
-                    navigateTo(.emotionalHook)
+                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "duration_selector", "step_number": 3])
+                    // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
+                    navigateTo(.confidenceMoment)
+                    fetchRecommendation()
                 },
                 onBack: {
                     navigateBack(to: .platformSelector)
@@ -212,25 +332,8 @@ struct RootFlowView: View {
             )
 
         case .emotionalHook:
-            EmotionalHookView(
-                userContext: userContext,
-                onShowMe: {
-                    navigateTo(.confidenceMoment)
-                    fetchRecommendation()
-                },
-                onBack: {
-                    navigateBack(to: .durationSelector)
-                },
-                onChangePlatforms: {
-                    navigateBack(to: .platformSelector)
-                },
-                onChangeRuntime: {
-                    navigateBack(to: .durationSelector)
-                },
-                onHome: {
-                    returnToLanding()
-                }
-            )
+            // DEPRECATED in v1.3: EmotionalHook skipped. If somehow reached, skip forward.
+            Color.clear.onAppear { navigateTo(.confidenceMoment) }
 
         case .confidenceMoment:
             ConfidenceMomentView(onComplete: {
@@ -281,7 +384,30 @@ struct RootFlowView: View {
 
     @ViewBuilder
     private var mainScreenContent: some View {
-        if let movie = currentMovie {
+        if pickCount > 1 && !recommendedPicks.isEmpty {
+            // Multi-pick: show carousel
+            PickCarouselView(
+                picks: recommendedPicks,
+                rawMovies: rawMoviePool,
+                pickCount: pickCount,
+                replacedPositions: replacedPositions,
+                userOTTs: userContext.otts,
+                userMood: userContext.intent.mood,
+                onWatchNow: { movie, provider in
+                    handleMultiPickWatchNow(movie: movie, provider: provider)
+                },
+                onReject: { gwMovie, reason in
+                    handleCardRejection(gwMovie: gwMovie, reason: reason)
+                },
+                onStartOver: {
+                    returnToLanding()
+                },
+                onExplore: {
+                    navigateTo(.explore)
+                }
+            )
+        } else if let movie = currentMovie {
+            // Single pick: existing MainScreenView (pickCount == 1)
             #if DEBUG
             MainScreenView(
                 movie: movie,
@@ -348,10 +474,11 @@ struct RootFlowView: View {
             GWColors.black
                 .ignoresSafeArea()
 
-            // Blurred movie backdrop behind content
-            if let url = currentMovie?.posterURL, let imageURL = URL(string: url) {
-                AsyncImage(url: imageURL) { phase in
-                    if case .success(let image) = phase {
+            // Cached image — reused for both backdrop and thumbnail
+            if let posterUrl = currentMovie?.posterURL(size: .w500) {
+                GWCachedImageDual(url: posterUrl) { image in
+                    ZStack {
+                        // Blurred movie backdrop behind content
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
@@ -361,108 +488,139 @@ struct RootFlowView: View {
                             .scaleEffect(1.1)
                             .clipped()
                             .ignoresSafeArea()
-                    }
-                }
 
-                // Gradient overlay for text legibility
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: GWColors.black.opacity(0.3), location: 0),
-                        .init(color: GWColors.black.opacity(0.2), location: 0.3),
-                        .init(color: GWColors.black.opacity(0.6), location: 0.7),
-                        .init(color: GWColors.black.opacity(0.95), location: 1.0)
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            }
+                        // Gradient overlay for text legibility
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: GWColors.black.opacity(0.3), location: 0),
+                                .init(color: GWColors.black.opacity(0.2), location: 0.3),
+                                .init(color: GWColors.black.opacity(0.6), location: 0.7),
+                                .init(color: GWColors.black.opacity(0.95), location: 1.0)
+                            ]),
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                Spacer()
+                        // Movie poster thumbnail (reuses same loaded image)
+                        VStack(spacing: 24) {
+                            Spacer()
 
-                // Movie poster thumbnail
-                if let url = currentMovie?.posterURL, let imageURL = URL(string: url) {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
                                 .frame(width: 140, height: 200)
                                 .cornerRadius(14)
                                 .shadow(color: .black.opacity(0.5), radius: 16, x: 0, y: 8)
-                        default:
-                            EmptyView()
+
+                            enjoyScreenTextAndButtons
                         }
                     }
                 }
-
-                Text("Enjoy!")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(LinearGradient.goldGradient)
-
-                if let title = currentMovie?.title {
-                    Text(title)
-                        .font(GWTypography.body(weight: .semibold))
-                        .foregroundColor(GWColors.white)
+            } else {
+                // No poster URL — just show text content
+                VStack(spacing: 24) {
+                    Spacer()
+                    enjoyScreenTextAndButtons
                 }
-
-                Text("We hope you love it.")
-                    .font(GWTypography.body(weight: .medium))
-                    .foregroundColor(GWColors.lightGray)
-
-                Spacer()
-
-                Button {
-                    returnToLanding()
-                } label: {
-                    Text("Pick another")
-                        .font(GWTypography.button())
-                        .foregroundColor(GWColors.black)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(LinearGradient.goldGradient)
-                        .cornerRadius(GWRadius.lg)
-                }
-                .padding(.horizontal, GWSpacing.screenPadding)
-
-                Button {
-                    returnToLanding()
-                } label: {
-                    Text("Done for tonight")
-                        .font(GWTypography.body(weight: .medium))
-                        .foregroundColor(GWColors.lightGray)
-                }
-
-                Spacer().frame(height: 40)
             }
         }
         .onAppear {
-            // Auto-return to landing after 5 seconds if user doesn't tap
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                if currentScreen == .enjoyScreen {
+            // Show review prompt after 2 seconds on the enjoy screen
+            if let movie = currentMovie {
+                reviewMovieTitle = movie.title
+                reviewMovieId = movie.id.uuidString
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if currentScreen == .enjoyScreen {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showReviewPrompt = true
+                        }
+                    }
+                }
+            }
+
+            // Auto-return to landing after 10 seconds if user doesn't interact
+            // (extended from 5s to account for review prompt)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                if currentScreen == .enjoyScreen && !showReviewPrompt {
                     returnToLanding()
                 }
             }
         }
     }
 
+    /// Shared text and button content for the Enjoy screen (used with and without poster)
+    @ViewBuilder
+    private var enjoyScreenTextAndButtons: some View {
+        Text("Enjoy!")
+            .font(.system(size: 32, weight: .bold))
+            .foregroundStyle(LinearGradient.goldGradient)
+
+        if let title = currentMovie?.title {
+            Text(title)
+                .font(GWTypography.body(weight: .semibold))
+                .foregroundColor(GWColors.white)
+        }
+
+        Text("We hope you love it.")
+            .font(GWTypography.body(weight: .medium))
+            .foregroundColor(GWColors.lightGray)
+
+        Spacer()
+
+        Button {
+            returnToLanding()
+        } label: {
+            Text("Pick another")
+                .font(GWTypography.button())
+                .foregroundColor(GWColors.black)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(LinearGradient.goldGradient)
+                .cornerRadius(GWRadius.lg)
+        }
+        .padding(.horizontal, GWSpacing.screenPadding)
+
+        Button {
+            returnToLanding()
+        } label: {
+            Text("Done for tonight")
+                .font(GWTypography.body(weight: .medium))
+                .foregroundColor(GWColors.lightGray)
+        }
+
+        Spacer().frame(height: 40)
+    }
+
     // MARK: - Feedback Screen Content
 
     @ViewBuilder
     private var feedbackScreenContent: some View {
-        if let feedback = pendingFeedback {
+        if let feedback = pendingFeedback, GWFeatureFlags.shared.isEnabled("feedback_v2") {
+            GWWatchFeedbackView(
+                movieTitle: feedback.movieTitle,
+                movieId: feedback.movieId,
+                posterURL: nil,
+                onComplete: {
+                    // GWWatchFeedbackView handles enforcer + Supabase internally
+                    pendingFeedback = nil
+                    navigateTo(.landing)
+                }
+            )
+        } else if let feedback = pendingFeedback {
             PostWatchFeedbackView(
                 feedbackData: feedback,
                 onCompleted: {
-                    handleFeedbackSubmission(movieId: feedback.movieId, status: .completed)
+                    pendingFeedback = nil
+                    navigateTo(.landing)
                 },
                 onAbandoned: {
-                    handleFeedbackSubmission(movieId: feedback.movieId, status: .abandoned)
+                    pendingFeedback = nil
+                    navigateTo(.landing)
                 },
                 onSkipped: {
-                    handleFeedbackSubmission(movieId: feedback.movieId, status: .skipped)
+                    pendingFeedback = nil
+                    navigateTo(.landing)
                 }
             )
         } else {
@@ -495,51 +653,16 @@ struct RootFlowView: View {
         }
     }
 
-    private func handleFeedbackSubmission(movieId: String, status: GWFeedbackStatus) {
-        guard let userId = AuthGuard.shared.currentUserId else {
-            navigateTo(.landing)
-            return
-        }
-
-        // Submit feedback via enforcer (handles Supabase logging + tag weight update)
-        switch status {
-        case .completed:
-            GWFeedbackEnforcer.shared.markCompleted(movieId: movieId, userId: userId.uuidString)
-
-            // Update tag weights with completed signal
-            // We need the movie's tags — look up from pending feedback list
-            MetricsService.shared.track(.feedbackGiven, properties: [
-                "movie_id": movieId,
-                "sentiment": "completed"
-            ])
-
-        case .abandoned:
-            GWFeedbackEnforcer.shared.markAbandoned(movieId: movieId, userId: userId.uuidString)
-
-            MetricsService.shared.track(.feedbackGiven, properties: [
-                "movie_id": movieId,
-                "sentiment": "abandoned"
-            ])
-
-        case .skipped:
-            GWFeedbackEnforcer.shared.skipFeedback(movieId: movieId, userId: userId.uuidString)
-
-            MetricsService.shared.track(.feedbackGiven, properties: [
-                "movie_id": movieId,
-                "sentiment": "skipped"
-            ])
-
-        case .pending:
-            break
-        }
-
-        // Clear feedback state and go to landing
-        pendingFeedback = nil
-        navigateTo(.landing)
-    }
-
     /// Return to landing, resetting session state
     private func returnToLanding() {
+        // Track onboarding abandonment if user is mid-onboarding
+        if currentScreen.rawValue >= Screen.moodSelector.rawValue && currentScreen.rawValue <= Screen.emotionalHook.rawValue {
+            MetricsService.shared.track(.onboardingAbandoned, properties: [
+                "abandoned_at_step": currentScreen.rawValue,
+                "abandoned_at_screen": "\(currentScreen)"
+            ])
+        }
+
         // Reset recommendation state for fresh session
         currentMovie = nil
         currentGoodScore = 0
@@ -548,6 +671,18 @@ struct RootFlowView: View {
         sessionRecommendationCount = 0
         showRejectionSheet = false
         userContext = .default
+        UserContext.clearDefaults()
+
+        // FIX 1: Clear onboarding memory on Start Over
+        GWOnboardingMemory.shared.clear()
+
+        // Reset multi-pick state
+        recommendedPicks = []
+        validMoviePool = []
+        rawMoviePool = []
+        pickCount = 1
+        replacedPositions = []
+        currentProfile = nil
 
         navigateBack(to: .landing)
     }
@@ -626,6 +761,15 @@ struct RootFlowView: View {
     private func tryTransitionToMainScreen() {
         guard confidenceMinTimeElapsed, recommendationReady, currentScreen == .confidenceMoment else { return }
         navigateTo(.mainScreen)
+
+        // Request notification permission AFTER user sees their first recommendation.
+        // 3-second delay lets the user absorb the result before the system prompt appears.
+        // If already asked or declined, this is a no-op. Gated by push_notifications flag.
+        if GWFeatureFlags.shared.isEnabled("push_notifications") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                GWNotificationService.shared.requestPermissionIfNeeded()
+            }
+        }
     }
 
     // MARK: - Navigation
@@ -666,19 +810,31 @@ struct RootFlowView: View {
         print("Resuming from saved onboarding step: \(savedStep)")
         #endif
 
+        // Restore in-progress UserContext from UserDefaults
+        if let savedContext = UserContext.loadFromDefaults() {
+            self.userContext = savedContext
+        }
+
         // Map saved step to screen (only for incomplete onboarding)
         // Steps saved by screens:
         //   MoodSelector saves step 2
         //   PlatformSelector saves step 3
         //   DurationSelector saves step 4
-        //   EmotionalHook saves step 5
+        //   EmotionalHook saves step 5 (deprecated v1.3 — treat as duration complete)
         switch savedStep {
         case 2:
             currentScreen = .platformSelector
         case 3:
             currentScreen = .durationSelector
-        case 4, 5:
-            currentScreen = .emotionalHook
+        case 4:
+            // Duration selected — go to ConfidenceMoment (skipping EmotionalHook)
+            currentScreen = .confidenceMoment
+            fetchRecommendation()
+        case 5:
+            // v1.3: User was mid-EmotionalHook (now skipped). Duration is complete.
+            // Go straight to ConfidenceMoment.
+            currentScreen = .confidenceMoment
+            fetchRecommendation()
         default:
             currentScreen = .landing
         }
@@ -702,8 +858,15 @@ struct RootFlowView: View {
                 authType: UserService.shared.currentUser?.auth_provider ?? "anonymous"
             )
 
-            // Set user for per-user tag weights
+            // Set user for per-user tag weights and watchlist
             TagWeightStore.shared.setUser(userId.uuidString)
+            WatchlistManager.shared.setUser(userId.uuidString)
+
+            // Load taste profile (recomputes if stale >24h or never loaded)
+            await GWTasteEngine.shared.recomputeIfNeeded(userId: userId.uuidString)
+
+            // Ensure remote mood config is loaded (fetched once per session, 3s timeout)
+            await GWMoodConfigService.shared.waitForLoad(timeout: 3.0)
 
             // Fetch shown/rejected history from Supabase to avoid cross-session repeats
             let historicalExclusions = await fetchHistoricalExclusions(userId: userId)
@@ -774,9 +937,117 @@ struct RootFlowView: View {
                     case .invalid(let failure): allFailureCounts[failure.ruleLabel, default: 0] += 1
                     }
                 }
+                #if DEBUG
                 print("🔍 DIAGNOSTIC: \(movies.count) movies fetched, \(validCount) valid")
                 print("🔍 Failure breakdown: \(allFailureCounts)")
                 print("🔍 Profile: platforms=\(profile.platforms), langs=\(profile.preferredLanguages), runtime=\(profile.runtimeWindow.min)-\(profile.runtimeWindow.max), intentTags=\(profile.intentTags)")
+                #endif
+
+                // Determine pick count from interaction points
+                GWInteractionPoints.shared.setUser(userId.uuidString)
+                let ppFlag = GWFeatureFlags.shared.isEnabled("progressive_picks")
+                let rawPickCount = GWInteractionPoints.shared.effectivePickCount
+                let effectivePickCount = ppFlag ? rawPickCount : 1
+
+                #if DEBUG
+                print("[CAROUSEL] === Carousel Debug ===")
+                print("[CAROUSEL] User ID: \(userId.uuidString)")
+                print("[CAROUSEL] Interaction Points: \(GWInteractionPoints.shared.currentPoints)")
+                print("[CAROUSEL] Computed Pick Count: \(rawPickCount)")
+                print("[CAROUSEL] Max Tier Reached: \(UserDefaults.standard.integer(forKey: "gw_max_pick_tier_reached_\(userId.uuidString)"))")
+                print("[CAROUSEL] Feature Flag progressive_picks: \(ppFlag)")
+                print("[CAROUSEL] Effective Pick Count: \(effectivePickCount)")
+                print("[CAROUSEL] ========================")
+                #endif
+
+                // Cache the movie pool for replacement logic
+                let gwMoviePool = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
+
+                #if DEBUG
+                print("   gwMoviePool count (after content filter): \(gwMoviePool.count)")
+                #endif
+
+                // Use multi-pick when pickCount > 1
+                if effectivePickCount > 1 {
+                    let picks = engine.recommendMultiple(
+                        from: gwMoviePool,
+                        profile: profile,
+                        count: effectivePickCount
+                    )
+
+                    #if DEBUG
+                    print("MULTI-PICK: \(effectivePickCount) picks requested, \(picks.count) returned")
+                    for (i, pick) in picks.enumerated() {
+                        print("   Pick[\(i)]: \(pick.title) | tags=\(pick.tags) | score=\(engine.computeScore(movie: pick, profile: profile))")
+                    }
+                    #endif
+
+                    if !picks.isEmpty {
+                        await MainActor.run {
+                            self.recommendedPicks = picks
+                            self.rawMoviePool = movies
+                            self.validMoviePool = gwMoviePool
+                            self.pickCount = effectivePickCount
+                            self.replacedPositions = []
+                            self.currentProfile = profile
+                            self.isLoadingRecommendation = false
+                            self.sessionRecommendationCount += 1
+                            self.recommendationShownTime = Date()
+
+                            // Set currentMovie to first pick for enjoy screen compatibility
+                            if let firstRaw = movies.first(where: { $0.id.uuidString == picks[0].id }) {
+                                self.currentMovie = firstRaw
+                                self.currentGoodScore = picks[0].composite_score > 0 ? Int(round(picks[0].composite_score)) : Int(round(picks[0].goodscore * 10))
+                            }
+
+                            // Track metrics
+                            MetricsService.shared.track(.pickShown, properties: [
+                                "pick_count": effectivePickCount,
+                                "picks_returned": picks.count,
+                                "recommendation_number": self.sessionRecommendationCount,
+                                "mode": "multi_pick"
+                            ])
+
+                            MetricsService.shared.track(.recommendationShown, properties: [
+                                "pick_count": effectivePickCount,
+                                "mode": "multi_pick"
+                            ])
+
+                            // Record shown for all picks
+                            Task {
+                                for pick in picks {
+                                    if let movieUUID = UUID(uuidString: pick.id) {
+                                        try? await InteractionService.shared.recordShown(
+                                            userId: userId,
+                                            movieId: movieUUID
+                                        )
+                                    }
+                                }
+                            }
+
+                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            // FIX 1: Save onboarding memory for 30-day skip
+                            GWOnboardingMemory.shared.save(
+                                otts: self.userContext.otts,
+                                languages: self.userContext.languages,
+                                minDuration: self.userContext.minDuration,
+                                maxDuration: self.userContext.maxDuration,
+                                requiresSeries: self.userContext.requiresSeries
+                            )
+                            UserContext.clearDefaults()
+                            GWNotificationService.shared.saveLastMood(self.userContext.mood.rawValue)
+
+                            if self.sessionRecommendationCount == 1 {
+                                MetricsService.shared.track(.onboardingComplete)
+                            }
+
+                            self.recommendationReady = true
+                            self.tryTransitionToMainScreen()
+                        }
+                        return
+                    }
+                    // If multi-pick returned empty, fall through to single pick
+                }
 
                 // Use canonical engine with production fallback
                 let (output, fallbackLevel, _) = engine.recommendWithFallback(
@@ -785,9 +1056,11 @@ struct RootFlowView: View {
                     contentFilter: contentFilter
                 )
 
+                #if DEBUG
                 if fallbackLevel != .none {
                     print("⚠️ Used fallback level \(fallbackLevel.rawValue) to find recommendation")
                 }
+                #endif
 
                 #if DEBUG
                 if let gwMovie = output.movie {
@@ -813,6 +1086,7 @@ struct RootFlowView: View {
                         self.sessionRecommendationCount += 1
                         self.isLoadingRecommendation = false
                         self.recommendationShownTime = Date()  // Start decision timer
+                        self.pickCount = 1  // Ensure single-pick mode routing
 
                         // Track metrics
                         MetricsService.shared.track(.pickShown, properties: [
@@ -820,6 +1094,13 @@ struct RootFlowView: View {
                             "movie_title": movie.title,
                             "good_score": self.currentGoodScore,
                             "recommendation_number": self.sessionRecommendationCount
+                        ])
+
+                        // Track recommendation shown for dashboard funnel
+                        MetricsService.shared.track(.recommendationShown, properties: [
+                            "movie_id": movie.id.uuidString,
+                            "good_score": self.currentGoodScore,
+                            "fallback_level": fallbackLevel.rawValue
                         ])
 
                         // Record shown interaction
@@ -832,6 +1113,18 @@ struct RootFlowView: View {
 
                         // Mark onboarding as complete
                         GWKeychainManager.shared.storeOnboardingStep(6)
+                        // FIX 1: Save onboarding memory for 30-day skip
+                        GWOnboardingMemory.shared.save(
+                            otts: self.userContext.otts,
+                            languages: self.userContext.languages,
+                            minDuration: self.userContext.minDuration,
+                            maxDuration: self.userContext.maxDuration,
+                            requiresSeries: self.userContext.requiresSeries
+                        )
+                        UserContext.clearDefaults()
+
+                        // Save mood for personalized weekend notifications
+                        GWNotificationService.shared.saveLastMood(self.userContext.mood.rawValue)
 
                         if self.sessionRecommendationCount == 1 {
                             MetricsService.shared.track(.onboardingComplete)
@@ -1003,6 +1296,9 @@ struct RootFlowView: View {
     private func handleWatchNow(movie: Movie, provider: OTTProvider) {
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
+        // Add interaction points for single-pick watch_now
+        GWInteractionPoints.shared.add(3)
+
         // Record decision timing (threshold-gated: always collected, used after ≥20 samples)
         if let shownTime = recommendationShownTime {
             let decisionSeconds = Date().timeIntervalSince(shownTime)
@@ -1021,6 +1317,13 @@ struct RootFlowView: View {
             "platform": provider.displayName,
             "good_score": currentGoodScore,
             "recommendation_number": sessionRecommendationCount
+        ])
+
+        // Track recommendation accepted for dashboard funnel
+        MetricsService.shared.track(.recommendationAccepted, properties: [
+            "movie_id": movie.id.uuidString,
+            "platform": provider.displayName,
+            "good_score": currentGoodScore
         ])
 
         // Record interaction
@@ -1058,12 +1361,20 @@ struct RootFlowView: View {
     private func handleAlreadySeen(movie: Movie) {
         let rejectedId = movie.id
 
+        // Add interaction points for already_seen
+        GWInteractionPoints.shared.add(1)
+
         // Track metrics
         MetricsService.shared.track(.rejectHard, properties: [
             "movie_id": movie.id.uuidString,
             "movie_title": movie.title,
             "reason": "already_seen",
             "recommendation_number": sessionRecommendationCount
+        ])
+
+        // Track recommendation already seen for dashboard
+        MetricsService.shared.track(.recommendationAlreadySeen, properties: [
+            "movie_id": movie.id.uuidString
         ])
 
         // Record interaction (if authenticated)
@@ -1085,6 +1396,9 @@ struct RootFlowView: View {
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
         let rejectedId = movie.id
+
+        // Add interaction points for not_tonight
+        GWInteractionPoints.shared.add(2)
 
         // Record decision timing (threshold-gated: always collected, used after ≥20 samples)
         if let shownTime = recommendationShownTime {
@@ -1108,6 +1422,12 @@ struct RootFlowView: View {
             "movie_title": movie.title,
             "reason": reason.rawValue,
             "recommendation_number": sessionRecommendationCount
+        ])
+
+        // Track recommendation rejected for dashboard funnel
+        MetricsService.shared.track(.recommendationRejected, properties: [
+            "movie_id": movie.id.uuidString,
+            "reason": reason.rawValue
         ])
 
         // Record interaction with learning signal
@@ -1140,6 +1460,9 @@ struct RootFlowView: View {
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
         let rejectedId = movie.id
+
+        // Add interaction points for show_me_another
+        GWInteractionPoints.shared.add(1)
 
         // Record decision timing (threshold-gated: always collected, used after ≥20 samples)
         if let shownTime = recommendationShownTime {
@@ -1188,6 +1511,211 @@ struct RootFlowView: View {
 
         // Fetch next recommendation
         fetchNextRecommendation(afterRejection: rejectedId, reason: nil)
+    }
+
+    // MARK: - Multi-Pick Interaction Handlers
+
+    private func handleMultiPickWatchNow(movie: Movie, provider: OTTProvider) {
+        guard let userId = AuthGuard.shared.currentUserId else { return }
+
+        // Record decision timing
+        if let shownTime = recommendationShownTime {
+            let decisionSeconds = Date().timeIntervalSince(shownTime)
+            InteractionService.shared.recordDecisionTiming(
+                userId: userId,
+                movieId: movie.id,
+                decisionSeconds: decisionSeconds,
+                wasAccepted: true
+            )
+        }
+
+        // Add interaction points for watch_now
+        GWInteractionPoints.shared.add(3)
+
+        // Track metrics
+        MetricsService.shared.track(.watchNow, properties: [
+            "movie_id": movie.id.uuidString,
+            "movie_title": movie.title,
+            "platform": provider.displayName,
+            "good_score": currentGoodScore,
+            "recommendation_number": sessionRecommendationCount,
+            "mode": "multi_pick",
+            "pick_count": pickCount
+        ])
+
+        MetricsService.shared.track(.recommendationAccepted, properties: [
+            "movie_id": movie.id.uuidString,
+            "platform": provider.displayName,
+            "mode": "multi_pick"
+        ])
+
+        // Record acceptance + tag weights for chosen movie
+        Task {
+            try? await InteractionService.shared.recordAcceptanceWithBias(
+                userId: userId,
+                movieId: movie.id,
+                platforms: [provider.displayName]
+            )
+
+            GWFeedbackEnforcer.shared.schedulePostWatchFeedback(
+                movieId: movie.id.uuidString,
+                movieTitle: movie.title,
+                userId: userId.uuidString
+            )
+
+            let gwChosen = GWMovie(from: movie)
+            let updatedWeights = updateTagWeights(
+                tagWeights: TagWeightStore.shared.getWeights(),
+                movie: gwChosen,
+                action: .watch_now
+            )
+            TagWeightStore.shared.saveWeights(updatedWeights)
+
+            // Implicit skip for all non-chosen cards (gated by feature flag)
+            if GWFeatureFlags.shared.isEnabled("implicit_skip_tracking") {
+                let chosenId = movie.id.uuidString
+                let nonChosen = recommendedPicks.filter { $0.id != chosenId }
+                for skippedMovie in nonChosen {
+                    // Record implicit_skip interaction
+                    if let movieUUID = UUID(uuidString: skippedMovie.id) {
+                        try? await InteractionService.shared.recordInteraction(
+                            userId: userId,
+                            movieId: movieUUID,
+                            action: .implicit_skip
+                        )
+                    }
+
+                    // Implicit skip tag weight update (-0.05)
+                    let skippedWeights = updateTagWeights(
+                        tagWeights: TagWeightStore.shared.getWeights(),
+                        movie: skippedMovie,
+                        action: .implicit_skip
+                    )
+                    TagWeightStore.shared.saveWeights(skippedWeights)
+
+                    // Add 1 point per implicit skip
+                    GWInteractionPoints.shared.add(1)
+                }
+            }
+        }
+
+        // Set currentMovie for enjoy screen
+        currentMovie = movie
+        let gwMovie = GWMovie(from: movie)
+        currentGoodScore = gwMovie.composite_score > 0 ? Int(round(gwMovie.composite_score)) : Int(round(gwMovie.goodscore * 10))
+
+        // Navigate to enjoy screen
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            navigateTo(.enjoyScreen)
+        }
+    }
+
+    private func handleCardRejection(gwMovie: GWMovie, reason: GWCardRejectionReason) {
+        guard let userId = AuthGuard.shared.currentUserId else { return }
+        guard let profile = currentProfile else { return }
+
+        // Find position of rejected card
+        guard let position = recommendedPicks.firstIndex(where: { $0.id == gwMovie.id }) else { return }
+
+        // Add interaction points based on reason
+        switch reason {
+        case .notInterested:
+            GWInteractionPoints.shared.add(2)
+        case .alreadySeen:
+            GWInteractionPoints.shared.add(1)
+        }
+
+        // Record interaction
+        let interactionAction: InteractionAction = reason == .notInterested ? .not_interested : .already_seen_card
+        Task {
+            if let movieUUID = UUID(uuidString: gwMovie.id) {
+                try? await InteractionService.shared.recordInteraction(
+                    userId: userId,
+                    movieId: movieUUID,
+                    action: interactionAction
+                )
+            }
+
+            // Update tag weights based on reason
+            let specAction: GWSpecInteraction.SpecInteractionAction = reason == .notInterested ? .not_tonight : .show_me_another
+            let updatedWeights = updateTagWeights(
+                tagWeights: TagWeightStore.shared.getWeights(),
+                movie: gwMovie,
+                action: specAction
+            )
+            TagWeightStore.shared.saveWeights(updatedWeights)
+        }
+
+        // Track metrics
+        MetricsService.shared.track(.rejectHard, properties: [
+            "movie_id": gwMovie.id,
+            "movie_title": gwMovie.title,
+            "reason": reason.rawValue,
+            "position": position + 1,
+            "mode": "multi_pick"
+        ])
+
+        // Add to exclusions
+        if let movieUUID = UUID(uuidString: gwMovie.id) {
+            excludedMovieIds.insert(movieUUID)
+        }
+
+        // Check if this position already had a replacement (can only replace once)
+        if replacedPositions.contains(position) {
+            // Already replaced once — just remove this card
+            var updatedPicks = recommendedPicks
+            updatedPicks.remove(at: position)
+            withAnimation(.easeInOut(duration: 0.3)) {
+                recommendedPicks = updatedPicks
+            }
+            return
+        }
+
+        // Find replacement
+        // Update profile exclusions for replacement search
+        var updatedProfile = profile
+        updatedProfile.notTonight.insert(gwMovie.id)
+        for pick in recommendedPicks {
+            updatedProfile.notTonight.insert(pick.id)
+        }
+
+        let replacement = engine.findReplacement(
+            from: validMoviePool,
+            profile: updatedProfile,
+            rejectedMovie: gwMovie,
+            reason: reason,
+            currentPicks: recommendedPicks
+        )
+
+        if let replacement = replacement {
+            var updatedPicks = recommendedPicks
+            updatedPicks[position] = replacement
+            replacedPositions.insert(position)
+
+            withAnimation(.easeInOut(duration: 0.3)) {
+                recommendedPicks = updatedPicks
+            }
+
+            // Record replacement shown
+            Task {
+                if let movieUUID = UUID(uuidString: replacement.id) {
+                    try? await InteractionService.shared.recordShown(
+                        userId: userId,
+                        movieId: movieUUID
+                    )
+                }
+            }
+
+            // Add replacement_shown interaction point
+            GWInteractionPoints.shared.add(1)
+        } else {
+            // No replacement found — remove the card
+            var updatedPicks = recommendedPicks
+            updatedPicks.remove(at: position)
+            withAnimation(.easeInOut(duration: 0.3)) {
+                recommendedPicks = updatedPicks
+            }
+        }
     }
 
     private func fetchNextAfterAlreadySeen(movieId: UUID) {

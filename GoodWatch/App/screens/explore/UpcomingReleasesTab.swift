@@ -25,11 +25,62 @@ struct UpcomingReleasesTab: View {
             // Content type filter
             contentTypeFilter
 
-            // Genre filter
-            genreFilter
+            // Filter chips (Genre, Language)
+            filterChips
+
+            // Active filters
+            activeFiltersRow
 
             // Movie list
             movieList
+        }
+    }
+
+    // MARK: - Filter Chips
+
+    private var filterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChipButton(
+                    title: viewModel.activeGenres.isEmpty ? "Genre" : "Genre \u{00B7} \(viewModel.activeGenres.count)",
+                    isActive: !viewModel.activeGenres.isEmpty,
+                    action: { viewModel.showGenreFilter.toggle() }
+                )
+
+                FilterChipButton(
+                    title: viewModel.activeLanguages.isEmpty ? "Language" : "Language \u{00B7} \(viewModel.activeLanguages.count)",
+                    isActive: !viewModel.activeLanguages.isEmpty,
+                    action: { viewModel.showLanguageFilter.toggle() }
+                )
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.top, 4)
+    }
+
+    // MARK: - Active Filters Row
+
+    @ViewBuilder
+    private var activeFiltersRow: some View {
+        if viewModel.hasActiveFilters {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(viewModel.activeFilterTags, id: \.self) { tag in
+                        ActiveFilterPill(
+                            text: tag,
+                            onRemove: { viewModel.removeFilter(tag) }
+                        )
+                    }
+
+                    Button("Clear all") {
+                        viewModel.clearAllFilters()
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(GWColors.gold)
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.top, 4)
         }
     }
 
@@ -56,7 +107,7 @@ struct UpcomingReleasesTab: View {
                 .stroke(GWColors.surfaceBorder, lineWidth: 1)
         )
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 6)
     }
 
     // MARK: - Platform Filter Tabs (OTT only)
@@ -82,7 +133,7 @@ struct UpcomingReleasesTab: View {
             }
             .padding(.horizontal, 16)
         }
-        .padding(.top, 10)
+        .padding(.top, 6)
     }
 
     // MARK: - Content Type Filter
@@ -106,31 +157,7 @@ struct UpcomingReleasesTab: View {
             }
             .padding(.horizontal, 16)
         }
-        .padding(.top, 10)
-    }
-
-    // MARK: - Genre Filter
-
-    private var genreFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                GenreChip(
-                    title: "All Genres",
-                    isSelected: viewModel.selectedGenre == nil,
-                    action: { viewModel.selectedGenre = nil }
-                )
-
-                ForEach(UpcomingReleasesViewModel.genres, id: \.self) { genre in
-                    GenreChip(
-                        title: genre,
-                        isSelected: viewModel.selectedGenre == genre,
-                        action: { viewModel.selectedGenre = genre }
-                    )
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-        .padding(.top, 8)
+        .padding(.top, 6)
     }
 
     // MARK: - Movie List
@@ -158,6 +185,12 @@ struct UpcomingReleasesTab: View {
         }
         .sheet(item: $viewModel.selectedMovie) { movie in
             MovieDetailSheet(movie: movie)
+        }
+        .sheet(isPresented: $viewModel.showGenreFilter) {
+            FilterSheet(title: "Genre", options: UpcomingReleasesViewModel.genres, selected: $viewModel.activeGenres)
+        }
+        .sheet(isPresented: $viewModel.showLanguageFilter) {
+            FilterSheet(title: "Language", options: DiscoverViewModel.languageOptions, selected: $viewModel.activeLanguages)
         }
     }
 
@@ -214,38 +247,10 @@ struct UpcomingListCard: View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: 12) {
                 // Poster thumbnail
-                ZStack(alignment: .topLeading) {
-                    if let path = item.poster_path, let imageURL = URL(string: "https://image.tmdb.org/t/p/w342\(path)") {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .empty:
-                                posterPlaceholder
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(2/3, contentMode: .fill)
-                                    .frame(width: 78, height: 112)
-                                    .clipped()
-                            case .failure:
-                                posterPlaceholder
-                            @unknown default:
-                                posterPlaceholder
-                            }
-                        }
-                    } else {
-                        posterPlaceholder
-                    }
-
-                    // Section badge
-                    Text(item.section == "theatrical" ? "THEATRE" : "OTT")
-                        .font(.system(size: 8, weight: .heavy))
-                        .foregroundColor(GWColors.black)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(item.section == "theatrical" ? Color.orange : GWColors.gold)
-                        .cornerRadius(GWRadius.sm)
-                        .padding(5)
+                GWCachedImage(url: item.poster_path.flatMap { TMDBImageSize.url(path: $0, size: .w154) }) {
+                    posterPlaceholder
                 }
+                .aspectRatio(2/3, contentMode: .fill)
                 .frame(width: 78, height: 112)
                 .cornerRadius(GWRadius.md)
                 .clipped()
@@ -339,8 +344,6 @@ struct UpcomingListCard: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(enrichedMovie == nil)
-        .opacity(enrichedMovie != nil ? 1.0 : 0.7)
     }
 
     private var posterPlaceholder: some View {

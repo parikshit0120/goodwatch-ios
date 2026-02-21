@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import AuthenticationServices
+import SafariServices
 
 // MARK: - User Service
 final class UserService: ObservableObject {
@@ -71,7 +72,7 @@ final class UserService: ObservableObject {
     // MARK: - Anonymous Sign In
     func signInAnonymously() async throws -> GWUser {
         await MainActor.run { isLoading = true }
-        defer { Task { @MainActor in isLoading = false } }
+        defer { DispatchQueue.main.async { [self] in isLoading = false } }
 
         // Check if anonymous user already exists for this device
         if let existingUser = try? await fetchUserByDeviceId(deviceId) {
@@ -112,7 +113,7 @@ final class UserService: ObservableObject {
     // MARK: - Google Sign In
     func signInWithGoogle(idToken: String, accessToken: String) async throws -> GWUser {
         await MainActor.run { isLoading = true }
-        defer { Task { @MainActor in isLoading = false } }
+        defer { DispatchQueue.main.async { [self] in isLoading = false } }
 
         // Exchange tokens with Supabase Auth
         let authResponse = try await exchangeGoogleToken(idToken: idToken, accessToken: accessToken)
@@ -178,7 +179,7 @@ final class UserService: ObservableObject {
     // MARK: - Apple Sign In
     func signInWithApple(credential: ASAuthorizationAppleIDCredential) async throws -> GWUser {
         await MainActor.run { isLoading = true }
-        defer { Task { @MainActor in isLoading = false } }
+        defer { DispatchQueue.main.async { [self] in isLoading = false } }
 
         // Get the identity token - required for Apple Sign In
         guard let identityTokenData = credential.identityToken,
@@ -267,6 +268,145 @@ final class UserService: ObservableObject {
         return createdUser
     }
 
+    // MARK: - Facebook Sign In (via Supabase OAuth web flow)
+
+    /// Sign in with Facebook using Supabase OAuth web flow.
+    /// Uses ASWebAuthenticationSession to open the Supabase Facebook authorize endpoint,
+    /// then handles the callback to extract the access token and user email.
+    func signInWithFacebook(from presentingWindow: UIWindow? = nil) async throws -> GWUser {
+        await MainActor.run { isLoading = true }
+        defer { DispatchQueue.main.async { [self] in isLoading = false } }
+
+        // Build the Supabase OAuth URL for Facebook
+        let redirectScheme = "goodwatch"
+        let redirectTo = "\(redirectScheme)://auth/callback"
+        let authURL = "\(baseURL)/auth/v1/authorize?provider=facebook&redirect_to=\(redirectTo)"
+
+        guard let url = URL(string: authURL) else {
+            throw UserServiceError.invalidURL
+        }
+
+        // Use ASWebAuthenticationSession for the OAuth flow
+        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: redirectScheme) { callbackURL, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let callbackURL = callbackURL else {
+                    continuation.resume(throwing: UserServiceError.authFailed)
+                    return
+                }
+                continuation.resume(returning: callbackURL)
+            }
+            session.prefersEphemeralWebBrowserSession = false
+
+            DispatchQueue.main.async {
+                session.presentationContextProvider = FacebookAuthPresenter.shared
+                session.start()
+            }
+        }
+
+        // Parse the callback URL to extract access_token
+        // Supabase returns: goodwatch://auth/callback#access_token=...&refresh_token=...&...
+        guard let fragment = callbackURL.fragment else {
+            throw UserServiceError.authFailed
+        }
+
+        var params: [String: String] = [:]
+        for pair in fragment.split(separator: "&") {
+            let kv = pair.split(separator: "=", maxSplits: 1)
+            if kv.count == 2 {
+                params[String(kv[0])] = String(kv[1])
+            }
+        }
+
+        guard let accessToken = params["access_token"] else {
+            throw UserServiceError.authFailed
+        }
+
+        // Use the access token to get user info from Supabase
+        let email = try await fetchSupabaseUserEmail(accessToken: accessToken)
+
+        guard !email.isEmpty else {
+            throw UserServiceError.authFailed
+        }
+
+        // Cross-provider account linking: check if user exists by email
+        if let existingUser = try? await fetchUserByEmail(email) {
+            // Upgrade anonymous user if needed
+            if existingUser.auth_provider == AuthProvider.anonymous.rawValue {
+                let upgradedUser = try await upgradeUser(existingUser, toProvider: .facebook, email: email)
+                await MainActor.run {
+                    self.currentUser = upgradedUser
+                    self.isAuthenticated = true
+                }
+                return upgradedUser
+            }
+
+            #if DEBUG
+            if existingUser.auth_provider != AuthProvider.facebook.rawValue {
+                print("🔗 Account linking: Found existing \(existingUser.auth_provider) account for \(email), reusing for Facebook sign-in")
+            }
+            #endif
+
+            await MainActor.run {
+                self.currentUser = existingUser
+                self.isAuthenticated = true
+            }
+            cacheUserId(existingUser.id)
+
+            // Fetch profile
+            if let profile = try? await fetchProfile(userId: existingUser.id) {
+                await MainActor.run { self.currentProfile = profile }
+            }
+
+            return existingUser
+        }
+
+        // Create new Facebook user
+        let user = GWUser(
+            id: UUID(),
+            auth_provider: AuthProvider.facebook.rawValue,
+            email: email,
+            device_id: deviceId,
+            created_at: ISO8601DateFormatter().string(from: Date()),
+            last_active_at: nil
+        )
+        let createdUser = try await createUser(user)
+        cacheUserId(createdUser.id)
+
+        await MainActor.run {
+            self.currentUser = createdUser
+            self.isAuthenticated = true
+        }
+
+        // Create profile
+        let profile = try await createProfile(userId: createdUser.id)
+        await MainActor.run { self.currentProfile = profile }
+
+        return createdUser
+    }
+
+    /// Fetch the user's email from Supabase using an access token
+    private func fetchSupabaseUserEmail(accessToken: String) async throws -> String {
+        let urlString = "\(baseURL)/auth/v1/user"
+        guard let url = URL(string: urlString) else { throw UserServiceError.invalidURL }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let email = json["email"] as? String else {
+            throw UserServiceError.authFailed
+        }
+        return email
+    }
+
     /// Extract email from Apple identity JWT token
     private func extractEmailFromJWT(_ token: String) -> String? {
         let parts = token.split(separator: ".")
@@ -353,7 +493,7 @@ final class UserService: ObservableObject {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(user)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 201 else {
@@ -380,7 +520,7 @@ final class UserService: ObservableObject {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
         let users = try JSONDecoder().decode([GWUser].self, from: data)
         guard let user = users.first else { throw UserServiceError.notFound }
         return user
@@ -396,7 +536,7 @@ final class UserService: ObservableObject {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
         let users = try JSONDecoder().decode([GWUser].self, from: data)
         guard let user = users.first else { throw UserServiceError.notFound }
         return user
@@ -412,7 +552,7 @@ final class UserService: ObservableObject {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
         let users = try JSONDecoder().decode([GWUser].self, from: data)
         guard let user = users.first else { throw UserServiceError.notFound }
         return user
@@ -438,7 +578,7 @@ final class UserService: ObservableObject {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -467,7 +607,7 @@ final class UserService: ObservableObject {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -494,7 +634,7 @@ final class UserService: ObservableObject {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(profile)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 201 else {
@@ -521,7 +661,7 @@ final class UserService: ObservableObject {
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, _) = try await GWNetworkSession.shared.data(for: request)
         let profiles = try JSONDecoder().decode([GWUserProfile].self, from: data)
         guard let profile = profiles.first else { throw UserServiceError.notFound }
         return profile
@@ -541,7 +681,7 @@ final class UserService: ObservableObject {
         let encoder = JSONEncoder()
         request.httpBody = try encoder.encode(profile)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await GWNetworkSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
@@ -570,6 +710,19 @@ final class UserService: ObservableObject {
             throw UserServiceError.authFailed
         }
         return (email: email, userId: UUID().uuidString)
+    }
+}
+
+// MARK: - Facebook Auth Presenter
+class FacebookAuthPresenter: NSObject, ASWebAuthenticationPresentationContextProviding {
+    static let shared = FacebookAuthPresenter()
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first else {
+            return UIWindow()
+        }
+        return window
     }
 }
 

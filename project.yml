@@ -21,6 +21,8 @@ targets:
     dependencies:
       - package: firebase-ios-sdk
         product: FirebaseAnalytics
+      - package: firebase-ios-sdk
+        product: FirebaseMessaging
       - package: GoogleSignIn-iOS
         product: GoogleSignIn
     entitlements:
@@ -28,11 +30,12 @@ targets:
       properties:
         com.apple.developer.applesignin:
           - Default
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: PJWorks.goodwatch.movies.v1
-        MARKETING_VERSION: 1.1
-        CURRENT_PROJECT_VERSION: 7
+        MARKETING_VERSION: 1.3
+        CURRENT_PROJECT_VERSION: 1
         DEVELOPMENT_TEAM: H827NY6Y9W
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: Apple Development
@@ -47,13 +50,49 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiresFullScreen: true
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - remote-notification
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
             CFBundleURLSchemes:
               - com.googleusercontent.apps.1064227633048-375dsiqq8vlt0o2l34lfr66q224fivg4
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - goodwatch
         GIDClientID: 1064227633048-375dsiqq8vlt0o2l34lfr66q224fivg4.apps.googleusercontent.com
     scheme:
-      testTargets: []
+      testTargets:
+        - GoodWatchTests
+        - GoodWatchUITests
       gatherCoverageData: false
+  GoodWatchTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - GoodWatchTests
+    dependencies:
+      - target: GoodWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.parikshit.goodwatch.tests
+        DEVELOPMENT_TEAM: H827NY6Y9W
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/GoodWatch.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/GoodWatch"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  GoodWatchUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - GoodWatchUITests
+    dependencies:
+      - target: GoodWatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.parikshit.goodwatch.uitests
+        DEVELOPMENT_TEAM: H827NY6Y9W
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: "YES"

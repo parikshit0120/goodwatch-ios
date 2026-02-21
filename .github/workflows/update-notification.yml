@@ -1,0 +1,170 @@
+name: App Update Notification
+
+# Polls the App Store every 6 hours for a new version.
+# When a new major.minor version is detected:
+#   1. Records it in app_version_history table
+#   2. Sends a push notification to all registered devices
+#      via the Supabase send-push Edge Function
+
+on:
+  schedule:
+    # Every 6 hours: 00:00, 06:00, 12:00, 18:00 UTC
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (log only, no push)'
+        required: false
+        default: 'false'
+        type: boolean
+
+concurrency:
+  group: update-notification
+  cancel-in-progress: true
+
+jobs:
+  check-and-notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check App Store for new version
+        id: check
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          BUNDLE_ID="PJWorks.goodwatch.movies.v1"
+
+          echo "=== App Update Check ==="
+          echo "Bundle ID: $BUNDLE_ID"
+          echo "Dry run: $DRY_RUN"
+
+          # 1. Fetch current App Store version
+          STORE_RESPONSE=$(curl -sf "https://itunes.apple.com/lookup?bundleId=${BUNDLE_ID}&country=in" || echo '{"resultCount":0}')
+          RESULT_COUNT=$(echo "$STORE_RESPONSE" | jq -r '.resultCount')
+
+          if [ "$RESULT_COUNT" = "0" ]; then
+            echo "App not found on App Store (may not be published yet)"
+            echo "new_version=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          STORE_VERSION=$(echo "$STORE_RESPONSE" | jq -r '.results[0].version')
+          TRACK_ID=$(echo "$STORE_RESPONSE" | jq -r '.results[0].trackId')
+          TRACK_NAME=$(echo "$STORE_RESPONSE" | jq -r '.results[0].trackName')
+
+          echo "Store version: $STORE_VERSION"
+          echo "Track ID: $TRACK_ID"
+          echo "Track name: $TRACK_NAME"
+
+          # 2. Check if this version already exists in app_version_history
+          EXISTING=$(curl -sf \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/app_version_history?version=eq.${STORE_VERSION}&select=version,notification_sent" \
+            || echo '[]')
+
+          echo "Existing record: $EXISTING"
+
+          ALREADY_EXISTS=$(echo "$EXISTING" | jq -r 'length')
+          if [ "$ALREADY_EXISTS" -gt 0 ]; then
+            ALREADY_NOTIFIED=$(echo "$EXISTING" | jq -r '.[0].notification_sent')
+            if [ "$ALREADY_NOTIFIED" = "true" ]; then
+              echo "Version $STORE_VERSION already notified. Nothing to do."
+              echo "new_version=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          # 3. New version detected! Record it.
+          echo "NEW VERSION DETECTED: $STORE_VERSION"
+          echo "new_version=true" >> "$GITHUB_OUTPUT"
+          echo "store_version=$STORE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "track_id=$TRACK_ID" >> "$GITHUB_OUTPUT"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY RUN] Would insert version and send push"
+            exit 0
+          fi
+
+          # Insert new version record
+          curl -sf -X POST \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal,resolution=merge-duplicates" \
+            -d "{\"version\": \"${STORE_VERSION}\", \"platform\": \"ios\", \"notification_sent\": false, \"notes\": \"Auto-detected by GitHub Action\"}" \
+            "${SUPABASE_URL}/rest/v1/app_version_history"
+
+          echo "Version record inserted."
+
+      - name: Send push notification to all devices
+        if: steps.check.outputs.new_version == 'true' && (inputs.dry_run != 'true')
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STORE_VERSION: ${{ steps.check.outputs.store_version }}
+          TRACK_ID: ${{ steps.check.outputs.track_id }}
+        run: |
+          set -euo pipefail
+
+          echo "=== Sending Push Notifications ==="
+          STORE_URL="https://apps.apple.com/app/id${TRACK_ID}"
+
+          # Fetch all device tokens
+          TOKENS=$(curl -sf \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            "${SUPABASE_URL}/rest/v1/device_tokens?platform=eq.ios&select=fcm_token,user_id" \
+            || echo '[]')
+
+          TOKEN_COUNT=$(echo "$TOKENS" | jq -r 'length')
+          echo "Found $TOKEN_COUNT device tokens"
+
+          if [ "$TOKEN_COUNT" = "0" ]; then
+            echo "No device tokens found. Marking version as notified anyway."
+          else
+            # Send via Supabase Edge Function (send-push)
+            # The Edge Function handles FCM delivery
+            PUSH_PAYLOAD=$(jq -n \
+              --arg title "GoodWatch ${STORE_VERSION} is here" \
+              --arg body "New features available. Tap to update." \
+              --arg store_url "$STORE_URL" \
+              '{
+                title: $title,
+                body: $body,
+                data: {
+                  type: "app_update",
+                  version: $ARGS.named.store_version,
+                  store_url: $store_url
+                },
+                topic: "app_update"
+              }' \
+              --arg store_version "$STORE_VERSION")
+
+            # Try to call the Edge Function
+            PUSH_RESULT=$(curl -sf -X POST \
+              -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+              -H "Content-Type: application/json" \
+              -d "$PUSH_PAYLOAD" \
+              "${SUPABASE_URL}/functions/v1/send-push" 2>&1 || echo "Edge function not deployed yet")
+
+            echo "Push result: $PUSH_RESULT"
+          fi
+
+          # Mark version as notified
+          curl -sf -X PATCH \
+            -H "apikey: ${SUPABASE_SERVICE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{"notification_sent": true}' \
+            "${SUPABASE_URL}/rest/v1/app_version_history?version=eq.${STORE_VERSION}"
+
+          echo "Version $STORE_VERSION marked as notified."
+          echo "=== Done ==="

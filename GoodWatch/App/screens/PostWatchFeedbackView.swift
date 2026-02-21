@@ -1,3 +1,6 @@
+// DEPRECATED: Replaced by GWWatchFeedbackView.swift in v1.3.
+// Kept for rollback reference. Not referenced by any active code path.
+
 import SwiftUI
 
 // ============================================

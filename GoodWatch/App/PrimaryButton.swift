@@ -1,3 +1,6 @@
+// DEPRECATED: Unused since v1.1. Gold gradient buttons replaced this.
+// Kept for rollback reference. Not referenced by any active code path.
+
 import SwiftUI
 
 struct PrimaryButton: View {

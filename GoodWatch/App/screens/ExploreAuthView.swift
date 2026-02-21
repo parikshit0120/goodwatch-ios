@@ -121,6 +121,23 @@ struct ExploreAuthView: View {
                             .background(Color(hex: "E8E8E8"))
                             .cornerRadius(25)
                         }
+
+                        // Sign in with Facebook
+                        Button {
+                            handleFacebookSignIn()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "f.circle.fill")
+                                    .font(.system(size: 22, weight: .medium))
+                                Text("Continue with Facebook")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color(hex: "1877F2"))
+                            .cornerRadius(25)
+                        }
                     }
                     .padding(.horizontal, GWSpacing.screenPadding)
 
@@ -334,6 +351,40 @@ struct ExploreAuthView: View {
                     #endif
                     await fallbackToAnonymousForExplore(provider: "Google")
                 }
+            }
+        }
+    }
+
+    private func handleFacebookSignIn() {
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let user = try await UserService.shared.signInWithFacebook()
+                // Cache display name from email if available
+                if let email = user.email, !email.isEmpty {
+                    let name = email.components(separatedBy: "@").first ?? email
+                    if UserDefaults.standard.string(forKey: "gw_user_display_name") == nil {
+                        UserDefaults.standard.set(name, forKey: "gw_user_display_name")
+                    }
+                }
+                await subscribeToNewsletterIfOptedIn()
+                await MainActor.run {
+                    isLoading = false
+                    onSignedIn()
+                }
+            } catch {
+                let nsError = error as NSError
+                // ASWebAuthenticationSessionError.canceledLogin = 1
+                if nsError.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && nsError.code == 1 {
+                    await MainActor.run { isLoading = false }
+                    return
+                }
+                #if DEBUG
+                print("Facebook Sign-In error: \(error.localizedDescription)")
+                #endif
+                await fallbackToAnonymousForExplore(provider: "Facebook")
             }
         }
     }

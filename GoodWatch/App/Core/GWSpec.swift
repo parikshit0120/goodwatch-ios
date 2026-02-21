@@ -74,6 +74,7 @@ struct GWMovie: Identifiable, Codable {
     let voteCount: Int        // QUALITY GATE: Must be >= 500 for recommendations
     let available: Bool
     let contentType: String?  // "movie" or "series"
+    let emotionalProfile: EmotionalProfile?  // Raw profile for taste graph scoring
 
     // MARK: - Tiered Quality Gates (Trust-Based)
     // Quality requirements INCREASE for new users, RELAX as trust builds
@@ -181,6 +182,7 @@ struct GWMovie: Identifiable, Codable {
 
         self.available = movie.isAvailable
         self.contentType = movie.content_type
+        self.emotionalProfile = movie.emotional_profile
     }
 
     // Derive tags from emotional_profile
@@ -302,6 +304,7 @@ struct GWSpecInteraction: Codable {
         case abandoned
         case completed
         case show_me_another  // Weak signal: user wasn't excited but didn't actively reject
+        case implicit_skip    // Multi-pick: user chose a different card (same delta as show_me_another)
     }
 
     init(userId: String, movieId: String, action: SpecInteractionAction) {
@@ -530,6 +533,10 @@ class TagWeightStore {
     private let keyPrefix = "gw_tag_weights_"
     private var currentUserId: String?
 
+    // In-memory cache — avoids repeated UserDefaults + JSON decode on every call
+    private var cachedWeights: [String: Double]?
+    private var cachedForKey: String?
+
     private init() {}
 
     /// Set the current user for tag weight operations
@@ -539,6 +546,9 @@ class TagWeightStore {
             migrateGlobalWeightsIfNeeded(toUser: userId)
         }
         currentUserId = userId
+        // Invalidate cache on user switch
+        cachedWeights = nil
+        cachedForKey = nil
     }
 
     private var userDefaultsKey: String {
@@ -549,11 +559,22 @@ class TagWeightStore {
     }
 
     /// Get current tag weights (default 1.0 for all tags)
+    /// Uses in-memory cache to avoid repeated UserDefaults + JSON decode
     func getWeights() -> [String: Double] {
-        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+        let key = userDefaultsKey
+        // Return cached if valid for current user key
+        if let cached = cachedWeights, cachedForKey == key {
+            return cached
+        }
+        // Load from UserDefaults (cold path — only on first access or user switch)
+        guard let data = UserDefaults.standard.data(forKey: key),
               let weights = try? JSONDecoder().decode([String: Double].self, from: data) else {
+            cachedWeights = [:]
+            cachedForKey = key
             return [:]
         }
+        cachedWeights = weights
+        cachedForKey = key
         return weights
     }
 
@@ -562,15 +583,21 @@ class TagWeightStore {
         getWeights()[tag] ?? 1.0
     }
 
-    /// Save updated weights
+    /// Save updated weights (write-through: updates cache AND UserDefaults AND Supabase)
     func saveWeights(_ weights: [String: Double]) {
+        let key = userDefaultsKey
+        cachedWeights = weights
+        cachedForKey = key
         if let data = try? JSONEncoder().encode(weights) {
-            UserDefaults.standard.set(data, forKey: userDefaultsKey)
+            UserDefaults.standard.set(data, forKey: key)
         }
+        pushWeightsToRemote(weights)
     }
 
     /// Reset all weights to default
     func resetWeights() {
+        cachedWeights = nil
+        cachedForKey = nil
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 
@@ -587,8 +614,150 @@ class TagWeightStore {
         UserDefaults.standard.removeObject(forKey: legacyKey)
 
         #if DEBUG
-        print("📦 Migrated global tag weights to user \(userId)")
+        print("[TagWeightStore] Migrated global tag weights to user \(userId)")
         #endif
+    }
+
+    // MARK: - Supabase Sync
+
+    /// Sync tag weights from Supabase on app launch.
+    /// - If local is empty but remote has data: use remote (reinstall recovery)
+    /// - If local has data and remote has data: merge (remote wins, keep new local keys)
+    /// - If local has data and remote is empty: push local to remote (first-time sync)
+    func syncFromRemote() async {
+        guard SupabaseConfig.isConfigured else { return }
+        guard let userId = resolveUserId() else { return }
+
+        let urlString = "\(SupabaseConfig.url)/rest/v1/user_tag_weights_bulk?user_id=eq.\(userId)&select=weights"
+        guard let url = URL(string: urlString) else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 3.0
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 else {
+                #if DEBUG
+                print("[TagWeightSync] HTTP error fetching remote weights")
+                #endif
+                return
+            }
+
+            struct WeightRow: Decodable {
+                let weights: [String: Double]
+            }
+            let rows = try JSONDecoder().decode([WeightRow].self, from: data)
+            guard let remoteWeights = rows.first?.weights else {
+                // No remote data — push local if we have any
+                let localWeights = getWeights()
+                if !localWeights.isEmpty {
+                    pushWeightsToRemote(localWeights)
+                    #if DEBUG
+                    print("[TagWeightSync] First-time sync: pushed \(localWeights.count) tags to remote")
+                    #endif
+                }
+                return
+            }
+
+            let localWeights = getWeights()
+
+            #if DEBUG
+            print("[TagWeightSync] Remote: \(remoteWeights.count) tags, Local: \(localWeights.count) tags")
+            #endif
+
+            if localWeights.isEmpty && !remoteWeights.isEmpty {
+                // Reinstall recovery: use remote
+                saveWeightsLocalOnly(remoteWeights)
+                #if DEBUG
+                print("[TagWeightSync] Restored \(remoteWeights.count) tags from remote (reinstall recovery)")
+                #endif
+            } else if !localWeights.isEmpty && !remoteWeights.isEmpty {
+                // Merge: remote wins for shared keys, keep local-only keys
+                var merged = remoteWeights
+                for (tag, weight) in localWeights where merged[tag] == nil {
+                    merged[tag] = weight
+                }
+                saveWeightsLocalOnly(merged)
+                // Push merged back if there were local-only keys
+                if merged.count > remoteWeights.count {
+                    pushWeightsToRemote(merged)
+                }
+                #if DEBUG
+                print("[TagWeightSync] Merged: \(merged.count) tags")
+                #endif
+            }
+            // If both empty, nothing to do
+        } catch {
+            #if DEBUG
+            print("[TagWeightSync] Fetch failed: \(error.localizedDescription)")
+            #endif
+        }
+    }
+
+    /// Save weights to cache + UserDefaults only (no remote push).
+    /// Used by syncFromRemote to avoid re-triggering pushWeightsToRemote.
+    private func saveWeightsLocalOnly(_ weights: [String: Double]) {
+        let key = userDefaultsKey
+        cachedWeights = weights
+        cachedForKey = key
+        if let data = try? JSONEncoder().encode(weights) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    /// Fire-and-forget upsert of full weight dictionary to Supabase.
+    private func pushWeightsToRemote(_ weights: [String: Double]) {
+        guard SupabaseConfig.isConfigured else { return }
+        guard let userId = resolveUserId() else { return }
+
+        Task.detached(priority: .utility) {
+            let urlString = "\(SupabaseConfig.url)/rest/v1/user_tag_weights_bulk"
+            guard let url = URL(string: urlString) else { return }
+
+            let now = ISO8601DateFormatter().string(from: Date())
+            let body: [String: Any] = [
+                "user_id": userId,
+                "weights": weights,
+                "updated_at": now
+            ]
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(SupabaseConfig.anonKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(SupabaseConfig.anonKey)", forHTTPHeaderField: "Authorization")
+            request.setValue("return=minimal,resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
+            request.timeoutInterval = 5.0
+
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                let (_, response) = try await URLSession.shared.data(for: request)
+                #if DEBUG
+                if let http = response as? HTTPURLResponse, http.statusCode >= 300 {
+                    print("[TagWeightSync] Push failed: HTTP \(http.statusCode)")
+                }
+                #endif
+            } catch {
+                #if DEBUG
+                print("[TagWeightSync] Push error: \(error.localizedDescription)")
+                #endif
+            }
+        }
+    }
+
+    // MARK: - User ID Resolution
+
+    private func resolveUserId() -> String? {
+        if let cachedId = UserService.shared.cachedUserId {
+            return cachedId.uuidString
+        }
+        let keychainId = GWKeychainManager.shared.getOrCreateAnonymousUserId()
+        return keychainId.isEmpty ? nil : keychainId
     }
 }
 
@@ -620,6 +789,8 @@ func updateTagWeights(
         delta = 0.15 // Meaningful positive reinforcement for acceptance
     case .show_me_another:
         delta = -0.05 // Mild negative: accumulates to meaningful signal after several skips
+    case .implicit_skip:
+        delta = -0.05 // Multi-pick: same as show_me_another
     }
 
     var updated = tagWeights

@@ -9,12 +9,13 @@ import SwiftUI
 struct ProfileTab: View {
     @ObservedObject private var userService = UserService.shared
     @ObservedObject private var watchlist = WatchlistManager.shared
+    @State private var cachedTagWeights: [String: Double] = [:]
 
     var onSignOut: (() -> Void)?
 
-    // Taste profile derived from tag weights
+    // Taste profile derived from cached tag weights
     private var tagWeights: [String: Double] {
-        TagWeightStore.shared.getWeights()
+        cachedTagWeights
     }
 
     private var archetype: UserArchetype? {
@@ -68,6 +69,9 @@ struct ProfileTab: View {
             .padding(.horizontal, 16)
         }
         .background(GWColors.black)
+        .onAppear {
+            cachedTagWeights = TagWeightStore.shared.getWeights()
+        }
     }
 
     // MARK: - Profile Header

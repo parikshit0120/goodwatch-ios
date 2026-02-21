@@ -6,13 +6,8 @@ import SwiftUI
 
 struct MovieGridCard: View {
     let movie: Movie
+    let isInWatchlist: Bool
     let onTap: () -> Void
-
-    @ObservedObject private var watchlist = WatchlistManager.shared
-
-    private var isInWatchlist: Bool {
-        watchlist.isInWatchlist(movie.id.uuidString)
-    }
 
     private var isNew: Bool {
         guard let year = movie.year else { return false }
@@ -39,32 +34,18 @@ struct MovieGridCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 // Poster with badges
                 ZStack(alignment: .topTrailing) {
-                    if let url = movie.posterURL, let imageURL = URL(string: url) {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .empty:
-                                posterPlaceholder
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(2/3, contentMode: .fill)
-                                    .clipped()
-                            case .failure:
-                                posterPlaceholder
-                            @unknown default:
-                                posterPlaceholder
-                            }
-                        }
-                    } else {
+                    GWCachedImage(url: movie.posterURL(size: .w185)) {
                         posterPlaceholder
                     }
+                    .aspectRatio(2/3, contentMode: .fill)
+                    .clipped()
 
                     // Top-right: Rating badge + Heart button stacked
                     VStack(spacing: 4) {
                         // Heart button
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
-                                watchlist.toggle(movie.id.uuidString)
+                                WatchlistManager.shared.toggle(movie.id.uuidString)
                             }
                         } label: {
                             Image(systemName: isInWatchlist ? "heart.fill" : "heart")

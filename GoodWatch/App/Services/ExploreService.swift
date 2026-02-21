@@ -297,7 +297,7 @@ final class ExploreService {
                         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                         request.setValue(anonKey, forHTTPHeaderField: "apikey")
                         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                        request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
                         let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
@@ -349,7 +349,7 @@ final class ExploreService {
                         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                         request.setValue(anonKey, forHTTPHeaderField: "apikey")
                         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                        request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
                         let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
@@ -447,7 +447,7 @@ final class ExploreService {
                         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                         request.setValue(anonKey, forHTTPHeaderField: "apikey")
                         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                        request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
                         let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
@@ -491,7 +491,7 @@ final class ExploreService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("exact", forHTTPHeaderField: "Prefer")
+        request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
         let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
@@ -674,7 +674,7 @@ final class ExploreService {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.setValue(anonKey, forHTTPHeaderField: "apikey")
             request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-            request.setValue("exact", forHTTPHeaderField: "Prefer")
+            request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
             let (_, response) = try await GWNetworkSession.shared.data(for: request)
 
@@ -709,7 +709,7 @@ final class ExploreService {
                         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                         request.setValue(anonKey, forHTTPHeaderField: "apikey")
                         request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
-                        request.setValue("exact", forHTTPHeaderField: "Prefer")
+                        request.setValue("count=exact", forHTTPHeaderField: "Prefer")
 
                         let (_, response) = try await GWNetworkSession.shared.data(for: request)
 

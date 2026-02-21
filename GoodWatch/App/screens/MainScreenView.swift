@@ -88,6 +88,9 @@ struct MainScreenView: View {
     @State private var secondaryOpacity: Double = 0
     @State private var whyThisOpacity: Double = 0
 
+    // Cancellable animation work items — cleaned up on disappear
+    @State private var animationWorkItems: [DispatchWorkItem] = []
+
     // DEBUG: overlay toggle (triple-tap GoodScore box)
     #if DEBUG
     @State private var showDebugOverlay: Bool = false
@@ -202,27 +205,13 @@ struct MainScreenView: View {
 
                     // Film Poster with content type badge
                     ZStack(alignment: .topTrailing) {
-                        if let url = movie.posterURL, let imageURL = URL(string: url) {
-                            AsyncImage(url: imageURL) { phase in
-                                switch phase {
-                                case .empty:
-                                    posterSkeleton
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: 240, maxHeight: 340)
-                                        .cornerRadius(GWRadius.xl)
-                                        .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
-                                case .failure:
-                                    posterSkeleton
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
-                        } else {
+                        GWCachedImage(url: movie.posterURL(size: .w342)) {
                             posterSkeleton
                         }
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 240, maxHeight: 340)
+                        .cornerRadius(GWRadius.xl)
+                        .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
 
                         // Content type badge (Movie / Series)
                         Text(movie.contentTypeLabel)
@@ -359,6 +348,7 @@ struct MainScreenView: View {
                                 .cornerRadius(GWRadius.lg)
                             }
                             .padding(.horizontal, GWSpacing.screenPadding)
+                            .accessibilityIdentifier("main_watch_now")
                             .opacity(buttonOpacity)
                             .offset(y: buttonOffset)
                         }
@@ -395,6 +385,7 @@ struct MainScreenView: View {
                                 }
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(GWColors.lightGray)
+                                .accessibilityIdentifier("main_not_tonight")
 
                                 Rectangle()
                                     .fill(GWColors.lightGray.opacity(0.3))
@@ -405,6 +396,7 @@ struct MainScreenView: View {
                                 }
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(GWColors.lightGray)
+                                .accessibilityIdentifier("main_already_seen")
                             }
                         }
                         .padding(.horizontal, GWSpacing.screenPadding)
@@ -423,6 +415,12 @@ struct MainScreenView: View {
         }
         .onAppear {
             runRevealAnimation()
+        }
+        .onDisappear {
+            for item in animationWorkItems {
+                item.cancel()
+            }
+            animationWorkItems.removeAll()
         }
     }
 
@@ -522,15 +520,22 @@ struct MainScreenView: View {
             posterScale = 1
         }
 
+        // Helper to schedule cancellable work
+        func scheduleWork(after seconds: Double, block: @escaping () -> Void) {
+            let item = DispatchWorkItem(block: block)
+            animationWorkItems.append(item)
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: item)
+        }
+
         // 200ms pause, then title
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        scheduleWork(after: 0.6) {
             withAnimation(.easeOut(duration: 0.3)) {
                 titleOpacity = 1
             }
         }
 
         // Step 2: GoodScore Box Appears (after 700ms)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+        scheduleWork(after: 0.7) {
             withAnimation(.easeOut(duration: 0.1)) {
                 scoreBoxOpacity = 1
                 scoreBoxScale = 1
@@ -538,7 +543,7 @@ struct MainScreenView: View {
         }
 
         // Step 3: GoodScore Number Reveal (THE MOMENT - 500ms spring)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        scheduleWork(after: 0.8) { [self] in
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
                 scoreNumberOpacity = 1
                 scoreNumberScale = 1.05
@@ -546,7 +551,7 @@ struct MainScreenView: View {
             }
 
             // Scale back to 1.0 and stabilize glow
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            scheduleWork(after: 1.1) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     scoreNumberScale = 1.0
                     scoreGlow = 1.0
@@ -555,14 +560,14 @@ struct MainScreenView: View {
         }
 
         // Step 3.5: "Why This" causal copy fades in (after 1.1s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+        scheduleWork(after: 1.1) {
             withAnimation(.easeOut(duration: 0.3)) {
                 whyThisOpacity = 1
             }
         }
 
         // Step 4: Watch Now Button Slides Up (after 1.4s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+        scheduleWork(after: 1.4) {
             withAnimation(.easeOut(duration: 0.3)) {
                 buttonOpacity = 1
                 buttonOffset = 0
@@ -570,7 +575,7 @@ struct MainScreenView: View {
         }
 
         // Step 5: Secondary Actions + OTT chips Fade In (after 1.6s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+        scheduleWork(after: 1.6) {
             withAnimation(.easeIn(duration: 0.2)) {
                 secondaryOpacity = 1
             }
@@ -588,6 +593,7 @@ struct GoodScoreDisplay: View {
     let glowIntensity: Double
 
     @State private var innerGlowPulse: Double = 0
+    @State private var glowWorkItem: DispatchWorkItem?
 
     var body: some View {
         VStack(spacing: 4) {
@@ -639,12 +645,17 @@ struct GoodScoreDisplay: View {
                 withAnimation(.easeOut(duration: 0.6)) {
                     innerGlowPulse = 1.0
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                let item = DispatchWorkItem {
                     withAnimation(.easeOut(duration: 0.4)) {
                         innerGlowPulse = 0.3
                     }
                 }
+                glowWorkItem = item
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: item)
             }
+        }
+        .onDisappear {
+            glowWorkItem?.cancel()
         }
     }
 }

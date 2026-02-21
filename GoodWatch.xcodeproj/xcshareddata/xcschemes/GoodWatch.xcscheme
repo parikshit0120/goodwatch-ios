@@ -39,6 +39,28 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F6D5C4C5E4655C87169ED141"
+               BuildableName = "GoodWatchTests.xctest"
+               BlueprintName = "GoodWatchTests"
+               ReferencedContainer = "container:GoodWatch.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "2B5305331601E725419C0CCF"
+               BuildableName = "GoodWatchUITests.xctest"
+               BlueprintName = "GoodWatchUITests"
+               ReferencedContainer = "container:GoodWatch.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

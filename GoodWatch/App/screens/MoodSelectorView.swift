@@ -10,19 +10,48 @@ struct MoodSelectorView: View {
 
     @State private var selectedIndex: Int? = nil
 
-    // Each option maps to: (Mood, Title, Subtitle, intent_tags, energy, cognitive_load)
-    let options: [(Mood, String, String, [String], EnergyLevel, CognitiveLoad)] = [
-        (.feelGood, "Feel-good", "Light and uplifting",
+    // Hardcoded fallback options (used when remote config hasn't loaded)
+    // Each option maps to: (Mood, mood_key, Title, Subtitle, intent_tags, energy, cognitive_load)
+    private static let fallbackOptions: [(Mood, String, String, String, [String], EnergyLevel, CognitiveLoad)] = [
+        (.feelGood, "feel_good", "Feel-good", "Light and uplifting",
          ["feel_good", "uplifting", "safe_bet", "light", "calm"], .calm, .light),
-        (.light, "Easy watch", "Nothing too heavy",
+        (.light, "easy_watch", "Easy watch", "Nothing too heavy",
          ["light", "background_friendly", "safe_bet", "calm"], .calm, .light),
-        (.neutral, "Surprise me", "I'm open to anything",
+        (.neutral, "surprise_me", "Surprise me", "I'm open to anything",
          [], .tense, .medium),
-        (.intense, "Gripping", "Edge of my seat",
+        (.intense, "gripping", "Gripping", "Edge of my seat",
          ["tense", "high_energy", "full_attention", "medium"], .high_energy, .medium),
-        (.intense, "Dark & Heavy", "Hit me with the feels",
+        (.intense, "dark_heavy", "Dark & Heavy", "Hit me with the feels",
          ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"], .tense, .heavy)
     ]
+
+    // Resolved options: remote display names if loaded, fallback otherwise
+    // Mood enum, mood_key, display title, subtitle, intent_tags, energy, cognitive_load
+    private var options: [(Mood, String, String, String, [String], EnergyLevel, CognitiveLoad)] {
+        let remoteMappings = GWMoodConfigService.shared.allMappings
+        let source = GWMoodConfigService.shared.configSource
+
+        if source == "remote" && remoteMappings.count >= 5 {
+            // Use remote display names but keep Mood enum + energy/cognitive_load from fallback
+            return Self.fallbackOptions.enumerated().map { (index, fallback) in
+                if index < remoteMappings.count {
+                    let remote = remoteMappings[index]
+                    return (
+                        fallback.0, // Mood enum
+                        remote.moodKey,
+                        remote.displayName,
+                        fallback.3, // subtitle stays hardcoded (not in remote config)
+                        remote.compatibleTags,
+                        fallback.5, // energy
+                        fallback.6  // cognitive_load
+                    )
+                }
+                return fallback
+            }
+        }
+
+        return Self.fallbackOptions
+    }
 
     // Representative movie poster for each mood — purely cosmetic
     // All live-action movies only — NO animated films
@@ -60,7 +89,7 @@ struct MoodSelectorView: View {
 
                     Spacer()
 
-                    Text("1/4")
+                    Text("1/3")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
 
@@ -100,22 +129,23 @@ struct MoodSelectorView: View {
                 VStack(spacing: 12) {
                     ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                         MoodCard(
-                            title: option.1,
-                            subtitle: option.2,
+                            title: option.2,
+                            subtitle: option.3,
                             posterPath: moodPosters[index],
                             isSelected: selectedIndex == index,
                             action: {
                                 selectedIndex = index
                                 ctx.mood = option.0
-                                // Set intent from selection
+                                // Set intent from selection using mood_key
                                 ctx.intent = GWIntent(
-                                    mood: option.1.lowercased().replacingOccurrences(of: " ", with: "_"),
-                                    energy: option.4,
-                                    cognitive_load: option.5,
-                                    intent_tags: option.3
+                                    mood: option.1, // mood_key (e.g., "feel_good")
+                                    energy: option.5,
+                                    cognitive_load: option.6,
+                                    intent_tags: option.4
                                 )
                             }
                         )
+                        .accessibilityIdentifier("mood_card_\(index)")
                     }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
@@ -127,12 +157,18 @@ struct MoodSelectorView: View {
                     if let index = selectedIndex {
                         // SECTION 4: Immediately persist mood selection to Supabase
                         let option = options[index]
-                        let moodString = option.1.lowercased().replacingOccurrences(of: " ", with: "_")
+                        let moodString = option.1 // mood_key already in correct format
                         Task {
                             try? await UserService.shared.updateMoodPreference(moodString)
                         }
+                        // Log mood config source for adoption tracking
+                        MetricsService.shared.track(.sessionStart, properties: [
+                            "mood_config_source": GWMoodConfigService.shared.configSource,
+                            "mood_key": moodString
+                        ])
                         // Persist onboarding step to Keychain for resume support
                         GWKeychainManager.shared.storeOnboardingStep(2)
+                        ctx.saveToDefaults()
                         onNext()
                     }
                 } label: {
@@ -149,6 +185,7 @@ struct MoodSelectorView: View {
                         .cornerRadius(GWRadius.lg)
                 }
                 .disabled(selectedIndex == nil)
+                .accessibilityIdentifier("mood_continue")
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.bottom, 40)
             }
@@ -166,20 +203,13 @@ struct MoodCard: View {
     var body: some View {
         HStack(spacing: 0) {
             // Movie poster thumbnail on left edge
-            AsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w200\(posterPath)")) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 56, height: 72)
-                        .clipped()
-                        .opacity(0.9)
-                default:
-                    Color.clear
-                        .frame(width: 56, height: 72)
-                }
+            GWCachedImage(url: TMDBImageSize.url(path: posterPath, size: .w154)) {
+                Color.clear
             }
+            .aspectRatio(contentMode: .fill)
+            .frame(width: 56, height: 72)
+            .clipped()
+            .opacity(0.9)
 
             // Text content
             VStack(alignment: .leading, spacing: 4) {

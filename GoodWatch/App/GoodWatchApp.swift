@@ -1,13 +1,64 @@
 import SwiftUI
 import GoogleSignIn
 import FirebaseCore
+import FirebaseMessaging
+import UserNotifications
 
-// Firebase initialization via AppDelegate
-class AppDelegate: NSObject, UIApplicationDelegate {
+// Firebase initialization via AppDelegate + Push Notification handling
+class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         FirebaseApp.configure()
+
+        // Set up FCM delegate for token refresh
+        Messaging.messaging().delegate = self
+
+        // Set up notification center delegate for foreground + tap handling
+        UNUserNotificationCenter.current().delegate = GWNotificationService.shared
+
+        // Register notification categories and actions (Show Me / Later buttons)
+        GWNotificationService.shared.registerCategories()
+
         return true
+    }
+
+    // MARK: - APNs Token Registration
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        // Pass APNs token to Firebase so it can map to FCM token
+        Messaging.messaging().apnsToken = deviceToken
+
+        // Also store the raw APNs token for direct APNs sending
+        let tokenHex = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        GWNotificationService.shared.storeAPNsToken(tokenHex)
+
+        #if DEBUG
+        print("GWNotification: APNs token registered: \(tokenHex.prefix(20))...")
+        #endif
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        #if DEBUG
+        print("GWNotification: APNs registration failed: \(error.localizedDescription)")
+        #endif
+    }
+
+    // MARK: - Silent Push / Background Fetch
+
+    func application(_ application: UIApplication,
+                     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+                     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        // Handle silent push notifications (content-available: 1)
+        GWNotificationService.shared.handleSilentPush(userInfo: userInfo, completion: completionHandler)
+    }
+
+    // MARK: - FCM Token Refresh
+
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let token = fcmToken else { return }
+        GWNotificationService.shared.handleTokenRefresh(token)
     }
 }
 
@@ -28,12 +79,62 @@ struct GoodWatchApp: App {
                     await runDataDiagnostic()
                     #endif
                 }
+                .onChange(of: scenePhase) { newPhase in
+                    switch newPhase {
+                    case .active:
+                        // Clear delivered notifications and badge when user opens the app
+                        GWNotificationService.shared.clearDeliveredNotifications()
+                        // Reset the 3-day re-engagement timer
+                        GWNotificationService.shared.trackUserActive()
+                        // Reschedule weekend picks (keeps them fresh for existing users)
+                        GWNotificationService.shared.scheduleWeekendPickNotifications()
+                        // Track session start
+                        MetricsService.shared.track(.sessionStart)
+                    case .background:
+                        MetricsService.shared.track(.sessionEnd)
+                        MetricsService.shared.onAppBackground()
+                        GWFeedbackEnforcer.shared.cleanupOldFeedback()
+                    default:
+                        break
+                    }
+                }
         }
     }
 
     init() {
         // Track app open on launch
         MetricsService.shared.track(.appOpen)
+
+        #if DEBUG
+        // Launch argument overrides for screenshot testing
+        let args = ProcessInfo.processInfo.arguments
+
+        // --screenshot-mode: Suppress analytics and diagnostics
+        if args.contains("--screenshot-mode") {
+            UserDefaults.standard.set(true, forKey: "gw_screenshot_mode")
+        }
+
+        // --interaction-points N: Override interaction points for carousel testing
+        if let idx = args.firstIndex(of: "--interaction-points"),
+           idx + 1 < args.count,
+           let points = Int(args[idx + 1]) {
+            // Set interaction points for all users (applied when setUser is called)
+            UserDefaults.standard.set(points, forKey: "gw_debug_interaction_points")
+        }
+
+        // --skip-loading-delay: Skip ConfidenceMoment animation delay
+        if args.contains("--skip-loading-delay") {
+            UserDefaults.standard.set(true, forKey: "gw_skip_loading_delay")
+        }
+
+        // --reset-onboarding: Clear all onboarding state for fresh screenshots
+        if args.contains("--reset-onboarding") {
+            GWKeychainManager.shared.storeOnboardingStep(0)
+            GWOnboardingMemory.shared.clear()
+            UserContext.clearDefaults()
+            UserDefaults.standard.removeObject(forKey: "notification_permission_asked")
+        }
+        #endif
     }
 
     // MARK: - DEBUG Data Diagnostic
