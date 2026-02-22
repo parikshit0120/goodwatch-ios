@@ -27,6 +27,7 @@ struct RootFlowView: View {
         case auth = 1
         case moodSelector = 2
         case platformSelector = 3
+        case languagePriority = 12  // v1.3: between platform and duration
         case durationSelector = 4
         case emotionalHook = 5
         case confidenceMoment = 6
@@ -92,6 +93,74 @@ struct RootFlowView: View {
 
     // Services
     private let engine = GWRecommendationEngine.shared
+
+    // MARK: - Recommendation Persistence
+
+    /// Save current picks to UserDefaults so they survive app backgrounding
+    private func saveCurrentPicks() {
+        if pickCount > 1 && !recommendedPicks.isEmpty {
+            guard let encoded = try? JSONEncoder().encode(recommendedPicks) else { return }
+            UserDefaults.standard.set(encoded, forKey: "gw_current_picks")
+            UserDefaults.standard.set(pickCount, forKey: "gw_current_pick_count")
+        } else if let movie = currentMovie {
+            guard let encoded = try? JSONEncoder().encode(movie) else { return }
+            UserDefaults.standard.set(encoded, forKey: "gw_current_single_movie")
+            UserDefaults.standard.set(currentGoodScore, forKey: "gw_current_good_score")
+        }
+        UserDefaults.standard.set(currentScreen.rawValue, forKey: "gw_current_screen")
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "gw_picks_timestamp")
+    }
+
+    /// Restore picks from UserDefaults if within 2-hour window. Returns true if restored.
+    private func restorePicksIfNeeded() -> Bool {
+        let timestamp = UserDefaults.standard.double(forKey: "gw_picks_timestamp")
+        guard timestamp > 0 else { return false }
+        let age = Date().timeIntervalSince1970 - timestamp
+        guard age < 7200 else { // 2 hours max
+            clearSavedPicks()
+            return false
+        }
+
+        let savedScreen = UserDefaults.standard.integer(forKey: "gw_current_screen")
+        guard savedScreen == Screen.mainScreen.rawValue else { return false }
+
+        // Try multi-pick first
+        let savedPickCount = UserDefaults.standard.integer(forKey: "gw_current_pick_count")
+        if savedPickCount > 1,
+           let data = UserDefaults.standard.data(forKey: "gw_current_picks"),
+           let picks = try? JSONDecoder().decode([GWMovie].self, from: data),
+           !picks.isEmpty {
+            self.recommendedPicks = picks
+            self.pickCount = savedPickCount
+            self.currentScreen = .mainScreen
+            // Set currentMovie for enjoy screen compatibility
+            self.recommendationShownTime = Date()
+            return true
+        }
+
+        // Try single-pick
+        if let data = UserDefaults.standard.data(forKey: "gw_current_single_movie"),
+           let movie = try? JSONDecoder().decode(Movie.self, from: data) {
+            self.currentMovie = movie
+            self.currentGoodScore = UserDefaults.standard.integer(forKey: "gw_current_good_score")
+            self.pickCount = 1
+            self.currentScreen = .mainScreen
+            self.recommendationShownTime = Date()
+            return true
+        }
+
+        return false
+    }
+
+    /// Clear saved picks from UserDefaults
+    private func clearSavedPicks() {
+        UserDefaults.standard.removeObject(forKey: "gw_current_picks")
+        UserDefaults.standard.removeObject(forKey: "gw_current_pick_count")
+        UserDefaults.standard.removeObject(forKey: "gw_current_single_movie")
+        UserDefaults.standard.removeObject(forKey: "gw_current_good_score")
+        UserDefaults.standard.removeObject(forKey: "gw_current_screen")
+        UserDefaults.standard.removeObject(forKey: "gw_picks_timestamp")
+    }
 
     // MARK: - Body
 
@@ -163,7 +232,9 @@ struct RootFlowView: View {
             }
         }
         .onAppear {
-            resumeFromSavedState()
+            if !restorePicksIfNeeded() {
+                resumeFromSavedState()
+            }
             checkForPendingFeedback()
             // Check for app updates (rate-limited, non-blocking)
             updateChecker.checkForUpdate()
@@ -269,7 +340,15 @@ struct RootFlowView: View {
                 onNext: {
                     MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "mood_selector", "step_number": 1])
 
-                    // FIX 1: If onboarding memory exists (within 30 days), skip to recommendations
+                    // If onboarding memory exists (within 30 days), skip to recommendations
+                    #if DEBUG
+                    print("[ONBOARDING-MEMORY] hasSavedSelections: \(GWOnboardingMemory.shared.hasSavedSelections)")
+                    if let saved = GWOnboardingMemory.shared.load() {
+                        print("[ONBOARDING-MEMORY] mood: \(userContext.mood), platforms: \(saved.otts.map { $0.rawValue })")
+                        print("[ONBOARDING-MEMORY] languages (ordered): \(saved.languages.map { $0.rawValue })")
+                        print("[ONBOARDING-MEMORY] duration: \(saved.minDuration)-\(saved.maxDuration)m, series: \(saved.requiresSeries)")
+                    }
+                    #endif
                     if let saved = GWOnboardingMemory.shared.load() {
                         userContext.otts = saved.otts
                         userContext.languages = saved.languages
@@ -304,10 +383,25 @@ struct RootFlowView: View {
                 ctx: $userContext,
                 onNext: {
                     MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "platform_selector", "step_number": 2])
-                    navigateTo(.durationSelector)
+                    navigateTo(.languagePriority)
                 },
                 onBack: {
                     navigateBack(to: .moodSelector)
+                },
+                onHome: {
+                    returnToLanding()
+                }
+            )
+
+        case .languagePriority:
+            LanguagePriorityView(
+                ctx: $userContext,
+                onNext: {
+                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "language_priority", "step_number": 3])
+                    navigateTo(.durationSelector)
+                },
+                onBack: {
+                    navigateBack(to: .platformSelector)
                 },
                 onHome: {
                     returnToLanding()
@@ -318,13 +412,13 @@ struct RootFlowView: View {
             DurationSelectorView(
                 ctx: $userContext,
                 onNext: {
-                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "duration_selector", "step_number": 3])
+                    MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "duration_selector", "step_number": 4])
                     // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
                     navigateTo(.confidenceMoment)
                     fetchRecommendation()
                 },
                 onBack: {
-                    navigateBack(to: .platformSelector)
+                    navigateBack(to: .languagePriority)
                 },
                 onHome: {
                     returnToLanding()
@@ -666,7 +760,8 @@ struct RootFlowView: View {
 
     private func returnToLandingInternal(clearMemory: Bool) {
         // Track onboarding abandonment if user is mid-onboarding
-        if currentScreen.rawValue >= Screen.moodSelector.rawValue && currentScreen.rawValue <= Screen.emotionalHook.rawValue {
+        let onboardingScreens: Set<Screen> = [.moodSelector, .platformSelector, .languagePriority, .durationSelector, .emotionalHook]
+        if onboardingScreens.contains(currentScreen) {
             MetricsService.shared.track(.onboardingAbandoned, properties: [
                 "abandoned_at_step": currentScreen.rawValue,
                 "abandoned_at_screen": "\(currentScreen)"
@@ -682,6 +777,9 @@ struct RootFlowView: View {
         showRejectionSheet = false
         userContext = .default
         UserContext.clearDefaults()
+
+        // Clear persisted picks
+        clearSavedPicks()
 
         // Only clear onboarding memory on explicit "Start Over" / Home button
         if clearMemory {
@@ -774,6 +872,25 @@ struct RootFlowView: View {
         guard confidenceMinTimeElapsed, recommendationReady, currentScreen == .confidenceMoment else { return }
         navigateTo(.mainScreen)
 
+        // Persist picks so they survive app backgrounding
+        saveCurrentPicks()
+
+        // Record recent picks for Landing screen history
+        if pickCount > 1 {
+            for pick in recommendedPicks {
+                let score = pick.composite_score > 0 ? Int(round(pick.composite_score)) : Int(round(pick.goodscore * 10))
+                RecentPicksService.shared.addPick(
+                    id: pick.id, title: pick.title,
+                    posterPath: pick.poster_url, goodScore: score
+                )
+            }
+        } else if let movie = currentMovie {
+            RecentPicksService.shared.addPick(
+                id: movie.id.uuidString, title: movie.title,
+                posterPath: movie.poster_path, goodScore: currentGoodScore
+            )
+        }
+
         // Request notification permission AFTER user sees their first recommendation.
         // 3-second delay lets the user absorb the result before the system prompt appears.
         // If already asked or declined, this is a no-op. Gated by push_notifications flag.
@@ -830,14 +947,15 @@ struct RootFlowView: View {
         // Map saved step to screen (only for incomplete onboarding)
         // Steps saved by screens:
         //   MoodSelector saves step 2
-        //   PlatformSelector saves step 3
+        //   PlatformSelector saves step 3 -> now goes to languagePriority
+        //   LanguagePriority saves step 3 (same as platform, resumes to language)
         //   DurationSelector saves step 4
         //   EmotionalHook saves step 5 (deprecated v1.3 — treat as duration complete)
         switch savedStep {
         case 2:
             currentScreen = .platformSelector
         case 3:
-            currentScreen = .durationSelector
+            currentScreen = .languagePriority
         case 4:
             // Duration selected — go to ConfidenceMoment (skipping EmotionalHook)
             currentScreen = .confidenceMoment
@@ -1374,7 +1492,7 @@ struct RootFlowView: View {
                     } else {
                         self.currentMovie = nil
                         self.isLoadingRecommendation = false
-                        self.recommendationError = "We've shown you all our best picks for tonight. Try adjusting your mood or platforms."
+                        self.recommendationError = "We've shown all the top picks for tonight. Try adjusting the mood or platforms."
                     }
                 }
             } catch {

@@ -870,7 +870,15 @@ final class GWRecommendationEngine {
             tagWeights: profile.tagWeights
         )
 
-        return min(max(baseScore + confidenceBoost, 0), 1)
+        // 7. Language priority bonus
+        // P1 (first selected) gets a scoring advantage over P2, P3, etc.
+        // Priority is SCORING only — all selected languages pass validation.
+        let languageBonus = computeLanguagePriorityBonus(
+            movieLanguage: movie.language,
+            prioritizedLanguages: profile.preferredLanguages
+        )
+
+        return min(max(baseScore + confidenceBoost + languageBonus, 0), 1)
     }
 
     // MARK: - Confidence Boost (Threshold-Gated)
@@ -899,6 +907,28 @@ final class GWRecommendationEngine {
         // Max boost: 5% of tag alignment score (breaks ties, doesn't dominate)
         let maxBoost = 0.05
         return tagAlignment * maxBoost * scaleFactor
+    }
+
+    // MARK: - Language Priority Scoring
+
+    /// Returns a small bonus based on where the movie's language falls in the user's
+    /// priority order. P1 (first selected) gets the highest bonus.
+    /// Priority affects SCORING only — all selected languages pass validation.
+    private func computeLanguagePriorityBonus(movieLanguage: String, prioritizedLanguages: [String]) -> Double {
+        // Only applies when user has 2+ languages (otherwise no priority distinction)
+        guard prioritizedLanguages.count > 1 else { return 0.0 }
+
+        let movieLang = movieLanguage.lowercased()
+        guard let index = prioritizedLanguages.firstIndex(where: { movieLang.hasPrefix($0.lowercased()) }) else {
+            return 0.0 // Should not happen (validation already filters)
+        }
+
+        switch index {
+        case 0: return 0.05  // P1: strongest preference
+        case 1: return 0.03  // P2
+        case 2: return 0.02  // P3
+        default: return 0.01 // P4+
+        }
     }
 
     // MARK: - Platform Bias Scoring

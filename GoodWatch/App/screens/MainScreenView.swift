@@ -120,7 +120,7 @@ struct MainScreenView: View {
             return "You wanted light. This delivers."
 
         case "surprise_me", "surprise me", "neutral":
-            return "You said surprise me. Here's our best pick."
+            return "You said surprise me. Top pick."
 
         case "gripping", "intense":
             if movieTags.contains("tense") || movieTags.contains("high_energy") {

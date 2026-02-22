@@ -23,6 +23,7 @@
 		2EEC3179AB3F59B36A39293B /* UpcomingReleasesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EEF638F0378E3AF4A32C6CE /* UpcomingReleasesViewModel.swift */; };
 		2F805204991028BD98615F01 /* backfill.ts in Resources */ = {isa = PBXBuildFile; fileRef = 96E7A2DBECD838DAA184DB03 /* backfill.ts */; };
 		2F8A6ABC0CA17BA6AE39603A /* GWSpec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A373759193D27FB232F3C90 /* GWSpec.swift */; };
+		337AB5313B0D9A2C1CBDC505 /* RecentPicksService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 599A79B54622D5AB980C6766 /* RecentPicksService.swift */; };
 		34064848C8C0DCF3F28840FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0E53B09000B6C3C0D3AA8C57 /* Assets.xcassets */; };
 		346166337784C14B60F6610B /* ExploreAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 514896DF7F0AC20C7A04A8FA /* ExploreAuthView.swift */; };
 		3725443453199AAE090CF3C1 /* MovieDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9C0145371D7D1977F5474B3 /* MovieDetailSheet.swift */; };
@@ -33,6 +34,7 @@
 		3CDA1C4D420BC04821C9E12D /* availability.ts in Resources */ = {isa = PBXBuildFile; fileRef = 700F709C4BEBAEEFE8B4FF19 /* availability.ts */; };
 		3E81929164E92841973FE34D /* LandingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAEC5A07AC78AFB1EA88823C /* LandingView.swift */; };
 		403E0AA9B60F019E59BAA9BD /* SortMenuSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70020CC3BD9F730D6833095A /* SortMenuSheet.swift */; };
+		43860E41BACDC5015E1D6C1A /* LanguagePriorityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 536C38F047C83B6F693D5E83 /* LanguagePriorityView.swift */; };
 		43FB48E1BAE9DA76AEFCBBE2 /* stateMachine.ts in Resources */ = {isa = PBXBuildFile; fileRef = 95899A7C8C8DB8391962ADB4 /* stateMachine.ts */; };
 		45108D121C9BDE19F9B71D2A /* GWFeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */; };
 		4D4A607E6F8C37E568CFDCBA /* GWProductionSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE34CEBB2236E731ED446866 /* GWProductionSafety.swift */; };
@@ -148,8 +150,10 @@
 		4407D158C0A98E29854C91B8 /* PickCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickCarouselView.swift; sourceTree = "<group>"; };
 		44B2BAEE73BC9A53FECB1223 /* OTTLanguageAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTTLanguageAvailability.swift; sourceTree = "<group>"; };
 		514896DF7F0AC20C7A04A8FA /* ExploreAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreAuthView.swift; sourceTree = "<group>"; };
+		536C38F047C83B6F693D5E83 /* LanguagePriorityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePriorityView.swift; sourceTree = "<group>"; };
 		550A876344894398CC2A19CB /* AppLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogo.swift; sourceTree = "<group>"; };
 		5806EF988D4E5A4174A12EDD /* PrimaryButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimaryButton.swift; sourceTree = "<group>"; };
+		599A79B54622D5AB980C6766 /* RecentPicksService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentPicksService.swift; sourceTree = "<group>"; };
 		5A373759193D27FB232F3C90 /* GWSpec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWSpec.swift; sourceTree = "<group>"; };
 		5BE473E3265F0350793E9903 /* RejectedSoftScreen.ts */ = {isa = PBXFileReference; path = RejectedSoftScreen.ts; sourceTree = "<group>"; };
 		60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWFeatureFlags.swift; sourceTree = "<group>"; };
@@ -302,6 +306,7 @@
 				B289BFB29DC6CB8CBA12432F /* MetricsService.swift */,
 				7E140670E7EDA1B6334C75A6 /* MovieRecommendationService.swift */,
 				44B2BAEE73BC9A53FECB1223 /* OTTLanguageAvailability.swift */,
+				599A79B54622D5AB980C6766 /* RecentPicksService.swift */,
 				0090127F9675FAB876B4C0A5 /* SupabaseSanityCheck.swift */,
 				87BAD4A30B832689D018002F /* UserService.swift */,
 				750A5A708A8482F7A66F300D /* WatchlistManager.swift */,
@@ -349,6 +354,7 @@
 				74C96369B569536ED504A91E /* GWUpdateBanner.swift */,
 				9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */,
 				AAEC5A07AC78AFB1EA88823C /* LandingView.swift */,
+				536C38F047C83B6F693D5E83 /* LanguagePriorityView.swift */,
 				7AA940CB30FDF068EBDDE09C /* MainScreenView.swift */,
 				64DE2C07D40E144A3BC1386F /* MoodSelectorView.swift */,
 				9C5AC8621EDF913B84D3D975 /* PickCardView.swift */,
@@ -622,6 +628,7 @@
 				1972F60B303E257DF3B6C38C /* GoodWatchApp.swift in Sources */,
 				E1FA63947CAC91CD60D4FA4B /* InteractionService.swift in Sources */,
 				3E81929164E92841973FE34D /* LandingView.swift in Sources */,
+				43860E41BACDC5015E1D6C1A /* LanguagePriorityView.swift in Sources */,
 				706EB4F3683D02C083261C02 /* MainScreenView.swift in Sources */,
 				53D8FE2500D18E44F9022DB9 /* MetricsService.swift in Sources */,
 				910FD0A6D50F1613042CCF19 /* MoodSelectorView.swift in Sources */,
@@ -640,6 +647,7 @@
 				B0624CAD7615069C548B039D /* PostWatchFeedbackView.swift in Sources */,
 				F0D765EAC05FBEEA160C0F8B /* PrimaryButton.swift in Sources */,
 				0A6C9D6F60DD530A6B7D7F5F /* ProfileTab.swift in Sources */,
+				337AB5313B0D9A2C1CBDC505 /* RecentPicksService.swift in Sources */,
 				7CCCED3C1D85173B7413F119 /* RejectionOverlayView.swift in Sources */,
 				20D64F408AA02988B18D4CA4 /* RejectionSheetView.swift in Sources */,
 				8F68A2C33169580B723C5570 /* RentTab.swift in Sources */,

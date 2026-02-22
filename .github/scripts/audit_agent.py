@@ -869,7 +869,7 @@ def run_section_f():
           count >= 8, ">=8", count)
 
     # F10-F12: Tables exist — use correct table names
-    for cid, table in [("F10", "interactions"), ("F11", "user_watchlist"), ("F12", "user_tag_weights")]:
+    for cid, table in [("F10", "interactions"), ("F11", "user_watchlist"), ("F12", "user_tag_weights_bulk")]:
         r = supabase_query(f"{table}?select=id&limit=1")
         exists = supabase_ok(r)
         check(cid, "backend", f"{table} table exists", "high",
@@ -1036,7 +1036,7 @@ def run_section_i():
     users_with_interactions = set(u.get("user_id") for u in r.get("data", []) if u.get("user_id"))
     if users_with_interactions:
         sample_user = list(users_with_interactions)[0]
-        r2 = supabase_query(f"user_tag_weights?select=user_id&user_id=eq.{sample_user}&limit=1")
+        r2 = supabase_query(f"user_tag_weights_bulk?select=user_id&user_id=eq.{sample_user}&limit=1")
         has_weights = len(r2.get("data", [])) > 0
         check("I01", "retention", "First interaction creates tag weights", "critical",
               has_weights, "Tag weights exist for active user",
@@ -1047,7 +1047,7 @@ def run_section_i():
              "No users with interactions found yet -- pre-launch")
 
     # I02: Interactions update tag weights immediately
-    r = supabase_query("user_tag_weights?select=user_id,updated_at&order=updated_at.desc&limit=10")
+    r = supabase_query("user_tag_weights_bulk?select=user_id,updated_at&order=updated_at.desc&limit=10")
     i02_data = r.get("data", [])
     if i02_data:
         has_recent = any(d.get("updated_at") for d in i02_data)
@@ -1060,7 +1060,7 @@ def run_section_i():
              "No tag weight entries yet -- pre-launch")
 
     # I03: Tag weight changes reflect in data
-    r = supabase_query("user_tag_weights?select=user_id,weights&limit=20")
+    r = supabase_query("user_tag_weights_bulk?select=user_id,weights&limit=20")
     i03_data = r.get("data", [])
     non_default = 0
     for entry in i03_data:
@@ -1124,7 +1124,7 @@ def run_section_i():
     mature_users = [uid for uid, c in user_counts.items() if c >= 5]
     if mature_users:
         sample = mature_users[0]
-        r2 = supabase_query(f"user_tag_weights?select=weights&user_id=eq.{sample}&limit=1")
+        r2 = supabase_query(f"user_tag_weights_bulk?select=weights&user_id=eq.{sample}&limit=1")
         has_evolved = len(r2.get("data", [])) > 0
         check("I05", "retention", "5+ interactions produce evolved profile", "critical",
               has_evolved, "Mature users have tag weights",
@@ -1155,9 +1155,12 @@ def run_section_i():
     else:
         skip("I06", "retention", "Mood differentiation", "critical", f"Only {len(i06_data)} moods found")
 
-    # I07: GoodScore diversity across catalog
-    r = supabase_query("movies?select=vote_average&vote_average=gt.0&order=vote_average.desc&limit=100")
-    i07_data = r.get("data", [])
+    # I07: GoodScore diversity across catalog — sample from BOTH ends
+    r_top = supabase_query("movies?select=vote_average&vote_average=gt.0&order=vote_average.desc&limit=50")
+    r_bot = supabase_query("movies?select=vote_average&vote_average=gt.0&order=vote_average.asc&limit=50")
+    i07_top = r_top.get("data", [])
+    i07_bot = r_bot.get("data", [])
+    i07_data = i07_top + i07_bot
     if i07_data:
         scores = [d.get("vote_average", 0) for d in i07_data]
         min_score = min(scores)
@@ -1361,7 +1364,7 @@ def run_section_i():
     for cid, table, name in [
         ("I21", "interactions", "User interactions persist (cloud)"),
         ("I22", "user_watchlist", "Watchlist persists (cloud)"),
-        ("I23", "user_tag_weights", "Tag weights persist (cloud)")
+        ("I23", "user_tag_weights_bulk", "Tag weights persist (cloud)")
     ]:
         r = supabase_query(f"{table}?select=id&limit=1")
         tbl_exists = r.get("status") in (200, 206)
@@ -1459,7 +1462,7 @@ def publish_results():
 # ─── Main ──────────────────────────────────────────────────────────
 def main():
     print("=" * 60)
-    print("  GoodWatch Audit Agent v1.2 -- Ralph Wiggum Loop")
+    print("  GoodWatch Audit Agent v1.3 -- Ralph Wiggum Loop")
     print(f"  {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"  Environment: {'GitHub Actions CI' if IS_CI else 'Local'}")
     print(f"  iOS Repo: {IOS_REPO_PATH or 'NOT SET'}")

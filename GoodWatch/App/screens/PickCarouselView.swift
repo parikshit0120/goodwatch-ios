@@ -122,7 +122,7 @@ struct PickCarouselView: View {
 
             // Progress text (only when pickCount > 1)
             if pickCount > 1 {
-                Text("Your picks are narrowing as we learn your taste")
+                Text("Picks are narrowing as we learn the taste")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundColor(GWColors.lightGray.opacity(0.6))
                     .padding(.top, 6)

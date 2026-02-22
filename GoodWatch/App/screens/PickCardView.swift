@@ -42,10 +42,11 @@ struct PickCardView: View {
 
     private var whyThisCopy: String {
         switch position {
-        case 1: return "Our best pick for you"
-        case 2: return "Strong second choice"
-        case 3: return "Another great option"
-        default: return "Worth a watch"
+        case 1: return "Top pick."
+        case 2: return "Runner up."
+        case 3: return "Also great."
+        case 4: return "Worth a watch."
+        default: return "Dark horse."
         }
     }
 

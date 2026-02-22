@@ -1,18 +1,18 @@
 import SwiftUI
 
 // Screen 3: Duration Selector
-// 3 duration cards matching the mockup
+// Multi-select: user can pick multiple duration options to widen the pool
 struct DurationSelectorView: View {
     @Binding var ctx: UserContext
     let onNext: () -> Void
     let onBack: () -> Void
     var onHome: (() -> Void)? = nil
 
-    @State private var selectedDuration: DurationOption?
+    @State private var selectedDurations: Set<DurationOption> = []
     @State private var seriesAvailabilityMessage: String?
     @State private var isCheckingSeriesAvailability = false
 
-    enum DurationOption: CaseIterable {
+    enum DurationOption: String, CaseIterable, Hashable {
         case quick      // 90 minutes
         case full       // 2-2.5 hours
         case series     // Series/Binge
@@ -37,7 +37,7 @@ struct DurationSelectorView: View {
             switch self {
             case .quick: return 60
             case .full: return 120
-            case .series: return 1  // Effectively no min for series (filtered by content_type instead)
+            case .series: return 1
             }
         }
 
@@ -45,14 +45,24 @@ struct DurationSelectorView: View {
             switch self {
             case .quick: return 90
             case .full: return 150
-            case .series: return 999  // No max for series (use content_type filter)
+            case .series: return 999
             }
         }
 
-        /// Whether this option requires series content (content_type = "series")
         var requiresSeries: Bool {
             self == .series
         }
+    }
+
+    /// Compute the union runtime range from all selected options
+    private func computeUnionRange() -> (min: Int, max: Int) {
+        var lo = Int.max
+        var hi = 0
+        for d in selectedDurations {
+            lo = min(lo, d.minDuration)
+            hi = max(hi, d.maxDuration)
+        }
+        return (min: lo == Int.max ? 60 : lo, max: hi == 0 ? 150 : hi)
     }
 
     var body: some View {
@@ -81,7 +91,7 @@ struct DurationSelectorView: View {
 
                     Spacer()
 
-                    Text("3/3")
+                    Text("4/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
 
@@ -110,7 +120,7 @@ struct DurationSelectorView: View {
                 Spacer().frame(height: 8)
 
                 // Subhead
-                Text("We'll match the runtime")
+                Text("Select all that work")
                     .font(GWTypography.body())
                     .foregroundColor(GWColors.lightGray)
                     .padding(.horizontal, GWSpacing.screenPadding)
@@ -123,21 +133,11 @@ struct DurationSelectorView: View {
                         DurationCard(
                             title: option.title,
                             subtitle: option.subtitle,
-                            isSelected: selectedDuration == option,
+                            isSelected: selectedDurations.contains(option),
                             isLoading: option == .series && isCheckingSeriesAvailability,
                             warningMessage: option == .series ? seriesAvailabilityMessage : nil,
                             action: {
-                                selectedDuration = option
-                                ctx.minDuration = option.minDuration
-                                ctx.maxDuration = option.maxDuration
-                                ctx.requiresSeries = option.requiresSeries
-
-                                // Check series availability when selected
-                                if option == .series {
-                                    checkSeriesAvailability()
-                                } else {
-                                    seriesAvailabilityMessage = nil
-                                }
+                                toggleDuration(option)
                             }
                         )
                         .accessibilityIdentifier("duration_card_\(index)")
@@ -149,22 +149,25 @@ struct DurationSelectorView: View {
 
                 // Continue Button
                 Button {
-                    if let duration = selectedDuration {
-                        // SECTION 4: Persist runtime to Supabase immediately
+                    if !selectedDurations.isEmpty {
+                        let range = computeUnionRange()
+                        ctx.minDuration = range.min
+                        ctx.maxDuration = range.max
+                        ctx.requiresSeries = selectedDurations.contains(.series)
+
+                        // Persist to Supabase
                         let runtimeRange: RuntimeRange = {
-                            switch duration {
-                            case .quick: return .short
-                            case .full: return .long
-                            case .series: return .any
-                            }
+                            if selectedDurations.contains(.series) { return .any }
+                            if selectedDurations.count > 1 { return .any }
+                            if selectedDurations.contains(.quick) { return .short }
+                            return .long
                         }()
                         Task {
                             try? await UserService.shared.updateRuntimePreference(
-                                maxRuntime: duration.maxDuration,
+                                maxRuntime: range.max,
                                 range: runtimeRange
                             )
                         }
-                        // Persist onboarding step to Keychain for resume support
                         GWKeychainManager.shared.storeOnboardingStep(4)
                         ctx.saveToDefaults()
                         onNext()
@@ -176,13 +179,13 @@ struct DurationSelectorView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 60)
                         .background(
-                            selectedDuration == nil
+                            selectedDurations.isEmpty
                                 ? AnyShapeStyle(GWColors.lightGray.opacity(0.3))
                                 : AnyShapeStyle(LinearGradient.goldGradient)
                         )
                         .cornerRadius(GWRadius.lg)
                 }
-                .disabled(selectedDuration == nil)
+                .disabled(selectedDurations.isEmpty)
                 .accessibilityIdentifier("duration_continue")
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.bottom, 40)
@@ -190,18 +193,50 @@ struct DurationSelectorView: View {
         }
         .onAppear {
             // Pre-select from onboarding memory if available
-            if selectedDuration == nil, let saved = GWOnboardingMemory.shared.load() {
+            if selectedDurations.isEmpty, let saved = GWOnboardingMemory.shared.load() {
                 if saved.requiresSeries {
-                    selectedDuration = .series
-                } else if saved.maxDuration <= 90 {
-                    selectedDuration = .quick
-                } else {
-                    selectedDuration = .full
+                    selectedDurations.insert(.series)
+                }
+                if saved.maxDuration <= 90 || saved.minDuration < 120 {
+                    selectedDurations.insert(.quick)
+                }
+                if saved.maxDuration >= 120 && saved.maxDuration <= 150 {
+                    selectedDurations.insert(.full)
+                }
+                // If nothing matched, default to full
+                if selectedDurations.isEmpty {
+                    selectedDurations.insert(.full)
                 }
                 ctx.minDuration = saved.minDuration
                 ctx.maxDuration = saved.maxDuration
                 ctx.requiresSeries = saved.requiresSeries
             }
+        }
+    }
+
+    // MARK: - Toggle Duration
+
+    private func toggleDuration(_ option: DurationOption) {
+        if selectedDurations.contains(option) {
+            // Don't allow empty — at least 1 must be selected
+            if selectedDurations.count > 1 {
+                selectedDurations.remove(option)
+            }
+        } else {
+            selectedDurations.insert(option)
+        }
+
+        // Update context with union range
+        let range = computeUnionRange()
+        ctx.minDuration = range.min
+        ctx.maxDuration = range.max
+        ctx.requiresSeries = selectedDurations.contains(.series)
+
+        // Check series availability when selected
+        if option == .series && selectedDurations.contains(.series) {
+            checkSeriesAvailability()
+        } else if !selectedDurations.contains(.series) {
+            seriesAvailabilityMessage = nil
         }
     }
 
@@ -212,10 +247,8 @@ struct DurationSelectorView: View {
         seriesAvailabilityMessage = nil
 
         Task {
-            // Get user's language and platform preferences
             let userLanguages = ctx.languages.map { $0.rawValue }
 
-            // Skip check if no platforms/languages selected
             guard !ctx.otts.isEmpty, !ctx.languages.isEmpty else {
                 await MainActor.run {
                     isCheckingSeriesAvailability = false
@@ -224,10 +257,9 @@ struct DurationSelectorView: View {
             }
 
             #if DEBUG
-            print("🔍 Checking series availability for languages: \(userLanguages), platforms: \(ctx.otts.map { $0.rawValue })")
+            print("[DURATION] Checking series availability for languages: \(userLanguages)")
             #endif
 
-            // Fetch series content from database
             let movies: [Movie]
             do {
                 movies = try await SupabaseService.shared.fetchMoviesForAvailabilityCheck(
@@ -238,40 +270,25 @@ struct DurationSelectorView: View {
                 )
             } catch {
                 #if DEBUG
-                print("❌ Series availability check failed: \(error)")
+                print("[DURATION] Series availability check failed: \(error)")
                 #endif
-                // On error, don't show warning - let user proceed
                 await MainActor.run {
                     isCheckingSeriesAvailability = false
                 }
                 return
             }
 
-            #if DEBUG
-            print("📺 Found \(movies.count) series matching language filter")
-            #endif
-
-            // Filter by user's platforms using the same matching logic as the Movie model
             let matchingMovies = movies.filter { movie in
                 guard let providers = movie.ott_providers, !providers.isEmpty else { return false }
-                // Check if any provider matches any of the user's platforms
                 return ctx.otts.contains { platform in
                     providers.contains { provider in provider.matches(platform) }
                 }
             }
 
-            #if DEBUG
-            print("📺 Found \(matchingMovies.count) series matching platform filter")
-            if !matchingMovies.isEmpty {
-                print("   First match: \(matchingMovies[0].title)")
-            }
-            #endif
-
             await MainActor.run {
                 isCheckingSeriesAvailability = false
 
                 if matchingMovies.isEmpty {
-                    // Build user-friendly message
                     let platformNames = ctx.otts.map { $0.displayName }.joined(separator: ", ")
                     let langNames = ctx.languages.map { $0.displayName }.joined(separator: ", ")
                     seriesAvailabilityMessage = "Limited series in \(langNames) on \(platformNames). Try movies instead."
@@ -313,7 +330,7 @@ struct DurationCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 28)
-                .background(GWColors.darkGray)
+                .background(isSelected ? GWColors.darkGray : GWColors.darkGray.opacity(0.6))
                 .cornerRadius(GWRadius.lg)
                 .overlay(
                     RoundedRectangle(cornerRadius: GWRadius.lg)

@@ -89,7 +89,7 @@ struct MoodSelectorView: View {
 
                     Spacer()
 
-                    Text("1/3")
+                    Text("1/4")
                         .font(GWTypography.body(weight: .medium))
                         .foregroundColor(GWColors.lightGray)
 
