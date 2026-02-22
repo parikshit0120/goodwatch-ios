@@ -22,6 +22,7 @@
 | **All changes in one go** | Think first, then implement completely. No piecemeal debugging |
 | **Never ask for manual intervention** | Full access to filesystem, Xcode CLI, Supabase CLI, GitHub CLI. Use them |
 | **Batch commands** | Chain with `&&` or `;`. Don't split build→install→launch into separate permission requests |
+| **No emojis in code or UI** | Never use emoji characters in source code, UI labels, or data. Use text-only labels everywhere |
 
 ### 1.2 Product Philosophy
 
@@ -554,6 +555,7 @@ These are behavioral contracts that define what GoodWatch IS. Any code change th
 | INV-L03 | Confidence boost only after 10+ learned tags, max 5% | Learning |
 | INV-L04 | Top-10 weighted random (temperature 0.15), not deterministic | Learning |
 | INV-L05 | Not-tonight penalizes similar tags on next pick | Learning |
+| INV-A01 to INV-A10 | Audit system rules -- zero false positives, no mass skips, report-only, every failure has remediation | Audit |
 
 ### Pre-Commit Rule
 

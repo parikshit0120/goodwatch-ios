@@ -326,3 +326,37 @@ Before committing ANY code change, verify:
 5. Commit both the invariant definition and the test together
 
 **RULE:** Every new feature that touches recommendation, scoring, UX flow, or learning MUST propose a new invariant before implementation begins. The invariant is approved first, then the code is written to satisfy it.
+
+---
+
+## AUDIT SYSTEM INVARIANTS
+
+### INV-A01: Zero False Positives
+Every check that reports "fail" MUST be a real, actionable problem. If a check cannot produce an accurate result in the current environment (CI vs local), it MUST report "skip" with a clear reason -- NEVER "fail". False positives train humans to ignore the audit, which is worse than no audit.
+
+### INV-A02: No Mass Skips
+No section may have more than 30% of its checks skipped. If a section cannot run most of its checks, the checks must be rewritten to work in the available environment (Supabase queries, code inspection, HTTP checks). "Requires device testing" is not an acceptable skip reason if the check can be done via database query or source code analysis.
+
+### INV-A03: Report Only -- Never Auto-Fix
+The audit agent is READ-ONLY. It MUST NOT delete data, modify rows, update flags, re-enable features, change profiles, or alter any database state. It reads and reports. The human decides what gets fixed.
+
+### INV-A04: Every Failure Must Have Remediation
+Every check that reports "fail" MUST include in its detail field: (1) what is wrong, (2) what was expected, (3) what was found, (4) which guardrail it violates (INV-xxx, CLAUDE.md section, or product decision), and (5) how to fix it (specific SQL, code change, or config update). A failure without remediation instructions is useless.
+
+### INV-A05: Audit Score Must Be Real
+The audit score (pass percentage) must reflect actual product health. Inflated scores (from mass skips or lenient thresholds) and deflated scores (from false positives or environment issues) are both violations. The score is the single number that tells the founder whether to ship or fix.
+
+### INV-A06: Audit Results Are Immutable
+Once an audit run is published to Supabase, its results MUST NOT be modified, deleted, or overwritten. Each run is a permanent historical record. The dashboard shows trends over time -- rewriting history breaks trend analysis.
+
+### INV-A07: Dashboard Must Be Live
+The audit dashboard at goodwatch.movie/command-center/audit MUST load and display the latest audit run results. If the dashboard returns 404, shows stale data (>48 hours old), or fails to render, that is a critical infrastructure failure.
+
+### INV-A08: Protected File Hash Baselines
+When a protected file (GWRecommendationEngine.swift, Movie.swift, GWSpec.swift, RootFlowView.swift, SupabaseConfig.swift, CLAUDE.md, INVARIANTS.md) is intentionally modified, its hash in the protected_file_hashes table MUST be updated in the same commit. The audit agent compares current hashes against these baselines -- a stale baseline produces false failures.
+
+### INV-A09: New Checks Must Map to Guardrails
+Every new audit check added to audit_agent.py MUST reference a specific guardrail in its source_ref field: an INV-xxx ID from INVARIANTS.md, a CLAUDE.md section, or a documented product decision. Orphan checks with no guardrail reference are not allowed.
+
+### INV-A10: CI Environment Adaptation
+The audit agent MUST detect whether it is running in CI (GitHub Actions) or locally and adapt checks accordingly. Checks that depend on local-only state (git hooks, skip-worktree, Keychain) MUST skip cleanly in CI. Checks that depend on network access MUST use proper User-Agent headers and accept standard HTTP response codes (200, 206, 301, 302).
