@@ -366,6 +366,12 @@ final class GWRecommendationEngine {
     static let shared = GWRecommendationEngine()
     private init() {}
 
+    /// Active trend boosts keyed by GWMovie UUID string.
+    /// Set by RootFlowView before calling recommend().
+    /// INV-T01: Each entry is the highest-only boost for that movie (no stacking).
+    /// INV-T03: Applied after all core signals in computeScore().
+    var activeTrendBoosts: [String: GWTrendBoost] = [:]
+
     // ============================================
     // SECTION 1: Movie Validation
     // ============================================
@@ -1045,8 +1051,13 @@ final class GWRecommendationEngine {
             tonightPrimary: profile.tonightPrimary
         )
 
+        // 8. Trend boost (INV-T01: ceiling 0.08, no stacking — highest only)
+        // INV-T03: Applied last, after all core signals. Mood alignment (50% weight)
+        // always dominates. A 0.08 boost cannot rescue a poorly-aligned movie.
+        let trendBoost = min(activeTrendBoosts[movie.id]?.boost_score ?? 0.0, 0.08)
+
         // All components are on 0-1 scale. Clamp to [0, 1].
-        return min(max(baseScore + confidenceBoost + languageBonus, 0), 1)
+        return min(max(baseScore + confidenceBoost + languageBonus + trendBoost, 0), 1)
     }
 
     // MARK: - Confidence Boost (Threshold-Gated)

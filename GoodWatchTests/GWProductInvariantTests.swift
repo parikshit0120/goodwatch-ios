@@ -1396,4 +1396,123 @@ final class GWProductInvariantTests: XCTestCase {
         XCTAssertEqual(tonightRaw, "english",
             "INV-L10 VIOLATED: Tonight primary raw value should be 'english'")
     }
+
+    // ============================================
+    // INV-T01: Trend Boost Ceiling and No Stacking
+    // "Max boost 0.08, no stacking (highest only)"
+    // ============================================
+
+    func testInvariant_T01_TrendBoostCeilingAndNoStacking() {
+        let profile = Self.englishNetflixProfile()
+
+        // Baseline: no trend boost
+        engine.activeTrendBoosts = [:]
+        let baseScore = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        // Set a boost at the ceiling (0.08)
+        let ceilingBoost = GWTrendBoost(
+            tmdb_id: 1, boost_score: 0.08, relevance_tag: "Test Ceiling",
+            trend_source: "test", trend_type: "news", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = [Self.validMovie.id: ceilingBoost]
+        let scoreAtCeiling = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        // Set a boost ABOVE the ceiling (0.15 — should be clamped to 0.08)
+        let overBoost = GWTrendBoost(
+            tmdb_id: 1, boost_score: 0.15, relevance_tag: "Test Over",
+            trend_source: "test", trend_type: "news", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = [Self.validMovie.id: overBoost]
+        let scoreOverCeiling = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        // Over-ceiling boost should produce same score as ceiling boost (clamped)
+        XCTAssertEqual(scoreAtCeiling, scoreOverCeiling, accuracy: 0.001,
+            "INV-T01 VIOLATED: Boost above 0.08 must be clamped to ceiling")
+
+        // Ceiling boost should increase score by exactly 0.08 (or less due to clamp to 1.0)
+        let expectedIncrease = min(0.08, 1.0 - baseScore)
+        XCTAssertEqual(scoreAtCeiling - baseScore, expectedIncrease, accuracy: 0.001,
+            "INV-T01 VIOLATED: Trend boost at ceiling should add exactly 0.08")
+
+        // Clean up
+        engine.activeTrendBoosts = [:]
+    }
+
+    // ============================================
+    // INV-T02: Trend Boost Expiration
+    // "Every boost must have active_until, expired = no effect"
+    // ============================================
+
+    func testInvariant_T02_TrendBoostExpiration() {
+        let profile = Self.englishNetflixProfile()
+
+        // No boost: baseline
+        engine.activeTrendBoosts = [:]
+        let scoreNoBoost = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        // Active boost: score increases
+        let boost = GWTrendBoost(
+            tmdb_id: 1, boost_score: 0.05, relevance_tag: "Active Test",
+            trend_source: "test", trend_type: "calendar", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = [Self.validMovie.id: boost]
+        let scoreWithBoost = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        XCTAssertGreaterThan(scoreWithBoost, scoreNoBoost,
+            "INV-T02 VIOLATED: Active boost must increase score")
+
+        // Simulate expiration: remove from dict (GWTrendBoostService filters expired boosts)
+        engine.activeTrendBoosts = [:]
+        let scoreAfterExpiry = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        XCTAssertEqual(scoreAfterExpiry, scoreNoBoost, accuracy: 0.001,
+            "INV-T02 VIOLATED: Expired (removed) boost must not affect score")
+
+        // Clean up
+        engine.activeTrendBoosts = [:]
+    }
+
+    // ============================================
+    // INV-T03: Trends Never Override Core Signals
+    // "Mood-aligned movie without trend beats misaligned movie with max trend"
+    // ============================================
+
+    func testInvariant_T03_TrendsNeverOverrideCoreSignals() {
+        let profile = Self.englishNetflixProfile()
+        // Profile intentTags: ["safe_bet", "feel_good"]
+        // validMovie tags: ["medium", "safe_bet", "full_attention", "calm", "feel_good"]
+        // -> good mood alignment (safe_bet + feel_good match)
+
+        // Movie with ZERO mood alignment against this profile
+        let poorMoodMovie = GWMovie(
+            id: "inv-trend-poor-mood",
+            title: "Poorly Aligned Trending Movie",
+            year: 2024,
+            runtime: 120,
+            language: "en",
+            platforms: ["netflix"],
+            genres: ["Horror"],
+            tags: ["heavy", "polarizing", "dark", "intense", "full_attention"],
+            goodscore: 85.0,
+            available: true
+        )
+
+        // Good mood movie: no trend boost
+        engine.activeTrendBoosts = [:]
+        let goodMoodScore = engine.computeScore(movie: Self.validMovie, profile: profile)
+
+        // Poor mood movie: maximum trend boost (0.08)
+        let maxBoost = GWTrendBoost(
+            tmdb_id: 999, boost_score: 0.08, relevance_tag: "Max Boost Test",
+            trend_source: "test", trend_type: "awards", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = [poorMoodMovie.id: maxBoost]
+        let poorMoodBoostedScore = engine.computeScore(movie: poorMoodMovie, profile: profile)
+
+        XCTAssertGreaterThan(goodMoodScore, poorMoodBoostedScore,
+            "INV-T03 VIOLATED: Mood-aligned movie (\(goodMoodScore)) must beat poorly-aligned movie with max trend boost (\(poorMoodBoostedScore))")
+
+        // Clean up
+        engine.activeTrendBoosts = [:]
+    }
 }

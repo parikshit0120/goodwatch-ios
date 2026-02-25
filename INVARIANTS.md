@@ -436,3 +436,28 @@ The audit agent MUST detect whether it is running in CI (GitHub Actions) or loca
 **Why:** Brand voice guidelines. GoodWatch uses neutral, product-centric language.
 **Verify:** Audit check C30 scans View/Screen files for possessive pronoun patterns.
 **Violated if:** Any user-facing text contains "Your", "Our", or "We" as the first word.
+
+---
+
+## TREND BOOST INVARIANTS
+
+### INV-T01: Trend Boost Ceiling and No Stacking
+**Rule:** A trend boost MUST NOT exceed 0.08 on the 0-1 scoring scale. No single movie may receive more than one active trend boost simultaneously (use highest, not sum).
+**Why:** Trend boosts are surface-level relevance signals. They should influence tie-breaking between similarly-scored movies, not override core personalization.
+**Verify:** `computeScore()` in GWRecommendationEngine.swift caps trendBoost at 0.08. `GWTrendBoostService` deduplicates by keeping max boost per tmdb_id. Supabase `trend_boosts` table has CHECK constraint `boost_score <= 0.08`.
+**Test:** `testInvariant_T01_TrendBoostCeilingAndNoStacking`
+**Violated if:** Any movie's trend contribution exceeds 0.08 or multiple boosts are summed.
+
+### INV-T02: Trend Boost Expiration
+**Rule:** Every trend boost entry MUST have an `active_until` timestamp. No boost may be permanent. The trend engine must expire boosts daily by setting `is_active = false`. `GWTrendBoostService` filters `active_until > now()` on every fetch.
+**Why:** Stale trends degrade recommendation quality. A movie trending during awards season should not still be boosted 6 months later.
+**Verify:** Supabase `trend_boosts` table has `active_until TIMESTAMPTZ NOT NULL`. `GWTrendBoostService.fetchActiveTrendBoosts()` includes `active_until > now()` filter. `trend_engine.py` expires stale entries daily.
+**Test:** `testInvariant_T02_TrendBoostExpiration`
+**Violated if:** A trend boost has null active_until or remains active past its expiry.
+
+### INV-T03: Trends Never Override Core Signals
+**Rule:** A movie with a trend boost but zero mood alignment MUST NOT outrank a movie with perfect mood alignment but no trend boost, all else being equal. Trend boost is additive and applied AFTER all core scoring signals (mood alignment 50%, regret safety 25%, platform bias 15%, dimensional fit 10%, confidence boost, language bonus).
+**Why:** A trending movie the user is not in the mood for is still a bad recommendation. Trends enhance good matches; they do not create them.
+**Verify:** In `computeScore()`, trendBoost is the last additive term. A movie scoring 0.3 base + 0.08 trend (= 0.38) will never beat a mood-aligned movie scoring 0.7+.
+**Test:** `testInvariant_T03_TrendsNeverOverrideCoreSignals`
+**Violated if:** Trend boost alone is sufficient to make a movie the top recommendation.

@@ -765,6 +765,124 @@ final class GWRecommendationEngineTests: XCTestCase {
         XCTAssertNil(output.movie)
         XCTAssertEqual(output.stopCondition, .noPlatformMatch)
     }
+
+    // ============================================
+    // TREND BOOST ENGINE TESTS
+    // ============================================
+
+    func testTrendBoost_AffectsRanking() {
+        // Two identical movies, one with a trend boost
+        let movieA = GWMovie(
+            id: "trend-rank-a", title: "Movie A", year: 2024, runtime: 120,
+            language: "en", platforms: ["netflix"], genres: ["Drama"],
+            tags: ["medium", "safe_bet", "full_attention", "calm", "feel_good"],
+            goodscore: 80.0, available: true
+        )
+        let movieB = GWMovie(
+            id: "trend-rank-b", title: "Movie B", year: 2024, runtime: 120,
+            language: "en", platforms: ["netflix"], genres: ["Drama"],
+            tags: ["medium", "safe_bet", "full_attention", "calm", "feel_good"],
+            goodscore: 80.0, available: true
+        )
+
+        let profile = GWUserProfileComplete(
+            userId: "trend-test-user",
+            preferredLanguages: ["english"],
+            platforms: ["netflix"],
+            runtimeWindow: GWRuntimeWindow(min: 60, max: 180),
+            mood: "neutral",
+            intentTags: ["safe_bet", "feel_good"],
+            seen: [],
+            notTonight: [],
+            abandoned: [],
+            recommendationStyle: .safe,
+            tagWeights: [:]
+        )
+
+        // Without boost: both should score identically
+        engine.activeTrendBoosts = [:]
+        let scoreA = engine.computeScore(movie: movieA, profile: profile)
+        let scoreB = engine.computeScore(movie: movieB, profile: profile)
+        XCTAssertEqual(scoreA, scoreB, accuracy: 0.001, "Identical movies should have identical scores")
+
+        // With boost on movieB: B should score higher
+        let boost = GWTrendBoost(
+            tmdb_id: 1, boost_score: 0.06, relevance_tag: "Trending",
+            trend_source: "test", trend_type: "news", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = [movieB.id: boost]
+        let scoreBBoosted = engine.computeScore(movie: movieB, profile: profile)
+        let scoreAUnboosted = engine.computeScore(movie: movieA, profile: profile)
+
+        XCTAssertGreaterThan(scoreBBoosted, scoreAUnboosted,
+            "Boosted movie should score higher than identical unboosted movie")
+        XCTAssertEqual(scoreBBoosted - scoreAUnboosted, 0.06, accuracy: 0.001,
+            "Score difference should equal the boost value")
+
+        engine.activeTrendBoosts = [:]
+    }
+
+    func testTrendBoost_EmptyBoostsNoEffect() {
+        let profile = GWUserProfileComplete(
+            userId: "trend-empty-test",
+            preferredLanguages: ["english"],
+            platforms: ["netflix"],
+            runtimeWindow: GWRuntimeWindow(min: 60, max: 180),
+            mood: "neutral",
+            intentTags: ["safe_bet", "feel_good"],
+            seen: [],
+            notTonight: [],
+            abandoned: [],
+            recommendationStyle: .safe,
+            tagWeights: [:]
+        )
+
+        // Score with empty boosts
+        engine.activeTrendBoosts = [:]
+        let score1 = engine.computeScore(movie: Self.englishNetflixMovie, profile: profile)
+
+        // Score again with empty boosts (different empty dict)
+        engine.activeTrendBoosts = [String: GWTrendBoost]()
+        let score2 = engine.computeScore(movie: Self.englishNetflixMovie, profile: profile)
+
+        XCTAssertEqual(score1, score2, accuracy: 0.0001,
+            "Empty trend boosts should have zero effect on scoring")
+
+        engine.activeTrendBoosts = [:]
+    }
+
+    func testTrendBoost_MissingMovieNoCrash() {
+        let profile = GWUserProfileComplete(
+            userId: "trend-missing-test",
+            preferredLanguages: ["english"],
+            platforms: ["netflix"],
+            runtimeWindow: GWRuntimeWindow(min: 60, max: 180),
+            mood: "neutral",
+            intentTags: ["safe_bet", "feel_good"],
+            seen: [],
+            notTonight: [],
+            abandoned: [],
+            recommendationStyle: .safe,
+            tagWeights: [:]
+        )
+
+        // Set boost for a movie ID that doesn't exist in the pool
+        let boost = GWTrendBoost(
+            tmdb_id: 99999, boost_score: 0.08, relevance_tag: "Ghost Boost",
+            trend_source: "test", trend_type: "news", active_until: "2099-01-01T00:00:00Z"
+        )
+        engine.activeTrendBoosts = ["nonexistent-movie-id": boost]
+
+        // Score a real movie — should work fine, no crash, no boost applied
+        let score = engine.computeScore(movie: Self.englishNetflixMovie, profile: profile)
+        XCTAssertGreaterThan(score, 0, "Score should be positive even with irrelevant boost in dict")
+
+        // Recommend from pool — should work fine
+        let output = engine.recommend(from: [Self.englishNetflixMovie], profile: profile)
+        XCTAssertNotNil(output.movie, "Recommendation should succeed with irrelevant boosts")
+
+        engine.activeTrendBoosts = [:]
+    }
 }
 
 // MARK: - GWMovie Test Initializer Extension

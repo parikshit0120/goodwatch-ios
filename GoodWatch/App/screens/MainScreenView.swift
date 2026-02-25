@@ -13,6 +13,7 @@ struct MainScreenView: View {
     let onStartOver: (() -> Void)?
     let onExplore: (() -> Void)?
     let internationalPick: GWMovie?  // Dubbed international content (INV-L09). Nil = no dubbed pick available.
+    let trendTag: String?  // Trend relevance tag (INV-T01/T02/T03). Nil = no active trend boost.
 
     #if DEBUG
     let debugInfo: DebugRecommendationInfo?
@@ -29,7 +30,8 @@ struct MainScreenView: View {
         onAlreadySeen: @escaping () -> Void,
         onStartOver: (() -> Void)? = nil,
         onExplore: (() -> Void)? = nil,
-        internationalPick: GWMovie? = nil
+        internationalPick: GWMovie? = nil,
+        trendTag: String? = nil
     ) {
         self.movie = movie
         self.goodScore = goodScore
@@ -41,6 +43,7 @@ struct MainScreenView: View {
         self.onStartOver = onStartOver
         self.onExplore = onExplore
         self.internationalPick = internationalPick
+        self.trendTag = trendTag
         #if DEBUG
         self.debugInfo = nil
         #endif
@@ -59,6 +62,7 @@ struct MainScreenView: View {
         onStartOver: (() -> Void)? = nil,
         onExplore: (() -> Void)? = nil,
         internationalPick: GWMovie? = nil,
+        trendTag: String? = nil,
         debugInfo: DebugRecommendationInfo?
     ) {
         self.movie = movie
@@ -71,6 +75,7 @@ struct MainScreenView: View {
         self.onStartOver = onStartOver
         self.onExplore = onExplore
         self.internationalPick = internationalPick
+        self.trendTag = trendTag
         self.debugInfo = debugInfo
     }
     #endif
@@ -204,9 +209,32 @@ struct MainScreenView: View {
                     .fill(GWColors.surfaceBorder)
                     .frame(height: 1)
 
+                // Trend relevance tag banner (INV-T01/T02/T03)
+                if let tag = trendTag {
+                    HStack(spacing: 6) {
+                        Text("TRENDING")
+                            .font(.system(size: 9, weight: .black))
+                            .foregroundColor(GWColors.gold)
+                        Text(tag)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(GWColors.white)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: GWRadius.md)
+                            .fill(GWColors.gold.opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: GWRadius.md)
+                                    .strokeBorder(GWColors.gold.opacity(0.3), lineWidth: 1)
+                            )
+                    )
+                    .padding(.top, 10)
+                }
+
                 // Content
                 VStack(spacing: 0) {
-                    Spacer().frame(height: 16)
+                    Spacer().frame(height: trendTag != nil ? 8 : 16)
 
                     // Film Poster with content type badge
                     ZStack(alignment: .topTrailing) {

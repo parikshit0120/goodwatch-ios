@@ -53,6 +53,7 @@
 		6ACC3F863FC810B8BEE58A3D /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBEBE8C061FC49856191BCA /* FilterSheet.swift */; };
 		706EB4F3683D02C083261C02 /* MainScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA940CB30FDF068EBDDE09C /* MainScreenView.swift */; };
 		73A7ECC0A3075ADDBF25A712 /* types.ts in Resources */ = {isa = PBXBuildFile; fileRef = AE59CE31DC635AE5C90D6EEC /* types.ts */; };
+		7460D22AC0EFF7632FAA8DC6 /* GWTrendBoostService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78403E9B45011CE0F12EC708 /* GWTrendBoostService.swift */; };
 		78BB1BED3A329CE06C4CE81F /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 372B4762F5EB10691A3AC899 /* GoogleSignIn */; };
 		7919C00907DA95DA1C5CF6FC /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EC66AFB5F09B72445B5596 /* SupabaseConfig.swift */; };
 		7CCCED3C1D85173B7413F119 /* RejectionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */; };
@@ -172,6 +173,7 @@
 		759CDECA94FBDD99491FEC9E /* InteractionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractionService.swift; sourceTree = "<group>"; };
 		76CDAC3F7A5C333BFAFDBE7A /* AuthGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthGuard.swift; sourceTree = "<group>"; };
 		7730D97980E8D641040A438A /* selector.ts */ = {isa = PBXFileReference; path = selector.ts; sourceTree = "<group>"; };
+		78403E9B45011CE0F12EC708 /* GWTrendBoostService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWTrendBoostService.swift; sourceTree = "<group>"; };
 		784251F3935F87E88A0F7F25 /* PlatformTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformTab.swift; sourceTree = "<group>"; };
 		7AA940CB30FDF068EBDDE09C /* MainScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainScreenView.swift; sourceTree = "<group>"; };
 		7E140670E7EDA1B6334C75A6 /* MovieRecommendationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieRecommendationService.swift; sourceTree = "<group>"; };
@@ -301,6 +303,7 @@
 				AC91814AC413AF9D407A984C /* GWNotificationService.swift */,
 				6D2C84974B05C229CA5BE9C0 /* GWOnboardingMemory.swift */,
 				A661FCACFC49E8410CBE34E7 /* GWTasteEngine.swift */,
+				78403E9B45011CE0F12EC708 /* GWTrendBoostService.swift */,
 				83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */,
 				759CDECA94FBDD99491FEC9E /* InteractionService.swift */,
 				B289BFB29DC6CB8CBA12432F /* MetricsService.swift */,
@@ -622,6 +625,7 @@
 				A2611A3C1451556D948C8D0B /* GWReviewPromptView.swift in Sources */,
 				2F8A6ABC0CA17BA6AE39603A /* GWSpec.swift in Sources */,
 				B2D32D94786EA19B1B5A0447 /* GWTasteEngine.swift in Sources */,
+				7460D22AC0EFF7632FAA8DC6 /* GWTrendBoostService.swift in Sources */,
 				50A7A3A06765E716FAAA9859 /* GWUpdateBanner.swift in Sources */,
 				FB28DE3378E0CC6E5F72BFFA /* GWUpdateChecker.swift in Sources */,
 				E475DBFFC371A451B7EECBC5 /* GWWatchFeedbackView.swift in Sources */,

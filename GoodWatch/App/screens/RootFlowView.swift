@@ -73,6 +73,10 @@ struct RootFlowView: View {
     // International pick state (dubbed content — INV-L09)
     @State private var internationalPick: GWMovie? = nil
 
+    // Trend boost state (INV-T01/T02/T03)
+    @State private var currentTrendTag: String? = nil
+    @State private var trendBoostsByUUID: [String: GWTrendBoost] = [:]
+
     // Decision timing: tracks when current recommendation was shown
     // Used to measure how long user deliberates before accept/reject
     @State private var recommendationShownTime: Date? = nil
@@ -529,6 +533,7 @@ struct RootFlowView: View {
                     navigateTo(.explore)
                 },
                 internationalPick: internationalPick,
+                trendTag: currentTrendTag,
                 debugInfo: debugOverlayInfo
             )
             #else
@@ -554,7 +559,8 @@ struct RootFlowView: View {
                 onExplore: {
                     navigateTo(.explore)
                 },
-                internationalPick: internationalPick
+                internationalPick: internationalPick,
+                trendTag: currentTrendTag
             )
             #endif
         } else if let error = recommendationError {
@@ -1003,6 +1009,9 @@ struct RootFlowView: View {
             // Ensure remote mood config is loaded (fetched once per session, 3s timeout)
             await GWMoodConfigService.shared.waitForLoad(timeout: 3.0)
 
+            // Fetch active trend boosts (cached for 1 hour, INV-T01/T02)
+            let trendBoostsByTmdbId = await GWTrendBoostService.shared.fetchActiveTrendBoosts()
+
             // Fetch shown/rejected history from Supabase to avoid cross-session repeats
             let historicalExclusions = await fetchHistoricalExclusions(userId: userId)
             let allExcludedIds = excludedMovieIds.union(historicalExclusions)
@@ -1104,6 +1113,13 @@ struct RootFlowView: View {
                 // Cache the movie pool for replacement logic
                 let gwMoviePool = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
 
+                // Build UUID-keyed trend boost lookup and set on engine (INV-T01/T03)
+                let resolvedTrendBoosts = GWTrendBoostService.shared.buildUUIDLookup(
+                    trendBoosts: trendBoostsByTmdbId,
+                    movies: movies
+                )
+                engine.activeTrendBoosts = resolvedTrendBoosts
+
                 // Compute international pick (dubbed content — INV-L09)
                 // Uses ALL fetched movies (not just language-filtered) to find dubbed content
                 let allMoviesForIntl = try await SupabaseService.shared.fetchMovies(limit: 500)
@@ -1169,6 +1185,8 @@ struct RootFlowView: View {
                             self.replacedPositions = []
                             self.currentProfile = profile
                             self.internationalPick = resolvedIntlPick
+                            self.trendBoostsByUUID = resolvedTrendBoosts
+                            self.currentTrendTag = resolvedTrendBoosts[picks[0].id]?.relevance_tag
                             self.isLoadingRecommendation = false
                             self.sessionRecommendationCount += 1
                             self.recommendationShownTime = Date()
@@ -1330,6 +1348,8 @@ struct RootFlowView: View {
                         self.recommendationShownTime = Date()  // Start decision timer
                         self.pickCount = 1  // Ensure single-pick mode routing
                         self.internationalPick = resolvedIntlPick
+                        self.trendBoostsByUUID = resolvedTrendBoosts
+                        self.currentTrendTag = resolvedTrendBoosts[gwMovie.id]?.relevance_tag
 
                         // Track metrics
                         MetricsService.shared.track(.pickShown, properties: [
