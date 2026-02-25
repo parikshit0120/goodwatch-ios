@@ -885,44 +885,6 @@ final class GWRecommendationEngineTests: XCTestCase {
     }
 }
 
-// MARK: - GWMovie Test Initializer Extension
-
-extension GWMovie {
-    /// Test-only initializer for creating fixture movies via JSON round-trip
-    init(
-        id: String,
-        title: String,
-        year: Int,
-        runtime: Int,
-        language: String,
-        platforms: [String],
-        poster_url: String?,
-        overview: String?,
-        genres: [String],
-        tags: [String],
-        goodscore: Double,
-        available: Bool,
-        contentType: String? = nil
-    ) {
-        var json: [String: Any] = [
-            "id": id,
-            "title": title,
-            "year": year,
-            "runtime": runtime,
-            "language": language,
-            "platforms": platforms,
-            "genres": genres,
-            "tags": tags,
-            "goodscore": goodscore,
-            "composite_score": goodscore * 10,
-            "voteCount": 1000,
-            "available": available
-        ]
-        if let poster_url = poster_url { json["poster_url"] = poster_url }
-        if let overview = overview { json["overview"] = overview }
-        if let contentType = contentType { json["contentType"] = contentType }
-
-        let data = try! JSONSerialization.data(withJSONObject: json)
-        self = try! JSONDecoder().decode(GWMovie.self, from: data)
-    }
-}
+// NOTE: Removed conflicting GWMovie extension init that set composite_score = goodscore * 10.
+// All engine test fixtures now use the canonical GWSpec.swift test init (composite_score defaults to 0).
+// This ensures consistent behavior between engine tests and invariant tests.

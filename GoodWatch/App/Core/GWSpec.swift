@@ -117,12 +117,13 @@ struct GWMovie: Identifiable, Codable {
         let label: String
 
         /// Get quality gates based on user's watch history
-        /// Relaxed thresholds to ensure good catalog coverage while maintaining quality
-        /// With 22k+ titles, we can be selective but not too restrictive
+        /// First-time users get strict gates (7.5/2000). The adaptive quality gate
+        /// in GWRecommendationEngine automatically relaxes when the candidate pool
+        /// is too small (e.g., Hindi-only users). No language-specific overrides needed.
         static func forAcceptCount(_ acceptCount: Int) -> QualityGate {
             if acceptCount == 0 {
-                // FIRST-TIME: Good quality content (relaxed from 7.5/2000)
-                return QualityGate(minRating: 6.8, minVotes: 500, label: "Highly rated")
+                // FIRST-TIME: Strict quality gate (adaptive relaxation handles small catalogs)
+                return QualityGate(minRating: 7.5, minVotes: 2000, label: "Highly rated")
             } else if acceptCount <= 3 {
                 // EARLY TRUST: Solid picks
                 return QualityGate(minRating: 6.5, minVotes: 400, label: "Crowd favorite")
@@ -138,8 +139,8 @@ struct GWMovie: Identifiable, Codable {
         /// Default gate for backwards compatibility (use for trusted users)
         static let `default` = QualityGate(minRating: 6.0, minVotes: 200, label: "Good match")
 
-        /// Gate for first-time users (relaxed)
-        static let firstTime = QualityGate(minRating: 6.8, minVotes: 500, label: "Highly rated")
+        /// Gate for first-time users (strict — adaptive relaxation handles small catalogs)
+        static let firstTime = QualityGate(minRating: 7.5, minVotes: 2000, label: "Highly rated")
     }
 
     // Legacy constants for backwards compatibility (relaxed for better catalog coverage)

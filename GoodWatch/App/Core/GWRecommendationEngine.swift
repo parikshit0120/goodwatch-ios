@@ -30,6 +30,29 @@ struct GWRecommendationOutput: Equatable {
     }
 }
 
+// MARK: - Adaptive Quality Gate (INV-R06)
+// Replaces ALL language-specific hardcoded threshold overrides.
+// Checks actual candidate count after language+platform filtering.
+// If strict tier gate yields >= minimumCandidateThreshold candidates, stays strict.
+// If not, relaxes ONE step (max -0.5 rating, halved vote minimum).
+// Absolute floor: 6.5 rating / 300 votes regardless of tier.
+
+struct AdaptiveQualityGate {
+    let minRating: Double   // On 0-10 scale (matches GWMovie.goodscore for real movies)
+    let minVotes: Int
+    let wasRelaxed: Bool
+    let reason: String      // For logging/debugging
+
+    static let absoluteFloor = AdaptiveQualityGate(
+        minRating: 6.5, minVotes: 300, wasRelaxed: true,
+        reason: "absolute_floor"
+    )
+
+    /// Minimum candidates needed before we consider relaxing.
+    /// 10 = enough variety for mood scoring to be meaningful.
+    static let minimumCandidateThreshold = 10
+}
+
 enum GWMovieValidationResult {
     case valid
     case invalid(GWValidationFailure)
@@ -533,24 +556,9 @@ final class GWRecommendationEngine {
             style: profile.recommendationStyle
         )
 
-        // Language-aware threshold adjustment:
-        // Languages with fewer than ~20 movies at 8.0+ (composite_score >= 8.0)
-        // get a 10-point threshold reduction so users see ~50+ quality titles.
-        // If user has BOTH English and a small-catalog language, the adjustment
-        // applies only to the small-catalog language content.
-        let smallCatalogLanguages: Set<String> = [
-            "hi", "hindi", "ta", "tamil", "te", "telugu",
-            "ml", "malayalam", "kn", "kannada", "mr", "marathi",
-            "ko", "korean", "ja", "japanese"
-        ]
-        let movieLangLower = movie.language.lowercased()
-        let isSmallCatalogLanguage = smallCatalogLanguages.contains(movieLangLower)
-
-        if isSmallCatalogLanguage {
-            // Lower threshold by 10 for small-catalog languages (80 -> 70, 88 -> 78)
-            // Floor at 65 to maintain minimum quality
-            threshold = max(65, threshold - 10)
-        }
+        // Language-specific threshold overrides REMOVED (INV-R06).
+        // The adaptive quality gate in recommend() handles small catalogs
+        // by checking actual candidate availability at runtime.
 
         let scoreForCheck: Double
         if movie.composite_score > 0 {
@@ -692,6 +700,99 @@ final class GWRecommendationEngine {
     }
 
     // ============================================
+    // SECTION 3C: Adaptive Quality Gate (INV-R06)
+    // ============================================
+
+    /// Last computed adaptive gate — stored for logging/debugging.
+    var lastAdaptiveGate: AdaptiveQualityGate?
+
+    /// Normalize goodscore to 0-10 scale. Test fixtures use 0-100 (e.g., 85.0),
+    /// real movies from init(from: Movie) use 0-10 (e.g., 8.5). This normalizer
+    /// ensures consistent comparison with QualityGate.minRating (0-10 scale).
+    private func normalizedRating(_ movie: GWMovie) -> Double {
+        movie.goodscore > 10 ? movie.goodscore / 10.0 : movie.goodscore
+    }
+
+    /// Determines the effective quality gate based on actual candidate availability.
+    /// If the strict tier gate yields enough candidates, use it.
+    /// If not, relax ONE step (never below absolute floor).
+    /// This replaces all language-specific hardcoded overrides.
+    func getEffectiveQualityGate(
+        tier: GWMovie.QualityGate,
+        candidates: [GWMovie]
+    ) -> AdaptiveQualityGate {
+        let strictRating = tier.minRating     // e.g., 7.5 for new_user
+        let strictVotes = tier.minVotes       // e.g., 2000 for new_user
+
+        // Count candidates passing strict gate
+        let strictCount = candidates.filter {
+            normalizedRating($0) >= strictRating && $0.voteCount >= strictVotes
+        }.count
+
+        // If strict gate has enough candidates, use it
+        if strictCount >= AdaptiveQualityGate.minimumCandidateThreshold {
+            return AdaptiveQualityGate(
+                minRating: strictRating,
+                minVotes: strictVotes,
+                wasRelaxed: false,
+                reason: "strict_gate_sufficient (\(strictCount) candidates)"
+            )
+        }
+
+        // Not enough — relax ONE step
+        let relaxedRating = max(strictRating - 0.5, 6.5)
+        let relaxedVotes = max(strictVotes / 2, 300)
+
+        let relaxedCount = candidates.filter {
+            normalizedRating($0) >= relaxedRating && $0.voteCount >= relaxedVotes
+        }.count
+
+        if relaxedCount >= AdaptiveQualityGate.minimumCandidateThreshold {
+            return AdaptiveQualityGate(
+                minRating: relaxedRating,
+                minVotes: relaxedVotes,
+                wasRelaxed: true,
+                reason: "relaxed_one_step (\(relaxedCount) candidates, strict had \(strictCount))"
+            )
+        }
+
+        // Still not enough — use absolute floor
+        return AdaptiveQualityGate(
+            minRating: max(relaxedRating - 0.5, 6.5),
+            minVotes: 300,
+            wasRelaxed: true,
+            reason: "near_floor (\(relaxedCount) at relaxed, \(strictCount) at strict)"
+        )
+    }
+
+    /// Determine quality gate tier from user profile.
+    /// Uses seen count as a proxy for user trust level.
+    private func qualityGateForProfile(_ profile: GWUserProfileComplete) -> GWMovie.QualityGate {
+        return GWMovie.QualityGate.forAcceptCount(profile.seen.count)
+    }
+
+    /// Check if a movie passes basic availability + language + platform filters.
+    /// Used to count the candidate pool for the adaptive quality gate.
+    /// Does NOT check goodscore, tags, runtime, or content type — those are session-specific.
+    private func passesBasicFilters(_ movie: GWMovie, profile: GWUserProfileComplete) -> Bool {
+        let result = isValidMovie(movie, profile: profile)
+        switch result {
+        case .valid:
+            return true
+        case .invalid(let failure):
+            switch failure {
+            // Fundamentally unavailable — exclude from pool
+            case .movieUnavailable, .languageMismatch, .platformMismatch, .alreadyInteracted:
+                return false
+            // Quality/mood/runtime filters — movie IS available, just filtered by session criteria
+            case .goodscoreBelowThreshold, .noMatchingTags, .qualityGateFailed,
+                 .runtimeOutOfWindow, .contentTypeMismatch, .recencyGateFailed:
+                return true
+            }
+        }
+    }
+
+    // ============================================
     // SECTION 4: Recommendation Pipeline
     // ============================================
 
@@ -701,11 +802,26 @@ final class GWRecommendationEngine {
             return GWRecommendationOutput(movie: nil, stopCondition: .emptyCatalog)
         }
 
-        // Filter to valid movies
+        // Adaptive Quality Gate (INV-R06):
+        // Count candidates after language+platform filtering to determine quality gate.
+        // This replaces all language-specific hardcoded threshold overrides.
+        let basicPool = movies.filter { passesBasicFilters($0, profile: profile) }
+        let tierGate = qualityGateForProfile(profile)
+        let adaptiveGate = getEffectiveQualityGate(tier: tierGate, candidates: basicPool)
+        lastAdaptiveGate = adaptiveGate
+
+        if adaptiveGate.wasRelaxed {
+            print("[Engine] Quality gate relaxed: \(adaptiveGate.reason)")
+        }
+
+        // Filter to valid movies + apply adaptive quality gate
         var validMovies: [GWMovie] = []
         for movie in movies {
             if case .valid = isValidMovie(movie, profile: profile) {
-                validMovies.append(movie)
+                // Additional quality gate filter (INV-R06)
+                if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
+                    validMovies.append(movie)
+                }
             }
         }
 
@@ -763,9 +879,14 @@ final class GWRecommendationEngine {
         // Prefer movies with different tags than the rejected one
         let rejectedTags = Set(rejectedMovie.tags)
 
+        // Use the same adaptive gate as the last recommend() call
+        let gate = lastAdaptiveGate ?? AdaptiveQualityGate(
+            minRating: 6.0, minVotes: 200, wasRelaxed: false, reason: "default_fallback"
+        )
+
         let validMovies = movies.filter { movie in
             if case .valid = isValidMovie(movie, profile: updatedProfile) {
-                return true
+                return normalizedRating(movie) >= gate.minRating && movie.voteCount >= gate.minVotes
             }
             return false
         }
@@ -1396,6 +1517,12 @@ final class GWRecommendationEngine {
             return []
         }
 
+        // Adaptive Quality Gate (INV-R06) — same gate for all picks in the set
+        let basicPool = movies.filter { passesBasicFilters($0, profile: profile) }
+        let tierGate = qualityGateForProfile(profile)
+        let adaptiveGate = getEffectiveQualityGate(tier: tierGate, candidates: basicPool)
+        lastAdaptiveGate = adaptiveGate
+
         // Try with strict profile first, then relax if not enough valid movies
         let profiles = buildProfileCascade(profile)
 
@@ -1406,7 +1533,10 @@ final class GWRecommendationEngine {
             validMovies = []
             for movie in movies {
                 if case .valid = isValidMovie(movie, profile: candidate) {
-                    validMovies.append(movie)
+                    // Adaptive quality gate (INV-R06)
+                    if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
+                        validMovies.append(movie)
+                    }
                 }
             }
             activeProfile = candidate

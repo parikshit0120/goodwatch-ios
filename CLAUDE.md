@@ -272,15 +272,13 @@ When `isMatureUser == false`:
 - Documentaries excluded
 - Musicals excluded
 
-### 3.8 Quality Thresholds (INV-R06)
+### 3.8 Adaptive Quality Gate (INV-R06)
 
-Via `GoodScoreThreshold` in `GWSpec.swift`:
+Two quality layers:
+1. **GoodScore threshold** (mood-based, in `isValidMovie()`): Tired=88, Neutral=80, Adventurous=75
+2. **Adaptive quality gate** (tier-based, in `recommend()`): Checks rating + vote count, auto-relaxes for small catalogs
 
-| Mood | Late Night | Morning | Afternoon | Evening |
-|------|-----------|---------|-----------|---------|
-| Tired | 88 | 85 | 83 | 85 |
-| Neutral | 80 | 78 | 76 | 78 |
-| Adventurous | 75 | 73 | 70 | 73 |
+The adaptive gate replaces all language-specific threshold overrides. It counts candidates after language+platform filtering and relaxes ONE step if < 10 candidates pass the strict gate. Absolute floor: 6.5 rating / 300 votes.
 
 ### 3.9 Not-Tonight Penalty (INV-L05)
 

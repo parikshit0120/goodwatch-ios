@@ -1515,4 +1515,124 @@ final class GWProductInvariantTests: XCTestCase {
         // Clean up
         engine.activeTrendBoosts = [:]
     }
+
+    // ============================================
+    // INV-R06: Adaptive Quality Gate
+    // "Every pick must pass quality gate; gate auto-relaxes based on
+    //  actual candidate availability — no language-specific overrides."
+    // ============================================
+
+    // Helper: create N English/Netflix movies at given goodscore + voteCount
+    private func makeMovies(
+        count: Int,
+        goodscore: Double,
+        voteCount: Int = 2500,
+        language: String = "en",
+        platforms: [String] = ["netflix"]
+    ) -> [GWMovie] {
+        (0..<count).map { i in
+            GWMovie(
+                id: "inv-r06-\(language)-\(i)-\(goodscore)",
+                title: "R06 Test Movie \(i)",
+                year: 2024,
+                runtime: 120,
+                language: language,
+                platforms: platforms,
+                genres: ["Drama"],
+                tags: ["safe_bet", "feel_good", "calm"],
+                goodscore: goodscore,
+                voteCount: voteCount,
+                available: true
+            )
+        }
+    }
+
+    /// R06-A: Strict gate holds when sufficient candidates exist
+    func testInvariant_R06_StrictGateWhenSufficientCandidates() {
+        // 15 movies at 7.8 normalized (78.0 raw) with 2500 votes → above strict 7.5/2000
+        let candidates = makeMovies(count: 15, goodscore: 78.0, voteCount: 2500)
+        let tier = GWMovie.QualityGate.forAcceptCount(0) // new_user: 7.5/2000
+
+        let gate = engine.getEffectiveQualityGate(tier: tier, candidates: candidates)
+
+        XCTAssertFalse(gate.wasRelaxed,
+            "INV-R06 VIOLATED: Gate should stay strict with \(candidates.count) candidates above threshold")
+        XCTAssertEqual(gate.minRating, 7.5, accuracy: 0.01,
+            "Strict gate minRating should be 7.5")
+        XCTAssertEqual(gate.minVotes, 2000,
+            "Strict gate minVotes should be 2000")
+    }
+
+    /// R06-B: Gate relaxes ONE step when strict gate has insufficient candidates
+    func testInvariant_R06_RelaxedGateWhenInsufficientCandidates() {
+        // 3 movies above strict (7.5/2000) — not enough (need 10)
+        let strictMovies = makeMovies(count: 3, goodscore: 78.0, voteCount: 2500)
+        // 20 movies above relaxed (7.0/1000) but below strict
+        let relaxedMovies = makeMovies(count: 20, goodscore: 72.0, voteCount: 1200)
+
+        let candidates = strictMovies + relaxedMovies
+        let tier = GWMovie.QualityGate.forAcceptCount(0) // new_user: 7.5/2000
+
+        let gate = engine.getEffectiveQualityGate(tier: tier, candidates: candidates)
+
+        XCTAssertTrue(gate.wasRelaxed,
+            "INV-R06 VIOLATED: Gate should relax when only \(strictMovies.count) pass strict threshold")
+        XCTAssertEqual(gate.minRating, 7.0, accuracy: 0.01,
+            "Relaxed gate minRating should be 7.0 (strict 7.5 - 0.5)")
+        XCTAssertEqual(gate.minVotes, 1000,
+            "Relaxed gate minVotes should be 1000 (strict 2000 / 2)")
+    }
+
+    /// R06-C: Absolute floor never goes below 6.5 rating / 300 votes
+    func testInvariant_R06_AbsoluteFloorNeverBelow65() {
+        // 0 movies above strict (7.5), 0 above relaxed (7.0) → hits floor
+        let candidates = makeMovies(count: 5, goodscore: 65.0, voteCount: 500)
+        let tier = GWMovie.QualityGate.forAcceptCount(0) // new_user: 7.5/2000
+
+        let gate = engine.getEffectiveQualityGate(tier: tier, candidates: candidates)
+
+        XCTAssertTrue(gate.wasRelaxed,
+            "INV-R06 VIOLATED: Gate should be relaxed when no movies pass strict/relaxed thresholds")
+        XCTAssertGreaterThanOrEqual(gate.minRating, 6.5,
+            "INV-R06 VIOLATED: Absolute floor minRating must be >= 6.5")
+        XCTAssertGreaterThanOrEqual(gate.minVotes, 300,
+            "INV-R06 VIOLATED: Absolute floor minVotes must be >= 300")
+    }
+
+    /// R06-D: Mixed Hindi+English catalog uses strict gate when combined pool is sufficient
+    /// (The old language-specific override would have unconditionally lowered the threshold)
+    func testInvariant_R06_HindiPlusEnglishStaysStrict() {
+        // 50 English movies at 7.8 normalized (78.0 raw) with 2500 votes
+        let englishMovies = makeMovies(count: 50, goodscore: 78.0, voteCount: 2500, language: "en")
+        // 3 Hindi movies at 7.4 normalized (74.0 raw) — just below strict gate
+        let hindiMovies = makeMovies(count: 3, goodscore: 74.0, voteCount: 1500, language: "hi", platforms: ["jio_hotstar"])
+
+        // Hindi+English user profile on both platforms
+        let bilingualProfile = GWUserProfileComplete(
+            userId: "inv-r06-bilingual",
+            preferredLanguages: ["hindi", "english"],
+            platforms: ["jio_hotstar", "netflix"],
+            runtimeWindow: GWRuntimeWindow(min: 60, max: 180),
+            mood: "neutral",
+            intentTags: ["safe_bet", "feel_good"],
+            seen: [],
+            notTonight: [],
+            abandoned: [],
+            recommendationStyle: .safe,
+            tagWeights: [:]
+        )
+
+        // Basic pool includes all movies that pass language+platform filters
+        let allMovies = englishMovies + hindiMovies
+        let tier = GWMovie.QualityGate.forAcceptCount(bilingualProfile.seen.count)
+
+        let gate = engine.getEffectiveQualityGate(tier: tier, candidates: allMovies)
+
+        // 50 English movies pass strict gate → strict should hold
+        // The old system would lower Hindi threshold by 10 unconditionally
+        XCTAssertFalse(gate.wasRelaxed,
+            "INV-R06 VIOLATED: With 50 English movies above strict gate, gate should NOT relax. Old language override is removed.")
+        XCTAssertEqual(gate.minRating, 7.5, accuracy: 0.01,
+            "Gate should use strict 7.5 threshold — no language-specific overrides")
+    }
 }

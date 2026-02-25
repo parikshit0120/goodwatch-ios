@@ -39,6 +39,12 @@ struct GWFallbackLog: Codable {
     let candidateCountBeforeFallback: Int
     let movieGoodscore: Double
 
+    // Adaptive quality gate metadata (INV-R06)
+    let adaptiveGateMinRating: Double
+    let adaptiveGateMinVotes: Int
+    let adaptiveGateWasRelaxed: Bool
+    let adaptiveGateReason: String
+
     func toJSON() -> [String: Any] {
         [
             "fallback_level": fallbackLevel.rawValue,
@@ -247,6 +253,9 @@ extension GWRecommendationEngine {
             timeOfDay: GWTimeOfDay.current,
             style: original.recommendationStyle
         )
+        let gate = lastAdaptiveGate ?? AdaptiveQualityGate(
+            minRating: 6.0, minVotes: 200, wasRelaxed: false, reason: "no_gate_computed"
+        )
         return GWFallbackLog(
             fallbackLevel: level,
             userId: userId,
@@ -261,16 +270,21 @@ extension GWRecommendationEngine {
             intentTags: original.intentTags,
             goodscoreThreshold: threshold,
             candidateCountBeforeFallback: candidateCount,
-            movieGoodscore: movieGoodscore
+            movieGoodscore: movieGoodscore,
+            adaptiveGateMinRating: gate.minRating,
+            adaptiveGateMinVotes: gate.minVotes,
+            adaptiveGateWasRelaxed: gate.wasRelaxed,
+            adaptiveGateReason: gate.reason
         )
     }
 
     private func logFallback(_ log: GWFallbackLog) {
         #if DEBUG
-        print("⚠️ FALLBACK TRIGGERED: Level \(log.fallbackLevel.rawValue)")
+        print("[Safety] FALLBACK TRIGGERED: Level \(log.fallbackLevel.rawValue)")
         print("   User: \(log.userId)")
         print("   Original: \(log.originalProfile)")
         print("   Relaxed: \(log.relaxedProfile)")
+        print("   Adaptive gate: minRating=\(log.adaptiveGateMinRating), minVotes=\(log.adaptiveGateMinVotes), relaxed=\(log.adaptiveGateWasRelaxed), reason=\(log.adaptiveGateReason)")
         #endif
 
         // Track fallback event for dashboard analytics

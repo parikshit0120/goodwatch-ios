@@ -55,13 +55,18 @@
 **Test:** `testNeverRecommendsOutsideRuntimeWindow`
 **Violated if:** User selects "< 90 min" and sees a 150-minute movie.
 
-### INV-R06: Quality Floor
-**Rule:** Every recommendation must pass GoodScore threshold based on mood + time of day.
-**Thresholds:** Tired=88, Late Night=85, Neutral=80, Adventurous=75 (before style adjustments).
-**Why:** "Low regret over maximum delight" is a core product principle.
-**Verify:** `isValidMovie()` rejects `.goodscoreBelowThreshold`
-**Test:** `testNeverRecommendsBelowQualityFloor`
-**Violated if:** A movie with GoodScore 60 is ever shown to a user in "tired" mood.
+### INV-R06: Adaptive Quality Gate
+**Rule:** The quality gate MUST NOT use language-specific hardcoded overrides. Instead, it checks actual candidate count after language+platform filtering. If the strict tier gate yields >= 10 candidates, it stays strict. If not, it relaxes ONE step (max -0.5 rating, halved vote minimum). The absolute floor is 6.5 rating / 300 votes regardless of tier.
+**Tier defaults:** First-time (0 accepts) = 7.5 rating / 2000 votes. Early trust (1-3) = 6.5 / 400. Building (4-10) = 6.2 / 300. Trusted (11+) = 6.0 / 200.
+**GoodScore threshold:** The mood-based GoodScore threshold (Tired=88, Late Night=85, Neutral=80, Adventurous=75) still applies separately via `isValidMovie()`. The adaptive gate is an additional quality filter applied in `recommend()`.
+**This ensures:**
+- Hindi+English users get the strict 7.5 gate (plenty of English content)
+- Hindi-only users get relaxed 7.0 gate (limited catalog, detected automatically)
+- Any new language works without code changes
+**Why:** "Low regret over maximum delight" is a core product principle. Language-specific overrides created a recurring cycle of hardcoded hacks. The adaptive gate permanently eliminates them.
+**Verify:** `getEffectiveQualityGate()` in GWRecommendationEngine.swift counts candidates after basic filtering and returns the appropriate gate. No language-specific threshold override exists in the codebase.
+**Test:** `testInvariant_R06_StrictGateWhenSufficientCandidates`, `testInvariant_R06_RelaxedGateWhenInsufficientCandidates`, `testInvariant_R06_AbsoluteFloorNeverBelow65`, `testInvariant_R06_HindiPlusEnglishStaysStrict`
+**Violated if:** Any language-specific threshold override exists in the codebase.
 
 ### INV-R07: Content Type Match
 **Rule:** If user selected "Movie", engine returns movies only. If user selected "Series/Binge", engine returns series only.

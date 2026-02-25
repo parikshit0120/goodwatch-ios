@@ -571,3 +571,48 @@ system, making language the only factor. New values make language a strong tiebr
 
 **Files modified**: GWRecommendationEngine.swift, GWProductInvariantTests.swift, progress.txt
 **Tests**: Must pass 50/50
+
+---
+
+## 2026-02-25 (Session 3)
+
+**Fix**: Adaptive quality gate replaces hardcoded language overrides (INV-R06)
+
+**Problem**: isValidMovie() had a hardcoded `smallCatalogLanguages` set (hi, ta, te, ml, kn,
+mr, bn, pa, gu, ur) that unconditionally lowered the goodscore threshold by 10. This:
+- Was language-discriminatory (punished users watching smaller-catalog languages)
+- Applied even when the catalog had plenty of quality content
+- Couldn't be tested or tuned per-deployment
+
+**Solution**: Replaced with an adaptive quality gate that checks actual candidate availability
+at runtime:
+1. Compute basic pool (movies passing language + platform + availability filters)
+2. Count how many pass the strict tier gate (e.g., 7.5 rating / 2000 votes for new users)
+3. If >= 10 pass → use strict gate (no relaxation needed)
+4. If < 10 → relax ONE step: rating -0.5, votes /2 (never below 6.5/300 absolute floor)
+
+**Key design**: Language-neutral. A Hindi-only user with 50 quality Hindi movies gets strict
+gate. Same user with only 3 quality Hindi movies gets relaxed gate. English users with thin
+catalogs also get relaxed. Behavior depends on actual data, not language identity.
+
+**What changed**:
+- GWRecommendationEngine.swift: Added AdaptiveQualityGate struct, getEffectiveQualityGate(),
+  qualityGateForProfile(), passesBasicFilters(), normalizedRating(). Removed
+  smallCatalogLanguages override. Wired into recommend(), recommendMultiple(),
+  recommendAfterNotTonight().
+- GWSpec.swift: Restored QualityGate.forAcceptCount(0) to strict 7.5/2000 (was relaxed to 6.8/500)
+- GWProductionSafety.swift: Added adaptive gate metadata to GWFallbackLog (minRating, minVotes,
+  wasRelaxed, reason)
+- INVARIANTS.md: Rewrote INV-R06 for adaptive quality gate
+- CLAUDE.md (root + iOS): Updated INV-R06 references
+- GWProductInvariantTests.swift: Added 4 tests (R06-A through R06-D)
+- progress.txt: This entry
+
+**New invariant tests**:
+- testInvariant_R06_StrictGateWhenSufficientCandidates
+- testInvariant_R06_RelaxedGateWhenInsufficientCandidates
+- testInvariant_R06_AbsoluteFloorNeverBelow65
+- testInvariant_R06_HindiPlusEnglishStaysStrict
+
+**Files modified**: GWRecommendationEngine.swift, GWSpec.swift, GWProductionSafety.swift,
+INVARIANTS.md, CLAUDE.md (x2), GWProductInvariantTests.swift, progress.txt
