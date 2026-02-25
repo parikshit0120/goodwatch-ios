@@ -880,13 +880,22 @@ class UATEngine:
         sb_upsert("uat_runs", [run_data], on_conflict="run_id")
 
         # 2. Scenarios in batches
+        # PostgREST requires all rows in a batch to have identical keys
+        SCENARIO_COLUMNS = [
+            "run_id", "scenario_id", "scenario_type", "mood",
+            "languages", "platforms", "user_tier", "energy_level",
+            "status", "candidate_count", "scored_count",
+            "top_movie_id", "top_movie_title", "top_movie_goodscore",
+            "top_movie_language", "avg_candidate_goodscore", "score_spread",
+            "genre_diversity", "failure_reason", "bottleneck_filter",
+            "candidates_before_bottleneck", "execution_ms",
+        ]
         print("[UAT] Publishing scenarios...")
         for i in range(0, len(self.results), 500):
             batch = self.results[i : i + 500]
-            # Clean up non-serializable fields
             clean_batch = []
             for r in batch:
-                row = {k: v for k, v in r.items() if k not in ("assertion", "exclude_top_n", "regression_id")}
+                row = {col: r.get(col) for col in SCENARIO_COLUMNS}
                 clean_batch.append(row)
             sb_insert("uat_scenarios", clean_batch)
 
