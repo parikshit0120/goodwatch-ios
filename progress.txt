@@ -616,3 +616,139 @@ catalogs also get relaxed. Behavior depends on actual data, not language identit
 
 **Files modified**: GWRecommendationEngine.swift, GWSpec.swift, GWProductionSafety.swift,
 INVARIANTS.md, CLAUDE.md (x2), GWProductInvariantTests.swift, progress.txt
+
+================================================================================
+SESSION: 2026-02-26 — UAT Engine v1.0
+================================================================================
+
+## Context
+- GoodWatch has recurring quality gate bugs only caught during manual testing
+- No automated system verifying that every user profile combination receives quality recommendations
+- The audit agent checks system health; UAT engine checks PRODUCT BEHAVIOR
+- "If a real user with these preferences opened the app right now, what would they see?"
+
+## Completed This Session
+
+### Part 1: Supabase Tables (4 new tables)
+
+[DONE] uat_runs — UAT run summaries
+  - run_id, timestamps, total/passed/failed/warnings counts
+  - GoodScore stats: avg, median, min, p10
+  - Coverage JSONBs for mood/language/platform
+  - Indexed on created_at DESC
+
+[DONE] uat_scenarios — Individual scenario results
+  - Per-scenario: mood, languages, platforms, user_tier, energy_level
+  - Pass/fail/quality_warning status with bottleneck tracking
+  - Top movie details, candidate counts, genre diversity
+  - Indexed on run_id, status, and fail status
+
+[DONE] uat_coverage — Coverage heatmap cells
+  - Mood x Language x Platform x Tier grid
+  - Health classification: green/yellow/red/dead
+  - Indexed on run_id and health
+
+[DONE] uat_regressions — Regression tracking
+  - Auto-registers dead zones, re-tests on every run
+  - Tracks first_failed_at, first_fixed_at, consecutive_passes
+  - Scenario config stored as JSONB for re-execution
+
+### Part 2: UAT Engine Script (.github/scripts/uat_engine.py)
+
+[DONE] Auto-discovery phase
+  - Languages: queries distinct original_language with >= 20 movies, filtered to onboarding set
+  - Platforms: extracts from streaming_providers JSONB (IN region, flatrate/ads/free)
+  - Moods: 11 mood values matching app engine
+  - Tiers: new_user (7.5/2000), warming_up (7.0/1000), trusted (6.0/500)
+  - NO hardcoded values — all discovered from live Supabase data
+
+[DONE] Adaptive quality gate replica (INV-UAT01)
+  - Mirrors Swift implementation: strict >= 10 candidates -> use strict
+  - Otherwise relax ONE step: rating -0.5, votes /2
+  - Absolute floor: 6.5 rating, 300 votes
+  - Language-neutral (depends on actual data, not language identity)
+
+[DONE] Scenario matrix generation
+  - Core matrix: mood x language x platform x tier
+  - Multi-language combos: regional + English
+  - 5 edge cases: Hindi+English strict, Hindi-only relax, regional niche, power user, exhaustion
+  - Regression scenarios: auto-loaded from uat_regressions table
+
+[DONE] Scenario runner with bottleneck identification
+  - Pipeline: language -> platform -> adaptive quality gate -> runtime -> exclusion
+  - When scenario fails, identifies WHICH filter killed candidates
+  - Tracks candidate count at each stage
+
+[DONE] Coverage heatmap builder
+  - Groups results by (mood, language, platform, tier)
+  - Health classification: dead (0), red (1-2), yellow (3-9 or low score), green (10+)
+
+[DONE] Regression tracking
+  - Dead zones auto-registered as regressions
+  - Passing regressions get first_fixed_at timestamp
+  - Re-tested on every run forever (INV-UAT02)
+
+[DONE] Batch publishing (500 per batch)
+  - Uses raw urllib — no supabase-py dependency needed
+  - Handles catalog loading in 1000-record pages
+
+### Part 3: GitHub Actions Workflow (.github/workflows/uat-engine.yml)
+
+[DONE] Schedule: daily at 22:30 UTC (4:00 AM IST)
+  - Also triggers on push to engine files or uat_engine.py
+  - Manual dispatch supported
+  - 30-minute timeout
+  - Does NOT fail build on dead zones — just reports
+
+### Part 4: Command Center UAT Tab
+
+[DONE] Header strip — latest run summary with shimmer loading
+[DONE] Coverage heatmap — interactive grid (moods x languages)
+  - Tier filter dropdown (new_user/warming_up/trusted)
+  - Color-coded cells: green/yellow/red/dead
+  - Click cell for scenario details
+[DONE] Dead zone panel — grouped by bottleneck type
+  - Shows top bottlenecks aggregated
+  - Individual dead zone details with candidate counts
+[DONE] Quality distribution — bar chart with tier threshold lines
+  - Bins: 6.0-6.5, 6.5-7.0, 7.0-7.5, 7.5-8.0, 8.0-8.5, 8.5-9.0, 9.0+
+[DONE] Trend panel — active trend boosts from trend_boosts table
+[DONE] Styling matches existing dark theme (#0a0a0f, #d4a843 gold, #1a1a2e cards)
+
+### Part 5: Invariants
+
+[DONE] INVARIANTS.md — 3 new UAT invariants added
+  - INV-UAT01: UAT engine quality gate must mirror Swift adaptive quality gate
+  - INV-UAT02: Fixed dead zones must stay fixed (zero regression tolerance)
+  - INV-UAT03: UAT results immutable after publication
+
+[DONE] CLAUDE.md (root) — Updated invariant table with UAT01/02/03
+[DONE] CLAUDE.md (iOS) — Updated invariant table with UAT01/02/03
+
+## Files Created (3)
+1. .github/scripts/uat_engine.py (982 lines)
+2. .github/workflows/uat-engine.yml
+3. Supabase tables: uat_runs, uat_scenarios, uat_coverage, uat_regressions
+
+## Files Modified (4)
+1. INVARIANTS.md (added INV-UAT01/02/03)
+2. ~/Desktop/Personal/CLAUDE.md (added UAT invariants to table)
+3. ~/Desktop/Personal/GoodWatch CodeBase/goodwatch-ios/CLAUDE.md (added UAT invariants)
+4. static-site/command-center/index.html (added UAT tab)
+5. progress.txt (this update)
+
+## Architecture Notes
+- UAT engine uses raw urllib, not supabase-py — no extra dependency needed
+- Catalog loaded once, all filtering in-memory
+- Scenario count depends on discovered dimensions (languages x platforms x moods x tiers)
+- Coverage heatmap reads from uat_coverage table — does NOT re-run scenarios
+- Dead zones auto-saved as regressions and re-tested forever
+
+## Blockers
+- None
+
+## Pending
+- [PENDING] Commit and push
+- [PENDING] Trigger first UAT run via workflow_dispatch
+- [PENDING] Verify command center UAT tab renders correctly
+- [PENDING] Deploy command center update to Cloudflare Pages

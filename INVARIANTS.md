@@ -466,3 +466,25 @@ The audit agent MUST detect whether it is running in CI (GitHub Actions) or loca
 **Verify:** In `computeScore()`, trendBoost is the last additive term. A movie scoring 0.3 base + 0.08 trend (= 0.38) will never beat a mood-aligned movie scoring 0.7+.
 **Test:** `testInvariant_T03_TrendsNeverOverrideCoreSignals`
 **Violated if:** Trend boost alone is sufficient to make a movie the top recommendation.
+
+---
+
+## UAT ENGINE INVARIANTS
+
+### INV-UAT01: UAT Engine Parity
+**Rule:** The Python UAT engine's quality gate logic MUST mirror the Swift adaptive quality gate (INV-R06). When the Swift gate logic changes, the Python replica MUST be updated in the same PR.
+**Why:** If the UAT engine uses different thresholds than the app, it reports false positives or misses real dead zones. The whole point of UAT is to catch what the app would actually show.
+**Verify:** `uat_engine.py` `get_adaptive_gate()` uses the same constants: `MINIMUM_CANDIDATE_THRESHOLD=10`, strict tier gates matching `GWSpec.QualityGate.forAcceptCount()`, relaxation step of -0.5 rating / halved votes, absolute floor 6.5/300.
+**Violated if:** UAT reports different pass/fail than what the app would actually show for the same user profile.
+
+### INV-UAT02: Zero Dead Zone Regression
+**Rule:** A dead zone that has been fixed MUST stay fixed. Fixed dead zones are automatically tracked as regression tests and run on every UAT execution.
+**Why:** Dead zones represent real users who cannot get a recommendation. If a fix reverts silently, those users are broken again with no alert.
+**Verify:** `uat_regressions` table tracks every dead zone. Regressions are re-tested on every run. A regression returning to fail status triggers an alert.
+**Violated if:** A previously-fixed dead zone returns to fail status without the team being notified.
+
+### INV-UAT03: UAT Results Immutable
+**Rule:** UAT run results MUST NOT be modified after publication. Each run is a permanent historical record for trend analysis.
+**Why:** Historical data must be trustworthy for trend analysis. If results are edited post-hoc, coverage trends become meaningless.
+**Verify:** `uat_runs`, `uat_scenarios`, `uat_coverage` tables have no UPDATE policies for non-service roles. Each run gets a unique `run_id`.
+**Violated if:** Any UAT result row is modified after its initial insert.

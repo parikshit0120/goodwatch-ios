@@ -298,6 +298,18 @@ Netflix, Prime Video, JioHotstar, Apple TV+, Zee5, SonyLIV
 
 Platform name matching is fuzzy — "Prime Video" matches "Amazon Prime Video", "Amazon Video", etc.
 
+### 3.12 UAT Engine
+
+Automated user acceptance testing runs daily via GitHub Actions (`.github/workflows/uat-engine.yml`). The Python script (`.github/scripts/uat_engine.py`) auto-discovers languages, platforms, and moods from Supabase, generates a scenario matrix (language x platform x mood x user_tier), and runs each scenario through a replica of the adaptive quality gate.
+
+**Key invariants:**
+- INV-UAT01: Python quality gate MUST mirror Swift adaptive gate
+- INV-UAT02: Fixed dead zones MUST stay fixed (regression tracking)
+- INV-UAT03: Results are immutable after publication
+
+**Supabase tables:** `uat_runs`, `uat_scenarios`, `uat_coverage`, `uat_regressions`
+**Command Center:** UAT tab at goodwatch.movie/command-center/ shows coverage heatmap, dead zones, quality distribution
+
 ---
 
 ## 4. IDENTIFIERS & CREDENTIALS
