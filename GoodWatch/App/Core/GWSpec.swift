@@ -75,6 +75,37 @@ struct GWMovie: Identifiable, Codable {
     let available: Bool
     let contentType: String?  // "movie" or "series"
     let emotionalProfile: EmotionalProfile?  // Raw profile for taste graph scoring
+    let dubbedLanguages: [String]  // ISO 639-1 codes for available dubs (empty if native)
+    let dubConfidence: String  // 'confirmed', 'likely', or 'unknown'
+
+    // Custom Codable: dubbedLanguages/dubConfidence use decodeIfPresent for backward compat
+    enum CodingKeys: String, CodingKey {
+        case id, title, year, runtime, language, platforms, poster_url, overview
+        case genres, tags, goodscore, composite_score, voteCount, available
+        case contentType, emotionalProfile, dubbedLanguages, dubConfidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        year = try c.decode(Int.self, forKey: .year)
+        runtime = try c.decode(Int.self, forKey: .runtime)
+        language = try c.decode(String.self, forKey: .language)
+        platforms = try c.decode([String].self, forKey: .platforms)
+        poster_url = try c.decodeIfPresent(String.self, forKey: .poster_url)
+        overview = try c.decodeIfPresent(String.self, forKey: .overview)
+        genres = try c.decode([String].self, forKey: .genres)
+        tags = try c.decode([String].self, forKey: .tags)
+        goodscore = try c.decode(Double.self, forKey: .goodscore)
+        composite_score = try c.decodeIfPresent(Double.self, forKey: .composite_score) ?? 0
+        voteCount = try c.decodeIfPresent(Int.self, forKey: .voteCount) ?? 1000
+        available = try c.decode(Bool.self, forKey: .available)
+        contentType = try c.decodeIfPresent(String.self, forKey: .contentType)
+        emotionalProfile = try c.decodeIfPresent(EmotionalProfile.self, forKey: .emotionalProfile)
+        dubbedLanguages = try c.decodeIfPresent([String].self, forKey: .dubbedLanguages) ?? []
+        dubConfidence = try c.decodeIfPresent(String.self, forKey: .dubConfidence) ?? "unknown"
+    }
 
     // MARK: - Tiered Quality Gates (Trust-Based)
     // Quality requirements INCREASE for new users, RELAX as trust builds
@@ -183,6 +214,49 @@ struct GWMovie: Identifiable, Codable {
         self.available = movie.isAvailable
         self.contentType = movie.content_type
         self.emotionalProfile = movie.emotional_profile
+        self.dubbedLanguages = movie.dubbed_languages ?? []
+        self.dubConfidence = movie.dub_confidence ?? "unknown"
+    }
+
+    // Test/direct init with defaults for optional fields
+    init(
+        id: String,
+        title: String,
+        year: Int,
+        runtime: Int,
+        language: String,
+        platforms: [String],
+        poster_url: String? = nil,
+        overview: String? = nil,
+        genres: [String],
+        tags: [String],
+        goodscore: Double,
+        composite_score: Double = 0,
+        voteCount: Int = 1000,
+        available: Bool,
+        contentType: String? = nil,
+        emotionalProfile: EmotionalProfile? = nil,
+        dubbedLanguages: [String] = [],
+        dubConfidence: String = "unknown"
+    ) {
+        self.id = id
+        self.title = title
+        self.year = year
+        self.runtime = runtime
+        self.language = language
+        self.platforms = platforms
+        self.poster_url = poster_url
+        self.overview = overview
+        self.genres = genres
+        self.tags = tags
+        self.goodscore = goodscore
+        self.composite_score = composite_score
+        self.voteCount = voteCount
+        self.available = available
+        self.contentType = contentType
+        self.emotionalProfile = emotionalProfile
+        self.dubbedLanguages = dubbedLanguages
+        self.dubConfidence = dubConfidence
     }
 
     // Derive tags from emotional_profile

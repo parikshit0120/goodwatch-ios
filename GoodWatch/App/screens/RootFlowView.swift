@@ -70,6 +70,9 @@ struct RootFlowView: View {
     @State private var replacedPositions: Set<Int> = []  // Positions that got replacements
     @State private var currentProfile: GWUserProfileComplete? = nil  // Cached profile for replacements
 
+    // International pick state (dubbed content — INV-L09)
+    @State private var internationalPick: GWMovie? = nil
+
     // Decision timing: tracks when current recommendation was shown
     // Used to measure how long user deliberates before accept/reject
     @State private var recommendationShownTime: Date? = nil
@@ -525,6 +528,7 @@ struct RootFlowView: View {
                 onExplore: {
                     navigateTo(.explore)
                 },
+                internationalPick: internationalPick,
                 debugInfo: debugOverlayInfo
             )
             #else
@@ -549,7 +553,8 @@ struct RootFlowView: View {
                 },
                 onExplore: {
                     navigateTo(.explore)
-                }
+                },
+                internationalPick: internationalPick
             )
             #endif
         } else if let error = recommendationError {
@@ -1099,8 +1104,27 @@ struct RootFlowView: View {
                 // Cache the movie pool for replacement logic
                 let gwMoviePool = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
 
+                // Compute international pick (dubbed content — INV-L09)
+                // Uses ALL fetched movies (not just language-filtered) to find dubbed content
+                let allMoviesForIntl = try await SupabaseService.shared.fetchMovies(limit: 500)
+                let allGwForIntl = allMoviesForIntl.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
+                // Compute main pool top score for ceiling calculation
+                let mainPoolScores = gwMoviePool.map { engine.computeScore(movie: $0, profile: profile) }
+                let mainPoolTopScore = mainPoolScores.max() ?? 0.0
+                let intlOutput = engine.recommendInternationalPick(
+                    from: allGwForIntl,
+                    profile: profile,
+                    mainPoolTopScore: mainPoolTopScore
+                )
+                let resolvedIntlPick = intlOutput.movie
+
                 #if DEBUG
                 print("   gwMoviePool count (after content filter): \(gwMoviePool.count)")
+                if let intl = resolvedIntlPick {
+                    print("   [INTL] International Pick: \(intl.title) (lang=\(intl.language), dubbed=\(intl.dubbedLanguages))")
+                } else {
+                    print("   [INTL] No international pick available")
+                }
                 #endif
 
                 // Use multi-pick when pickCount > 1
@@ -1144,6 +1168,7 @@ struct RootFlowView: View {
                             self.pickCount = effectivePickCount
                             self.replacedPositions = []
                             self.currentProfile = profile
+                            self.internationalPick = resolvedIntlPick
                             self.isLoadingRecommendation = false
                             self.sessionRecommendationCount += 1
                             self.recommendationShownTime = Date()
@@ -1304,6 +1329,7 @@ struct RootFlowView: View {
                         self.isLoadingRecommendation = false
                         self.recommendationShownTime = Date()  // Start decision timer
                         self.pickCount = 1  // Ensure single-pick mode routing
+                        self.internationalPick = resolvedIntlPick
 
                         // Track metrics
                         MetricsService.shared.track(.pickShown, properties: [

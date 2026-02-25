@@ -193,6 +193,10 @@ struct Movie: Identifiable, Codable {
     // TMDB identifier (used for enriching upcoming releases)
     let tmdb_id: Int?
 
+    // Dubbed language support (Language Priority System)
+    let dubbed_languages: [String]?  // ISO 639-1 codes for available dubs (e.g., ["hi", "en", "ta"])
+    let dub_confidence: String?      // 'confirmed', 'likely', or 'unknown'
+
     // MARK: - Computed Properties
 
     /// Rating (prefers composite_score, then IMDb, then TMDB)
@@ -467,6 +471,7 @@ struct Movie: Identifiable, Codable {
         case composite_score, rating_confidence
         case director, cast_list
         case tmdb_id
+        case dubbed_languages, dub_confidence
     }
 
     init(from decoder: Decoder) throws {
@@ -517,6 +522,8 @@ struct Movie: Identifiable, Codable {
         director = try container.decodeIfPresent(String.self, forKey: .director)
         cast_list = try container.decodeIfPresent([String].self, forKey: .cast_list)
         tmdb_id = try container.decodeIfPresent(Int.self, forKey: .tmdb_id)
+        dubbed_languages = try container.decodeIfPresent([String].self, forKey: .dubbed_languages)
+        dub_confidence = try container.decodeIfPresent(String.self, forKey: .dub_confidence)
         // genres may be a proper JSONB array OR a JSON string — handle both gracefully.
         if let directArray = try? container.decodeIfPresent([Genre].self, forKey: .genres) {
             genres = directArray
@@ -555,6 +562,8 @@ struct Movie: Identifiable, Codable {
         try container.encodeIfPresent(director, forKey: .director)
         try container.encodeIfPresent(cast_list, forKey: .cast_list)
         try container.encodeIfPresent(tmdb_id, forKey: .tmdb_id)
+        try container.encodeIfPresent(dubbed_languages, forKey: .dubbed_languages)
+        try container.encodeIfPresent(dub_confidence, forKey: .dub_confidence)
     }
 
     // Direct initializer for programmatic creation
@@ -582,7 +591,9 @@ struct Movie: Identifiable, Codable {
         rating_confidence: Double? = nil,
         director: String? = nil,
         cast_list: [String]? = nil,
-        tmdb_id: Int? = nil
+        tmdb_id: Int? = nil,
+        dubbed_languages: [String]? = nil,
+        dub_confidence: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -608,6 +619,8 @@ struct Movie: Identifiable, Codable {
         self.director = director
         self.cast_list = cast_list
         self.tmdb_id = tmdb_id
+        self.dubbed_languages = dubbed_languages
+        self.dub_confidence = dub_confidence
     }
 }
 

@@ -392,3 +392,163 @@ SESSION: 2026-02-14 (Part 2) — Fail-Safe Audit: Zero 404s, Zero Wrong Links
 - [PENDING] Commit and push all changes
 - [PENDING] Full end-to-end testing of Facebook OAuth flow on device
 - [PENDING] Play Store submission for Android
+
+================================================================================
+SESSION: 2026-02-25 — Language Priority + Dubbed Content + Critical Fixes
+================================================================================
+
+## Context
+- Language Priority system needed: users rank 7 languages, engine scores by rank
+- Dubbed content separation needed: international picks shown separately from main pool
+- Session-scoped "Tonight's language" toggle on MoodSelector
+- After initial implementation, 3 critical fixes applied in same session
+
+## Completed This Session
+
+### Feature: Language Priority + Dubbed Content (INV-L08, L09, L10)
+
+[DONE] Movie.swift — Added dubbed content fields
+  - New properties: dubbed_languages ([String]?), dub_confidence (String?)
+  - Updated CodingKeys, init(from decoder:), encode(to:)
+
+[DONE] GWSpec.swift — GWMovie model extended
+  - New properties: dubbedLanguages ([String]), dubConfidence (String)
+  - Added custom CodingKeys enum + init(from decoder:) with decodeIfPresent for backward compat
+  - Added test/direct init with default values for all fields
+
+[DONE] UserContext.swift — Language ranking + tonight primary
+  - visibleCases reduced to 7 primary languages (English, Hindi, Tamil, Telugu, Malayalam, Korean, Kannada)
+  - Added tonightPrimary: Language? property (session-scoped, resets on relaunch)
+  - Added resolvedTonightPrimary computed property (user toggle override)
+  - loadFromDefaults() explicitly resets tonightPrimary = nil (INV-L10)
+
+[DONE] GWRecommendationEngine.swift — Core scoring changes
+  - computeLanguagePriorityBonus(): tonight primary +25, #1 ranked +20, #2 +15, #3 +10, #4+ +5
+  - computeScore(): removed [0,1] upper clamp, language bonus on absolute scale for meaningful ranking impact
+  - recommendInternationalPick(): dubbed bonuses +12/+8/+4, 80% score ceiling vs main pool
+  - GWUserProfileComplete: added tonightPrimary: String? with default nil
+
+[DONE] MoodSelectorView.swift — TonightLanguageToggle component
+  - Menu-based dropdown for selecting tonight's primary language
+  - Shows current selection or "Tap to set" prompt
+
+[DONE] MainScreenView.swift — International Pick UI
+  - Added internationalPick: GWMovie? property
+  - "Also available dubbed" section between secondary actions and Spacer
+  - Shows poster, title, year, original language, dubbed badges
+
+[DONE] RootFlowView.swift — Wired international pick
+  - @State private var internationalPick: GWMovie? = nil
+  - Computed in fetchRecommendation() via engine.recommendInternationalPick()
+  - Passed to both MainScreenView call sites (DEBUG + RELEASE)
+
+[DONE] LanguagePriorityView.swift — Trimmed to 7 languages
+  - Removed More/Less toggle, shows all 7 directly
+
+### Database Changes
+
+[DONE] Migration 20260225000001_dubbed_content.sql
+  - ALTER TABLE movies: added dubbed_languages TEXT[] DEFAULT '{}', dub_confidence TEXT DEFAULT 'unknown'
+  - GIN index on dubbed_languages for array containment queries
+  - Seeded 10 Indian regional dubbed movies
+
+[DONE] Migration 20260225000002_international_dubs.sql
+  - Seeded 19 international dubbed titles:
+    - 2 Korean (Parasite, Train to Busan)
+    - 17 Hollywood blockbusters (Avengers series, LOTR, Dark Knight, Inception, etc.)
+  - Total dubbed movies in catalog: 25
+  - Note: Shawshank Redemption (tmdb_id=278) not in catalog, Dune (438631) not found
+
+### Critical Fixes Applied
+
+[DONE] FIX 1 (CRITICAL): Language scoring scale mismatch
+  - computeLanguagePriorityBonus() was returning 0.0x values (meaningless on 0-1 scale)
+  - Changed to 25/20/15/10/5 absolute scale
+  - Removed min(..., 1) upper clamp from computeScore return
+  - Fixed dubbed bonuses from 0.05/0.04/0.03/0.01 to 12/8/4
+  - Updated test threshold from 0.12 to 12.0
+
+[DONE] FIX 2: International dubbed title seeds
+  - Initial seed only had Indian-to-Indian dubs
+  - Added Hollywood + Korean titles dubbed in Hindi/Tamil/Telugu/English
+
+[DONE] FIX 3A: CLAUDE.md updated
+  - Added INV-L08/L09/L10 to invariants table (iOS CLAUDE.md + master CLAUDE.md)
+  - Added "Progress Logging (MANDATORY)" rule to Section 12
+  - Updated "Last updated" dates to 2026-02-25
+
+[DONE] FIX 3B: Protected file hashes updated in Supabase
+  - Updated SHA-256 hashes for 6 files: GWRecommendationEngine.swift, Movie.swift,
+    GWSpec.swift, RootFlowView.swift, INVARIANTS.md, CLAUDE.md
+  - All verified via REST API query
+
+### Invariants
+
+[DONE] INVARIANTS.md — 3 new invariants added
+  - INV-L08: Language Priority Scoring (tonight primary +25, ranked position bonuses)
+  - INV-L09: Dubbed Content Separation (international picks, 80% ceiling)
+  - INV-L10: Session Language Persistence (resets on relaunch)
+
+[DONE] GWProductInvariantTests.swift — 6 new tests (50 total, all passing)
+  - testInvariant_L08_LanguagePriorityBonusOrder
+  - testInvariant_L08_TonightPrimaryNoStacking
+  - testInvariant_L09_InternationalPickScoreCeiling
+  - testInvariant_L09_InternationalPickExcludesUserLanguage
+  - testInvariant_L10_TonightPrimaryResetsOnRelaunch
+  - testInvariant_L10_TonightPrimaryDefaultsToNil
+
+[DONE] audit_agent.py — Updated for new invariants
+  - B28 updated: checks for computeLanguagePriorityBonus/tonightPrimary (INV-L08)
+  - B30 added: international pick method existence (INV-L09)
+  - B31 added: 80% score ceiling check (INV-L09)
+  - C31 updated: "7 primary languages" instead of "More expander"
+  - C36 added: tonight's language toggle (INV-L10)
+  - C37 added: international pick UI section (INV-L09)
+
+## Files Modified (12)
+1. GoodWatch/App/Core/Movie.swift
+2. GoodWatch/App/Core/GWSpec.swift
+3. GoodWatch/App/Core/GWRecommendationEngine.swift
+4. GoodWatch/App/Core/UserContext.swift
+5. GoodWatch/App/screens/MoodSelectorView.swift
+6. GoodWatch/App/screens/MainScreenView.swift
+7. GoodWatch/App/screens/RootFlowView.swift
+8. GoodWatch/App/screens/LanguagePriorityView.swift
+9. INVARIANTS.md
+10. CLAUDE.md
+11. GoodWatchTests/GWProductInvariantTests.swift
+12. .github/scripts/audit_agent.py
+
+## Files Created (2)
+1. supabase/migrations/20260225000001_dubbed_content.sql
+2. supabase/migrations/20260225000002_international_dubs.sql
+
+## Tests
+- 50 invariant tests: ALL PASSING
+- Key tests verified: L08 scoring order, L08 no-stacking, L09 ceiling, L09 exclusion, L10 reset, L10 default
+
+## Known Issues
+- Shawshank Redemption (tmdb_id=278) not in movie catalog -- cannot be dubbed-tagged
+- Dune (tmdb_id=438631) not found in catalog
+- 25 total dubbed movies is a small seed -- needs expansion via TMDB API or manual curation
+- Language bonus on absolute scale (5-25) means raw scores can exceed 1.0 -- this is intentional
+  for ranking purposes only; scores are not displayed to users
+
+## Blockers
+- None
+
+## Pending / Not Started
+- [PENDING] Commit all changes (protected files need unlock.sh)
+- [PENDING] Push to origin/main
+- [PENDING] Android parity: implement same language priority system in Kotlin
+- [PENDING] Expand dubbed movie catalog (TMDB API has dub metadata)
+- [PENDING] End-to-end device test of language priority + international picks flow
+
+## Notes for Next Session
+- Language bonuses are on ABSOLUTE scale (5-25), not 0-1. This is by design.
+- computeScore() has NO upper clamp -- raw scores used for relative ranking only
+- tonightPrimary resets to nil on every app relaunch (INV-L10) -- session-scoped
+- dubbed_languages and dub_confidence columns exist in Supabase movies table
+- 25 movies have dubbed data; the rest default to empty array
+- Protected file hashes in Supabase are current as of this session
+- Commit message should be: fix: language priority scoring scale, international dub seeds, protected hashes

@@ -1,7 +1,7 @@
 # GoodWatch iOS — Project Intelligence
 
 > **Purpose:** Single source of truth for every Claude Code session on the iOS app. Read fully before doing anything.
-> **Last updated:** 2026-02-13
+> **Last updated:** 2026-02-25
 > **Status:** Live on App Store
 
 ---
@@ -555,7 +555,17 @@ These are behavioral contracts that define what GoodWatch IS. Any code change th
 | INV-L03 | Confidence boost only after 10+ learned tags, max 5% | Learning |
 | INV-L04 | Top-10 weighted random (temperature 0.15), not deterministic | Learning |
 | INV-L05 | Not-tonight penalizes similar tags on next pick | Learning |
+| INV-L08 | Language priority scoring: tonight primary +25, ranked #1 +20, #2 +15, #3 +10, #4+ +5 | Learning |
+| INV-L09 | Dubbed content separated into International Picks; 80% score ceiling vs main pool | Learning |
+| INV-L10 | Tonight's language resets to nil on app relaunch (session-scoped) | Learning |
 | INV-A01 to INV-A10 | Audit system rules -- zero false positives, no mass skips, report-only, every failure has remediation | Audit |
+
+### Progress Logging (MANDATORY)
+
+After completing any implementation session (feature, fix, or refactor):
+1. Update `progress.txt` in repo root with: date, files modified, DB changes, tests run, known issues
+2. Include a "Next session needs to know" section so fresh context can resume
+3. Never skip this step -- it is the session-to-session handoff mechanism
 
 ### Pre-Commit Rule
 

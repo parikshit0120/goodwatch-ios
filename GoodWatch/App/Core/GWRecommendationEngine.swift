@@ -145,6 +145,7 @@ func gwGoodscoreThreshold(mood: String, timeOfDay: GWTimeOfDay, style: GWRecomme
 struct GWUserProfileComplete {
     var userId: String
     var preferredLanguages: [String]
+    var tonightPrimary: String?  // Session-level language override. ISO name (e.g., "hindi"). Nil = use preferredLanguages[0].
     var platforms: [String]
     var runtimeWindow: GWRuntimeWindow
     var mood: String
@@ -179,6 +180,7 @@ struct GWUserProfileComplete {
     init(
         userId: String,
         preferredLanguages: [String],
+        tonightPrimary: String? = nil,
         platforms: [String],
         runtimeWindow: GWRuntimeWindow,
         mood: String,
@@ -199,6 +201,7 @@ struct GWUserProfileComplete {
     ) {
         self.userId = userId
         self.preferredLanguages = preferredLanguages
+        self.tonightPrimary = tonightPrimary
         self.platforms = platforms
         self.runtimeWindow = runtimeWindow
         self.mood = mood
@@ -254,6 +257,7 @@ struct GWUserProfileComplete {
         return GWUserProfileComplete(
             userId: userId,
             preferredLanguages: context.languages.map { $0.rawValue },
+            tonightPrimary: context.resolvedTonightPrimary?.rawValue,
             platforms: context.otts.map { $0.rawValue },
             runtimeWindow: GWRuntimeWindow(min: context.minDuration, max: context.maxDuration),
             mood: context.mood.rawValue,
@@ -786,6 +790,143 @@ final class GWRecommendationEngine {
     }
 
     // ============================================
+    // SECTION 8: International Pick (Dubbed Content) — INV-L09
+    // ============================================
+
+    /// Recommend a dubbed international movie as a separate "International Pick".
+    /// Only considers movies where original_language is NOT in the user's language list
+    /// AND dubbed_languages overlaps with the user's language list.
+    /// Score ceiling: 80% of mainPoolTopScore (native content always wins).
+    func recommendInternationalPick(
+        from movies: [GWMovie],
+        profile: GWUserProfileComplete,
+        mainPoolTopScore: Double
+    ) -> GWRecommendationOutput {
+        let userLangs = Set(profile.preferredLanguages.map { $0.lowercased() })
+        let resolvedTonight = (profile.tonightPrimary ?? profile.preferredLanguages.first ?? "").lowercased()
+
+        // Build international pool:
+        // original_language NOT IN user's languages
+        // AND dubbed_languages overlaps with user's languages
+        // AND dub_confidence is 'confirmed' or 'likely'
+        let intlPool = movies.filter { movie in
+            let movieLang = movie.language.lowercased()
+            let isNative = userLangs.contains { lang in
+                let l = lang.lowercased()
+                return movieLang.contains(l) ||
+                       (l == "english" && movieLang == "en") ||
+                       (l == "hindi" && movieLang == "hi") ||
+                       (l == "tamil" && movieLang == "ta") ||
+                       (l == "telugu" && movieLang == "te") ||
+                       (l == "malayalam" && movieLang == "ml") ||
+                       (l == "kannada" && movieLang == "kn") ||
+                       (l == "punjabi" && movieLang == "pa")
+            }
+
+            // Must NOT be native language
+            guard !isNative else { return false }
+
+            // Must have dubbed languages that overlap with user's languages
+            guard !movie.dubbedLanguages.isEmpty else { return false }
+            let dubbedSet = Set(movie.dubbedLanguages.map { $0.lowercased() })
+
+            // Map user language names to ISO codes for comparison
+            let isoMap: [String: String] = [
+                "english": "en", "hindi": "hi", "tamil": "ta", "telugu": "te",
+                "malayalam": "ml", "kannada": "kn", "punjabi": "pa"
+            ]
+            let userIsoCodes = Set(userLangs.compactMap { isoMap[$0] ?? $0 })
+            guard !dubbedSet.intersection(userIsoCodes).isEmpty else { return false }
+
+            // Must have confirmed or likely dub confidence
+            let confidence = movie.dubConfidence.lowercased()
+            guard confidence == "confirmed" || confidence == "likely" else { return false }
+
+            // Must pass basic quality gates (available, runtime, goodscore, etc.)
+            // but skip language validation (we handle it above)
+            guard movie.available else { return false }
+
+            // Platform check
+            if !profile.platforms.isEmpty {
+                let moviePlatforms = Set(movie.platforms.map { $0.lowercased() })
+                var expandedUserPlatforms = Set<String>()
+                for platform in profile.platforms.map({ $0.lowercased() }) {
+                    expandedUserPlatforms.insert(platform)
+                    switch platform {
+                    case "netflix": expandedUserPlatforms.insert("netflix kids")
+                    case "prime", "amazon_prime":
+                        expandedUserPlatforms.formUnion(["amazon prime video", "amazon prime video with ads", "amazon video", "prime video"])
+                    case "jio_hotstar":
+                        expandedUserPlatforms.formUnion(["jiohotstar", "hotstar", "disney+ hotstar", "jio hotstar"])
+                    case "apple_tv":
+                        expandedUserPlatforms.formUnion(["apple tv", "apple tv+"])
+                    case "sony_liv":
+                        expandedUserPlatforms.formUnion(["sony liv", "sonyliv"])
+                    default: break
+                    }
+                }
+                let hasMatch = moviePlatforms.contains { mp in
+                    expandedUserPlatforms.contains { up in mp.contains(up) || up.contains(mp) }
+                }
+                guard hasMatch else { return false }
+            }
+
+            // Not already interacted
+            guard !profile.allExcludedIds.contains(movie.id) else { return false }
+            guard !profile.sessionExcludedIds.contains(movie.id) else { return false }
+
+            return true
+        }
+
+        guard !intlPool.isEmpty else {
+            return GWRecommendationOutput(movie: nil, stopCondition: nil)
+        }
+
+        // Score international picks with dubbed language bonuses
+        let scoreCeiling = mainPoolTopScore * 0.80
+
+        let scored = intlPool.map { movie -> (GWMovie, Double) in
+            var score = computeScore(movie: movie, profile: profile)
+
+            // Replace language bonus with dubbed language bonus
+            // Dubbed in tonight's primary: +12 (lower than any native language bonus)
+            // Dubbed in #2 language: +8
+            // Dubbed in #3+: +4
+            let dubbedSet = Set(movie.dubbedLanguages.map { $0.lowercased() })
+            let isoMap: [String: String] = [
+                "english": "en", "hindi": "hi", "tamil": "ta", "telugu": "te",
+                "malayalam": "ml", "kannada": "kn", "punjabi": "pa"
+            ]
+            let tonightIso = isoMap[resolvedTonight] ?? resolvedTonight
+            if dubbedSet.contains(tonightIso) {
+                score += 12.0
+            } else {
+                for (idx, lang) in profile.preferredLanguages.enumerated() {
+                    let iso = isoMap[lang.lowercased()] ?? lang.lowercased()
+                    if dubbedSet.contains(iso) {
+                        switch idx {
+                        case 0: score += 12.0
+                        case 1: score += 8.0
+                        default: score += 4.0
+                        }
+                        break
+                    }
+                }
+            }
+
+            // Apply score ceiling: international pick must not exceed 80% of main top score
+            score = min(score, scoreCeiling)
+
+            return (movie, score)
+        }
+
+        let sorted = scored.sorted { $0.1 > $1.1 }
+        let topN = Array(sorted.prefix(10))
+        let picked = weightedRandomPick(from: topN)
+        return GWRecommendationOutput(movie: picked, stopCondition: nil)
+    }
+
+    // ============================================
     // SECTION 5: Scoring
     // ============================================
 
@@ -895,15 +1036,18 @@ final class GWRecommendationEngine {
             tagWeights: profile.tagWeights
         )
 
-        // 7. Language priority bonus
-        // P1 (first selected) gets a scoring advantage over P2, P3, etc.
+        // 7. Language priority bonus (INV-L08)
+        // Tonight's primary gets highest scoring advantage, then ranked by position.
         // Priority is SCORING only — all selected languages pass validation.
         let languageBonus = computeLanguagePriorityBonus(
             movieLanguage: movie.language,
-            prioritizedLanguages: profile.preferredLanguages
+            prioritizedLanguages: profile.preferredLanguages,
+            tonightPrimary: profile.tonightPrimary
         )
 
-        return min(max(baseScore + confidenceBoost + languageBonus, 0), 1)
+        // Language bonus is on absolute scale (5-25) to ensure meaningful impact on ranking.
+        // No upper clamp — the raw score is used for relative ranking, not display.
+        return max(baseScore + confidenceBoost + languageBonus, 0)
     }
 
     // MARK: - Confidence Boost (Threshold-Gated)
@@ -934,25 +1078,53 @@ final class GWRecommendationEngine {
         return tagAlignment * maxBoost * scaleFactor
     }
 
-    // MARK: - Language Priority Scoring
+    // MARK: - Language Priority Scoring (INV-L08)
 
-    /// Returns a small bonus based on where the movie's language falls in the user's
-    /// priority order. P1 (first selected) gets the highest bonus.
+    /// Returns a bonus based on where the movie's language falls in the user's
+    /// ranked priority order, with tonight's primary getting the highest bonus.
     /// Priority affects SCORING only — all selected languages pass validation.
-    private func computeLanguagePriorityBonus(movieLanguage: String, prioritizedLanguages: [String]) -> Double {
+    ///
+    /// Scoring (normalized to 0-1 engine scale):
+    ///   Tonight's primary language:          +0.10
+    ///   #1 in ranked (not tonight primary):  +0.08
+    ///   #2 in ranked:                        +0.06
+    ///   #3 in ranked:                        +0.04
+    ///   #4+ in ranked:                       +0.02
+    private func computeLanguagePriorityBonus(movieLanguage: String, prioritizedLanguages: [String], tonightPrimary: String?) -> Double {
         // Only applies when user has 2+ languages (otherwise no priority distinction)
         guard prioritizedLanguages.count > 1 else { return 0.0 }
 
         let movieLang = movieLanguage.lowercased()
-        guard let index = prioritizedLanguages.firstIndex(where: { movieLang.hasPrefix($0.lowercased()) }) else {
-            return 0.0 // Should not happen (validation already filters)
+
+        // Check if movie language matches tonight's primary (session override)
+        let resolvedTonight = (tonightPrimary ?? prioritizedLanguages.first ?? "").lowercased()
+        let isLanguageMatch: (String, String) -> Bool = { movie, lang in
+            let l = lang.lowercased()
+            return movie.contains(l) ||
+                   (l == "english" && movie == "en") ||
+                   (l == "hindi" && movie == "hi") ||
+                   (l == "tamil" && movie == "ta") ||
+                   (l == "telugu" && movie == "te") ||
+                   (l == "malayalam" && movie == "ml") ||
+                   (l == "kannada" && movie == "kn") ||
+                   (l == "punjabi" && movie == "pa")
+        }
+
+        // Tonight's primary gets highest bonus
+        if isLanguageMatch(movieLang, resolvedTonight) {
+            return 25.0
+        }
+
+        // Other languages scored by their ranked position
+        guard let index = prioritizedLanguages.firstIndex(where: { isLanguageMatch(movieLang, $0) }) else {
+            return 0.0
         }
 
         switch index {
-        case 0: return 0.05  // P1: strongest preference
-        case 1: return 0.03  // P2
-        case 2: return 0.02  // P3
-        default: return 0.01 // P4+
+        case 0: return 20.0  // #1 ranked (but not tonight's primary — user switched tonight)
+        case 1: return 15.0  // #2 ranked
+        case 2: return 10.0  // #3 ranked
+        default: return 5.0  // #4+
         }
     }
 

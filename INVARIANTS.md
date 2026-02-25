@@ -271,6 +271,36 @@ When `pickCount == 1`, the existing single-pick MainScreenView is used unchanged
 **Test:** `testInvariant_L01_TagWeightDeltaImplicitSkip`
 **Violated if:** Implicit skip delta differs from -0.05, or implicit skip is applied to the chosen card.
 
+### INV-L08: Language Priority Scoring
+**Rule:** Language priority affects recommendation scoring with EXACTLY these bonuses:
+| Priority | Bonus |
+|----------|-------|
+| Tonight's primary | +25 |
+| #1 ranked | +20 |
+| #2 ranked | +15 |
+| #3 ranked | +10 |
+| #4+ ranked | +5 |
+If tonight's primary equals the #1 ranked language, the movie receives only +25 (no stacking). Languages not in the user's priority list receive +0.
+**Scale context:** The base score (tag alignment + regret + platform + dimensional) produces 0-1. Language bonus is additive on an absolute scale (5-25) to ensure it meaningfully differentiates rankings. No upper clamp — raw score is used for relative ranking, not display.
+**Why:** Ranked preferences let the engine bias toward preferred languages without hard-gating. A Tamil-first user who also watches Hindi will see Tamil more often, not exclusively.
+**Source:** `GWRecommendationEngine.computeLanguagePriorityBonus()`
+**Test:** `testInvariant_L08_LanguagePriorityScoring`
+**Violated if:** Priority bonuses differ from the table above, or tonight's primary bonus stacks with ranked bonus for the same language.
+
+### INV-L09: Dubbed Content Separation
+**Rule:** Dubbed movies (movies with non-empty `dubbed_languages`) NEVER appear in the main recommendation pool. They appear ONLY in the separate "International Pick" section below the main recommendation. The international pick's final score is capped at 80% of the main pool's top score.
+**Why:** Dubbed content is supplementary, not primary. Mixing dubbed picks into the main pool dilutes language purity and trust. The 80% ceiling ensures the main pick always feels like the stronger recommendation.
+**Source:** `GWRecommendationEngine.recommendInternationalPick()`, `MainScreenView` international pick section
+**Test:** `testInvariant_L09_DubbedContentSeparation`
+**Violated if:** A dubbed movie appears in the main `recommend()` output, or an international pick's score exceeds 80% of the main pool's top score, or the international pick section appears inside the main recommendation card.
+
+### INV-L10: Session Language Persistence
+**Rule:** The "Tonight's primary" language selection persists for the entire session (across mood/platform/duration screens) but resets to the user's #1 ranked language on the next app launch. It is stored in `UserContext.tonightPrimary` and saved to UserDefaults within the session.
+**Why:** Users switch languages per evening ("Hindi tonight") but don't want that choice to become permanent. Session scope = convenience without commitment.
+**Source:** `MoodSelectorView.TonightLanguageToggle`, `UserContext.tonightPrimary`, `UserContext.resolvedTonightPrimary`
+**Test:** `testInvariant_L10_SessionLanguagePersistence`
+**Violated if:** Tonight's primary persists across app launches, or is not available to the engine during the session, or defaults to anything other than the user's #1 ranked language when not explicitly set.
+
 ---
 
 ## PROTECTED FILES

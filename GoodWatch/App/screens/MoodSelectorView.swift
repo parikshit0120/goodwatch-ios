@@ -105,7 +105,23 @@ struct MoodSelectorView: View {
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.top, 16)
 
-                Spacer().frame(height: 40)
+                Spacer().frame(height: 24)
+
+                // Tonight's language toggle (only if user has 2+ languages)
+                if ctx.languages.count > 1 {
+                    TonightLanguageToggle(
+                        selectedLanguage: Binding(
+                            get: { ctx.resolvedTonightPrimary ?? ctx.languages.first ?? .hindi },
+                            set: { ctx.tonightPrimary = $0 }
+                        ),
+                        availableLanguages: ctx.languages
+                    )
+                    .padding(.horizontal, GWSpacing.screenPadding)
+
+                    Spacer().frame(height: 20)
+                } else {
+                    Spacer().frame(height: 16)
+                }
 
                 // Headline
                 Text("What's the vibe?")
@@ -239,5 +255,60 @@ struct MoodCard: View {
             .shadow(color: isSelected ? GWColors.gold.opacity(0.15) : Color.clear, radius: 8)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Tonight's Language Toggle (INV-L10)
+
+/// Compact language picker for session-level language override.
+/// Shown above the mood selector when user has 2+ languages.
+/// Selection persists for the session, resets to #1 on next app launch.
+struct TonightLanguageToggle: View {
+    @Binding var selectedLanguage: Language
+    let availableLanguages: [Language]
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Tonight's language:")
+                .font(GWTypography.small())
+                .foregroundColor(GWColors.lightGray)
+
+            Menu {
+                ForEach(availableLanguages, id: \.self) { language in
+                    Button {
+                        selectedLanguage = language
+                    } label: {
+                        HStack {
+                            Text(language.displayName)
+                            if language == selectedLanguage {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(selectedLanguage.displayName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(GWColors.gold)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(GWColors.gold)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(GWColors.gold.opacity(0.12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(GWColors.gold.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+            .accessibilityIdentifier("tonight_language_toggle")
+
+            Spacer()
+        }
     }
 }

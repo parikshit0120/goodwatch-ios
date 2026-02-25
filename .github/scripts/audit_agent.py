@@ -674,12 +674,26 @@ def run_section_b():
                   "Found" if has_quality_floor else "MISSING",
                   source_ref="INV-R06")
 
-            # B28: Language priority scoring
-            has_lang_priority = "languagePriority" in engine_code or "language_priority" in engine_code or ("P1" in engine_code and "P2" in engine_code)
-            check("B28", "engine_invariants", "Language priority scoring (P1/P2/P3/P4)", "high",
-                  has_lang_priority, "Language priority logic",
+            # B28: Language priority scoring (INV-L08)
+            has_lang_priority = "computeLanguagePriorityBonus" in engine_code or "languagePriority" in engine_code or "tonightPrimary" in engine_code
+            check("B28", "engine_invariants", "Language priority scoring with tonight primary", "high",
+                  has_lang_priority, "Language priority + tonight primary logic",
                   "Found" if has_lang_priority else "MISSING",
-                  source_ref="Fix 4 language priority")
+                  source_ref="INV-L08")
+
+            # B30: International pick method (INV-L09)
+            has_intl_pick = "recommendInternationalPick" in engine_code
+            check("B30", "engine_invariants", "International pick method for dubbed content", "high",
+                  has_intl_pick, "recommendInternationalPick() method",
+                  "Found" if has_intl_pick else "MISSING",
+                  source_ref="INV-L09")
+
+            # B31: Dubbed content 80% score ceiling (INV-L09)
+            has_score_ceiling = "0.8" in engine_code or "scoreCeiling" in engine_code or "ceilingScore" in engine_code
+            check("B31", "engine_invariants", "International pick 80% score ceiling", "high",
+                  has_score_ceiling, "Score ceiling logic",
+                  "Found" if has_score_ceiling else "MISSING",
+                  source_ref="INV-L09")
 
             # B29: Duration union ranges
             has_duration = "duration" in engine_code.lower() and ("union" in engine_code.lower() or "ranges" in engine_code.lower() or "runtimeWindow" in engine_code)
@@ -691,14 +705,14 @@ def run_section_b():
         else:
             for cid in ["B01", "B02", "B03", "B04", "B05", "B07", "B08", "B09", "B10",
                          "B11", "B12", "B13", "B14", "B15", "B16", "B17", "B18", "B19",
-                         "B20", "B25", "B26", "B27", "B28", "B29"]:
+                         "B20", "B25", "B26", "B27", "B28", "B29", "B30", "B31"]:
                 if not any(r["check_id"] == cid for r in results):
                     prereq_fail(cid, "engine_invariants", f"Check {cid}", "critical", "GWRecommendationEngine.swift not found")
 
     else:
         for cid in ["B01", "B02", "B03", "B04", "B05", "B07", "B08", "B09", "B10",
                      "B11", "B12", "B13", "B14", "B15", "B16", "B17", "B18", "B19",
-                     "B20", "B25", "B26", "B27", "B28", "B29"]:
+                     "B20", "B25", "B26", "B27", "B28", "B29", "B30", "B31"]:
             if not any(r["check_id"] == cid for r in results):
                 prereq_fail(cid, "engine_invariants", f"Check {cid}", "critical", "iOS repo not available")
 
@@ -1013,12 +1027,12 @@ def run_section_c():
           f"{len(poss_in_views)} found" if poss_in_views else "Clean",
           source_ref="Brand voice")
 
-    # C31: 16+ languages behind More expander
-    more_lang_matches = search_swift_for(r"\"More\"|showMore|expandedLanguages|additionalLanguages|isExpanded")
-    check("C31", "user_experience", "16+ languages behind More expander", "high",
-          len(more_lang_matches) > 0, "More expander present",
-          f"{len(more_lang_matches)} refs found" if more_lang_matches else "MISSING",
-          source_ref="Decision fatigue reduction")
+    # C31: 7 primary languages only (no More expander needed)
+    lang_pool_matches = search_swift_for(r"primaryLanguages|\.hindi.*\.english.*\.tamil|visibleCases")
+    check("C31", "user_experience", "7 primary languages in selector", "high",
+          len(lang_pool_matches) > 0, "7-language pool present",
+          f"{len(lang_pool_matches)} refs found" if lang_pool_matches else "MISSING",
+          source_ref="INV-L08")
 
     # C32: Duration min 1 selection enforced
     min_sel_matches = search_swift_for(r"count.*>=.*1|isEmpty|minSelection|canDeselect|\.count > 1")
@@ -1047,6 +1061,20 @@ def run_section_c():
           len(emoji_in_views) == 0, "0 emoji in views",
           f"{len(emoji_in_views)} found" if emoji_in_views else "Clean",
           source_ref="GoodWatch brand rule")
+
+    # C36: Tonight's language toggle on mood selector (INV-L10)
+    tonight_toggle_matches = search_swift_for(r"TonightLanguageToggle|tonightPrimary|tonight_language_toggle")
+    check("C36", "user_experience", "Tonight's language toggle on mood selector", "high",
+          len(tonight_toggle_matches) > 0, "Tonight language toggle present",
+          f"{len(tonight_toggle_matches)} refs found" if tonight_toggle_matches else "MISSING",
+          source_ref="INV-L10")
+
+    # C37: International pick UI section (INV-L09)
+    intl_pick_matches = search_swift_for(r"internationalPick|international_pick_section|Also available dubbed")
+    check("C37", "user_experience", "International pick section on main screen", "high",
+          len(intl_pick_matches) > 0, "International pick UI present",
+          f"{len(intl_pick_matches)} refs found" if intl_pick_matches else "MISSING",
+          source_ref="INV-L09")
 
     c_passed = sum(1 for r in results if r['section'] == 'user_experience' and r['status'] == 'pass')
     c_total = sum(1 for r in results if r['section'] == 'user_experience')

@@ -12,6 +12,7 @@ struct MainScreenView: View {
     let onAlreadySeen: () -> Void
     let onStartOver: (() -> Void)?
     let onExplore: (() -> Void)?
+    let internationalPick: GWMovie?  // Dubbed international content (INV-L09). Nil = no dubbed pick available.
 
     #if DEBUG
     let debugInfo: DebugRecommendationInfo?
@@ -27,7 +28,8 @@ struct MainScreenView: View {
         onNotTonight: @escaping () -> Void,
         onAlreadySeen: @escaping () -> Void,
         onStartOver: (() -> Void)? = nil,
-        onExplore: (() -> Void)? = nil
+        onExplore: (() -> Void)? = nil,
+        internationalPick: GWMovie? = nil
     ) {
         self.movie = movie
         self.goodScore = goodScore
@@ -38,6 +40,7 @@ struct MainScreenView: View {
         self.onAlreadySeen = onAlreadySeen
         self.onStartOver = onStartOver
         self.onExplore = onExplore
+        self.internationalPick = internationalPick
         #if DEBUG
         self.debugInfo = nil
         #endif
@@ -55,6 +58,7 @@ struct MainScreenView: View {
         onAlreadySeen: @escaping () -> Void,
         onStartOver: (() -> Void)? = nil,
         onExplore: (() -> Void)? = nil,
+        internationalPick: GWMovie? = nil,
         debugInfo: DebugRecommendationInfo?
     ) {
         self.movie = movie
@@ -66,6 +70,7 @@ struct MainScreenView: View {
         self.onAlreadySeen = onAlreadySeen
         self.onStartOver = onStartOver
         self.onExplore = onExplore
+        self.internationalPick = internationalPick
         self.debugInfo = debugInfo
     }
     #endif
@@ -397,6 +402,59 @@ struct MainScreenView: View {
                         }
                         .padding(.horizontal, GWSpacing.screenPadding)
                         .opacity(secondaryOpacity)
+                    }
+
+                    // MARK: - International Pick (INV-L09)
+                    if let intlPick = internationalPick {
+                        VStack(spacing: 12) {
+                            Rectangle()
+                                .fill(GWColors.lightGray.opacity(0.15))
+                                .frame(height: 1)
+                                .padding(.horizontal, GWSpacing.screenPadding)
+
+                            VStack(spacing: 8) {
+                                Text("Also available dubbed")
+                                    .font(GWTypography.small())
+                                    .foregroundColor(GWColors.lightGray)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                HStack(spacing: 12) {
+                                    // Small poster
+                                    GWCachedImage(url: TMDBImageSize.url(path: intlPick.poster_url ?? "", size: .w154)) {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(GWColors.darkGray)
+                                    }
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 48, height: 72)
+                                    .cornerRadius(8)
+                                    .clipped()
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(intlPick.title)
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(GWColors.white)
+                                            .lineLimit(1)
+
+                                        if !intlPick.dubbedLanguages.isEmpty {
+                                            Text("Dubbed: \(intlPick.dubbedLanguages.prefix(3).joined(separator: ", "))")
+                                                .font(GWTypography.small())
+                                                .foregroundColor(GWColors.gold)
+                                                .lineLimit(1)
+                                        }
+
+                                        Text("\(intlPick.language.capitalized) original")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(GWColors.lightGray)
+                                    }
+
+                                    Spacer()
+                                }
+                            }
+                            .padding(.horizontal, GWSpacing.screenPadding)
+                        }
+                        .padding(.top, 16)
+                        .opacity(secondaryOpacity)
+                        .accessibilityIdentifier("international_pick_section")
                     }
 
                     Spacer().frame(height: 24)

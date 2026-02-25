@@ -23,11 +23,10 @@ struct LanguagePriorityView: View {
 
     private let maxSlots = 4
 
-    private let primaryLanguages: [Language] = [.hindi, .english, .tamil, .telugu, .malayalam, .kannada]
-    private let secondaryLanguages: [Language] = [.bengali, .marathi, .gujarati, .punjabi, .korean, .japanese, .spanish]
+    private let primaryLanguages: [Language] = [.hindi, .english, .tamil, .telugu, .malayalam, .kannada, .punjabi]
 
     private var allVisibleLanguages: [Language] {
-        showMoreLanguages ? primaryLanguages + secondaryLanguages : primaryLanguages
+        primaryLanguages
     }
 
     private var availableLanguages: [Language] {
@@ -165,10 +164,6 @@ struct LanguagePriorityView: View {
                     selectedLanguages = Array(saved.languages.prefix(maxSlots))
                 }
             }
-            // Auto-expand if a secondary language was previously selected
-            if selectedLanguages.contains(where: { secondaryLanguages.contains($0) }) {
-                showMoreLanguages = true
-            }
         }
         .allowsHitTesting(!isLocking)
     }
@@ -208,22 +203,6 @@ struct LanguagePriorityView: View {
                         .opacity((!isAvailable && !ctx.otts.isEmpty) ? 0.5 : 1.0)
                     }
 
-                    // More/Fewer toggle
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            showMoreLanguages.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(showMoreLanguages ? "Less" : "More")
-                                .font(.system(size: 13, weight: .medium))
-                            Image(systemName: showMoreLanguages ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundColor(GWColors.gold)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                    }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
             }

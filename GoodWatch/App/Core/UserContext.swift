@@ -45,11 +45,9 @@ enum Language: String, CaseIterable, Codable {
     case chinese = "chinese"
     case portuguese = "portuguese"
 
-    /// Languages shown in the onboarding UI — sorted by catalog size
+    /// Languages shown in the onboarding UI — 7 supported languages
     static var visibleCases: [Language] {
-        [.english, .hindi, .tamil, .telugu, .malayalam, .korean,
-         .kannada, .bengali, .marathi, .spanish, .japanese, .french,
-         .punjabi, .chinese, .portuguese, .gujarati]
+        [.hindi, .english, .tamil, .telugu, .malayalam, .kannada, .punjabi]
     }
 
     var displayName: String {
@@ -104,6 +102,12 @@ struct UserContext: Codable {
     var languages: [Language]
     var intent: GWIntent
     var requiresSeries: Bool  // True when "Series/Binge" is selected
+    var tonightPrimary: Language?  // Session-level language override. Defaults to languages[0]. Resets on app relaunch.
+
+    /// Resolved tonight primary: explicit selection or first language in priority list
+    var resolvedTonightPrimary: Language? {
+        tonightPrimary ?? languages.first
+    }
 
     static let `default` = UserContext(
         otts: [],
@@ -112,7 +116,8 @@ struct UserContext: Codable {
         minDuration: 60,
         languages: [],
         intent: .default,
-        requiresSeries: false
+        requiresSeries: false,
+        tonightPrimary: nil
     )
 
     // Convert to GWValidationProfile for validation
@@ -138,7 +143,10 @@ struct UserContext: Codable {
 
     static func loadFromDefaults() -> UserContext? {
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey) else { return nil }
-        return try? JSONDecoder().decode(UserContext.self, from: data)
+        guard var ctx = try? JSONDecoder().decode(UserContext.self, from: data) else { return nil }
+        // INV-L10: Reset tonight's primary on app relaunch (session-scoped only)
+        ctx.tonightPrimary = nil
+        return ctx
     }
 
     static func clearDefaults() {
