@@ -249,6 +249,7 @@ class UATEngine:
         print(f"[UAT]   Languages: {self.languages} (from {len(lang_counts)} total)")
 
         # 2. Platforms: extract from streaming_providers JSONB
+        # Format is flat: {"Netflix": "url", "JioHotstar": "url", ...}
         print("[UAT] Discovering platforms...")
         sample = sb_select(
             "movies",
@@ -262,12 +263,18 @@ class UATEngine:
                 providers = m.get("streaming_providers") or {}
                 if not isinstance(providers, dict):
                     continue
-                india = providers.get("IN", {})
-                for ptype in ["flatrate", "ads", "free"]:
-                    for p in india.get(ptype, []):
-                        name = p.get("provider_name", "")
-                        if name:
-                            platform_set.add(name)
+                # Flat format: keys are platform names, values are URLs
+                for key in providers:
+                    if isinstance(providers[key], str):
+                        platform_set.add(key)
+                    elif isinstance(providers[key], dict):
+                        # TMDB nested format fallback: {"IN": {"flatrate": [...]}}
+                        region_data = providers[key]
+                        for ptype in ["flatrate", "ads", "free"]:
+                            for p in region_data.get(ptype, []):
+                                name = p.get("provider_name", "")
+                                if name:
+                                    platform_set.add(name)
         self.platforms = sorted(platform_set)
         if not self.platforms:
             self.platforms = ["Netflix", "JioCinema", "Amazon Prime Video"]
@@ -356,26 +363,34 @@ class UATEngine:
     # -----------------------------------------------------------------------
 
     def _has_platform(self, movie, user_platforms):
-        """Check if movie is available on any of the user's platforms."""
+        """Check if movie is available on any of the user's platforms.
+
+        streaming_providers format is flat: {"Netflix": "url", "JioHotstar": "url"}
+        Keys are platform names, values are URLs.
+        """
         providers = movie.get("streaming_providers") or {}
         if not isinstance(providers, dict):
             return False
 
         user_platforms_lower = [p.lower() for p in user_platforms]
 
-        # Try India region first, then global
-        for region in ["IN", "US"]:
-            region_data = providers.get(region, {})
-            if not isinstance(region_data, dict):
-                continue
-            for access_type in ["flatrate", "ads", "free"]:
-                for p in region_data.get(access_type, []):
-                    provider_name = (p.get("provider_name") or "").lower()
-                    if not provider_name:
-                        continue
-                    for up in user_platforms_lower:
-                        if up in provider_name or provider_name in up:
-                            return True
+        for key, val in providers.items():
+            if isinstance(val, str):
+                # Flat format: key is platform name
+                key_lower = key.lower()
+                for up in user_platforms_lower:
+                    if up in key_lower or key_lower in up:
+                        return True
+            elif isinstance(val, dict):
+                # TMDB nested format fallback: {"IN": {"flatrate": [...]}}
+                for access_type in ["flatrate", "ads", "free"]:
+                    for p in val.get(access_type, []):
+                        provider_name = (p.get("provider_name") or "").lower()
+                        if not provider_name:
+                            continue
+                        for up in user_platforms_lower:
+                            if up in provider_name or provider_name in up:
+                                return True
         return False
 
     # -----------------------------------------------------------------------
@@ -862,7 +877,7 @@ class UATEngine:
             return
 
         print("[UAT] Publishing run summary...")
-        sb_insert("uat_runs", [run_data])
+        sb_upsert("uat_runs", [run_data], on_conflict="run_id")
 
         # 2. Scenarios in batches
         print("[UAT] Publishing scenarios...")
