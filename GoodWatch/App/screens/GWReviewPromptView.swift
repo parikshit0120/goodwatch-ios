@@ -166,7 +166,7 @@ struct GWReviewPromptView: View {
                 .font(GWTypography.headline())
                 .foregroundColor(GWColors.white)
 
-            Text("Your taste helps us improve picks for everyone.")
+            Text("Taste data helps improve picks for everyone.")
                 .font(GWTypography.body())
                 .foregroundColor(GWColors.lightGray)
                 .multilineTextAlignment(.center)

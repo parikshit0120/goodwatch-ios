@@ -360,3 +360,49 @@ Every new audit check added to audit_agent.py MUST reference a specific guardrai
 
 ### INV-A10: CI Environment Adaptation
 The audit agent MUST detect whether it is running in CI (GitHub Actions) or locally and adapt checks accordingly. Checks that depend on local-only state (git hooks, skip-worktree, Keychain) MUST skip cleanly in CI. Checks that depend on network access MUST use proper User-Agent headers and accept standard HTTP response codes (200, 206, 301, 302).
+
+---
+
+## ENGINE SAFETY INVARIANTS
+
+### INV-E01: Tag Weight Clamp
+**Rule:** Tag weights MUST always remain in the [0.0, 2.0] range after any update. Floor at 0.0 prevents negative bias; ceiling at 2.0 prevents runaway inflation while allowing growth above the 1.0 default.
+**Why:** Unbounded weights cause score inflation or negative bias, breaking the scoring formula. A user who rejects a tag 5 times should hit 0.0, not -1.0. A user who loves a tag can grow to 1.5 but not 10.0.
+**Verify:** `updateTagWeights()` in GWSpec.swift applies `min(2.0, max(0.0, ...))` after adding delta.
+**Violated if:** Any tag weight stored in UserDefaults or Supabase is outside [0.0, 2.0].
+
+### INV-E02: Soft Reject Cooldown
+**Rule:** Movies soft-rejected via "show me another" MUST NOT reappear for 7 days (softRejectCooldownDays).
+**Why:** Users who skip a movie don't want to see it again soon. The 7-day cooldown is shorter than the 30-day not_tonight exclusion because the signal is weaker.
+**Verify:** `isValidMovie()` in GWRecommendationEngine.swift checks `softRejectHistory` and rejects movies within cooldown period.
+**Violated if:** A movie shown via "show me another" reappears within 7 days.
+
+### INV-E03: Session Dedup
+**Rule:** A movie MUST NOT appear twice in the same session, regardless of how many recommendations are requested.
+**Why:** Showing the same movie twice in one session signals a broken engine and destroys user trust.
+**Verify:** `isValidMovie()` checks `sessionExcludedIds` (populated from `excludedMovieIds` in RootFlowView).
+**Violated if:** A user sees the same movie card twice in a single Pick For Me session.
+
+### INV-E04: Feed-Forward Learning
+**Rule:** Tag weight updates from user actions (watch, reject, skip) MUST be applied BEFORE the next recommendation in the same session.
+**Why:** If a user rejects a "dark" movie, the next recommendation should already reflect the decreased "dark" weight. Without feed-forward, learning only kicks in on the next session.
+**Verify:** `handleRejectionWithReason()` and `handleShowAnother()` call `saveWeights()` before `fetchNextRecommendation()`.
+**Violated if:** Tag weights used for recommendation N+1 don't include the delta from recommendation N's action.
+
+### INV-E05: GDPR Account Deletion
+**Rule:** Users MUST be able to delete their account and all associated data from within the app.
+**Why:** GDPR compliance and App Store requirement. Failure to provide this blocks App Store approval.
+**Verify:** `deleteAccount()` in UserService.swift removes data from interactions, tag weights, watchlist, and profile tables.
+**Violated if:** No delete account mechanism exists, or deletion leaves orphaned data in any table.
+
+### INV-E06: No Emoji in UI
+**Rule:** No emoji characters may appear in source code, UI labels, buttons, or data strings.
+**Why:** Brand consistency. GoodWatch uses text-only labels and SF Symbols for iconography.
+**Verify:** Audit check C35 scans all View/Screen Swift files for unicode emoji ranges.
+**Violated if:** Any View or Screen file contains emoji characters outside of comments.
+
+### INV-E07: Neutral Voice
+**Rule:** UI copy MUST NOT use possessive pronouns ("Your", "Our", "We") or first/second person language.
+**Why:** Brand voice guidelines. GoodWatch uses neutral, product-centric language.
+**Verify:** Audit check C30 scans View/Screen files for possessive pronoun patterns.
+**Violated if:** Any user-facing text contains "Your", "Our", or "We" as the first word.

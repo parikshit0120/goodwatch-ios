@@ -249,7 +249,7 @@ struct AuthView: View {
             let nsError = error as NSError
 
             #if DEBUG
-            print("❌ Apple Sign In error: \(error.localizedDescription) (code: \(nsError.code))")
+            print("[ERROR] Apple Sign In error: \(error.localizedDescription) (code: \(nsError.code))")
             #endif
 
             if nsError.code == ASAuthorizationError.canceled.rawValue {
@@ -383,7 +383,7 @@ struct AuthView: View {
                 isLoading = false
                 // Show a brief message that we're continuing without the provider
                 #if DEBUG
-                print("⚠️ \(provider) Sign-In failed, continuing anonymously")
+                print("[WARN] \(provider) Sign-In failed, continuing anonymously")
                 #endif
                 onSkip()
             }

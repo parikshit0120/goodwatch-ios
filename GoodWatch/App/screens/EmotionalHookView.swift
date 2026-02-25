@@ -80,7 +80,7 @@ struct EmotionalHookView: View {
 
                 // Copy - The Hook
                 VStack(spacing: 16) {
-                    Text("Your perfect pick\nis ready.")
+                    Text("The perfect pick\nis ready.")
                         .font(GWTypography.headline())
                         .foregroundColor(GWColors.white)
                         .multilineTextAlignment(.center)
@@ -194,13 +194,13 @@ struct EmotionalHookView: View {
             let gwMovies = movies.map { GWMovie(from: $0) }
 
             #if DEBUG
-            print("🔍 DEBUG: Fetched \(movies.count) raw movies, converted to \(gwMovies.count) GWMovies")
+            print("[SEARCH] DEV: Fetched \(movies.count) raw movies, converted to \(gwMovies.count) GWMovies")
             let kalamMovies = gwMovies.filter { $0.title.lowercased().contains("kalam") }
             for k in kalamMovies {
                 print("   Found Kalam: \(k.title), lang=\(k.language), runtime=\(k.runtime), platforms=\(k.platforms), score=\(k.goodscore), votes=\(k.voteCount), tags=\(k.tags)")
             }
             if kalamMovies.isEmpty {
-                print("   ⚠️ No Kalam movie found in fetch results!")
+                print("   [WARN] No Kalam movie found in fetch results!")
             }
             #endif
 
@@ -214,7 +214,7 @@ struct EmotionalHookView: View {
                 isCheckingAvailability = false
 
                 #if DEBUG
-                print("📊 Catalog check: \(availability.combinedMatches) matches out of \(availability.totalMovies) movies")
+                print("[STATS] Catalog check: \(availability.combinedMatches) matches out of \(availability.totalMovies) movies")
                 print("   Platform: \(availability.platformMatches), Language: \(availability.languageMatches), Runtime: \(availability.runtimeMatches)")
                 print("   ContentType: \(availability.contentTypeMatches), Quality: \(availability.qualityMatches)")
                 print("   User platforms: \(profile.platforms), languages: \(profile.preferredLanguages)")
@@ -225,7 +225,7 @@ struct EmotionalHookView: View {
                     let providers = movie.platforms
                     return providers.contains { $0.lowercased().contains("amazon") || $0.lowercased().contains("prime") }
                 }
-                print("   🔍 Found \(primeMovies.count) Prime movies")
+                print("   [SEARCH] Found \(primeMovies.count) Prime movies")
 
                 // Check each filter individually for these movies
                 for movie in primeMovies.prefix(10) {
@@ -238,7 +238,7 @@ struct EmotionalHookView: View {
                     let qualityMatch = movie.goodscore >= 7.5
                     let contentMatch = movie.contentType?.lowercased() == "movie" || movie.contentType == nil
 
-                    print("   🎬 \(movie.title): lang=\(movie.language)[\(langMatch ? "✓" : "✗")], runtime=\(movie.runtime)[\(runtimeMatch ? "✓" : "✗")], score=\(movie.goodscore)[\(qualityMatch ? "✓" : "✗")], type=\(movie.contentType ?? "nil")[\(contentMatch ? "✓" : "✗")]")
+                    print("   [MOVIE] \(movie.title): lang=\(movie.language)[\(langMatch ? "Y" : "N")], runtime=\(movie.runtime)[\(runtimeMatch ? "Y" : "N")], score=\(movie.goodscore)[\(qualityMatch ? "Y" : "N")], type=\(movie.contentType ?? "nil")[\(contentMatch ? "Y" : "N")]")
                 }
                 #endif
 
@@ -252,7 +252,7 @@ struct EmotionalHookView: View {
                     // causes false alarms since the pre-check uses a limited sample.
                     #if DEBUG
                     if let issue = availability.issue {
-                        print("⚠️ Availability pre-check issue (non-blocking): \(issue.title) - \(issue.message)")
+                        print("[WARN] Availability pre-check issue (non-blocking): \(issue.title) - \(issue.message)")
                     }
                     #endif
                     proceedToShowMe()

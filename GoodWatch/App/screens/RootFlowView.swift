@@ -656,7 +656,7 @@ struct RootFlowView: View {
                 .foregroundColor(GWColors.white)
         }
 
-        Text("We hope you love it.")
+        Text("Enjoy the pick.")
             .font(GWTypography.body(weight: .medium))
             .foregroundColor(GWColors.lightGray)
 
@@ -742,7 +742,7 @@ struct RootFlowView: View {
             navigateTo(.feedback)
 
             #if DEBUG
-            print("📋 Showing overdue feedback for: \(feedback.movieTitle)")
+            print("[INFO] Showing overdue feedback for: \(feedback.movieTitle)")
             #endif
         }
     }
@@ -1026,7 +1026,7 @@ struct RootFlowView: View {
                 )
 
                 #if DEBUG
-                print("🎬 RECOMMENDATION DEBUG:")
+                print("[REC] RECOMMENDATION DEBUG:")
                 print("   Fetched \(movies.count) movies from Supabase (contentType filter: \(contentTypeFilter ?? "none"))")
                 print("   User mood: \(userContext.mood.rawValue)")
                 print("   Intent tags: \(userContext.intent.intent_tags)")
@@ -1068,9 +1068,9 @@ struct RootFlowView: View {
                     }
                 }
                 #if DEBUG
-                print("🔍 DIAGNOSTIC: \(movies.count) movies fetched, \(validCount) valid")
-                print("🔍 Failure breakdown: \(allFailureCounts)")
-                print("🔍 Profile: platforms=\(profile.platforms), langs=\(profile.preferredLanguages), runtime=\(profile.runtimeWindow.min)-\(profile.runtimeWindow.max), intentTags=\(profile.intentTags)")
+                print("[DIAG] DIAGNOSTIC: \(movies.count) movies fetched, \(validCount) valid")
+                print("[DIAG] Failure breakdown: \(allFailureCounts)")
+                print("[DIAG] Profile: platforms=\(profile.platforms), langs=\(profile.preferredLanguages), runtime=\(profile.runtimeWindow.min)-\(profile.runtimeWindow.max), intentTags=\(profile.intentTags)")
                 #endif
 
                 // Determine pick count from interaction points
@@ -1212,14 +1212,14 @@ struct RootFlowView: View {
 
                 #if DEBUG
                 if fallbackLevel != .none {
-                    print("⚠️ Used fallback level \(fallbackLevel.rawValue) to find recommendation")
+                    print("[WARN] Used fallback level \(fallbackLevel.rawValue) to find recommendation")
                 }
                 #endif
 
                 #if DEBUG
                 if let gwMovie = output.movie {
                     let rawMovie = movies.first(where: { $0.id.uuidString == gwMovie.id })
-                    print("   ✅ RECOMMENDED: \(gwMovie.title)")
+                    print("   [OK] RECOMMENDED: \(gwMovie.title)")
                     print("      content_type: \(rawMovie?.content_type ?? "nil")")
                     print("      tags: \(gwMovie.tags)")
                     print("      goodscore: \(gwMovie.goodscore), composite: \(gwMovie.composite_score)")
@@ -1228,7 +1228,7 @@ struct RootFlowView: View {
                     let movieTags = Set(gwMovie.tags)
                     print("      tag intersection: \(movieTags.intersection(intentTags))")
                 } else {
-                    print("   ❌ NO RECOMMENDATION: \(output.stopCondition?.description ?? "unknown")")
+                    print("   [FAIL] NO RECOMMENDATION: \(output.stopCondition?.description ?? "unknown")")
                 }
                 #endif
 
@@ -1360,7 +1360,7 @@ struct RootFlowView: View {
                         if let stopCondition = output.stopCondition {
                             self.recommendationError = stopConditionMessage(stopCondition)
                         } else {
-                            self.recommendationError = "We couldn't find a match for your preferences. Try adjusting your platforms or language."
+                            self.recommendationError = "No match found for these preferences. Try adjusting platforms or language."
                         }
 
                         #if DEBUG
@@ -1456,11 +1456,11 @@ struct RootFlowView: View {
 
                 #if DEBUG
                 if let gwMovie = output.movie {
-                    print("🎬 RETRY RECOMMENDATION: \(gwMovie.title)")
+                    print("[REC] RETRY RECOMMENDATION: \(gwMovie.title)")
                     print("   tags: \(gwMovie.tags), intent: \(profile.intentTags)")
                     print("   score: \(engine.computeScore(movie: gwMovie, profile: profile))")
                 } else {
-                    print("🎬 RETRY: No recommendation — \(output.stopCondition?.description ?? "unknown")")
+                    print("[REC] RETRY: No recommendation -- \(output.stopCondition?.description ?? "unknown")")
                 }
                 #endif
 
@@ -1658,7 +1658,8 @@ struct RootFlowView: View {
                 platforms: movie.platformNames
             )
 
-            // Update tag weights (negative signal)
+            // feedForward: Update tag weights BEFORE next recommendation in same session (INV-E04).
+            // Negative signal applied immediately so next pick reflects rejection.
             let gwMovie = GWMovie(from: movie)
             let updatedWeights = updateTagWeights(
                 tagWeights: TagWeightStore.shared.getWeights(),
@@ -1668,7 +1669,7 @@ struct RootFlowView: View {
             TagWeightStore.shared.saveWeights(updatedWeights)
         }
 
-        // Fetch next recommendation
+        // Fetch next recommendation (uses feedForward tag weights from above)
         fetchNextRecommendation(afterRejection: rejectedId, reason: reason.rawValue)
     }
 
@@ -1713,10 +1714,13 @@ struct RootFlowView: View {
                 reason: "show_another"
             )
 
+            // feedForward: Update tag weights BEFORE next recommendation in same session (INV-E04).
             // Weak tag weight signal: "show me another" = very mild negative
             // User didn't actively reject, but wasn't excited enough to watch
-            // Threshold-gated: always collected, but delta is tiny (-0.02) so it only
-            // matters after many interactions accumulate
+            // Threshold-gated: always collected, but delta is tiny (-0.05) so it only
+            // matters after many interactions accumulate.
+            // sessionLearning: weights persist to UserDefaults immediately so the next
+            // recommendation picks them up via TagWeightStore.shared.getWeights()
             let gwMovie = GWMovie(from: movie)
             let updatedWeights = updateTagWeights(
                 tagWeights: TagWeightStore.shared.getWeights(),
@@ -1726,7 +1730,7 @@ struct RootFlowView: View {
             TagWeightStore.shared.saveWeights(updatedWeights)
         }
 
-        // Fetch next recommendation
+        // Fetch next recommendation (uses feedForward tag weights from above)
         fetchNextRecommendation(afterRejection: rejectedId, reason: nil)
     }
 
@@ -2007,13 +2011,13 @@ struct RootFlowView: View {
             let shownIds = try await shown
 
             #if DEBUG
-            print("📋 Historical exclusions: \(rejectedIds.count) rejected + \(shownIds.count) shown = \(rejectedIds.union(shownIds).count) total")
+            print("[INFO] Historical exclusions: \(rejectedIds.count) rejected + \(shownIds.count) shown = \(rejectedIds.union(shownIds).count) total")
             #endif
 
             return rejectedIds.union(shownIds)
         } catch {
             #if DEBUG
-            print("⚠️ Failed to fetch historical exclusions: \(error)")
+            print("[WARN] Failed to fetch historical exclusions: \(error)")
             #endif
             return []
         }
@@ -2033,7 +2037,7 @@ struct RootFlowView: View {
     /// Skip straight to recommendation with preset context (Feel-good + Netflix/Prime + English + Movie)
     /// Triggered by the bug icon on the landing screen
     private func debugSkipToRecommendation() {
-        print("🐛 DEBUG: Skipping to recommendation with preset context")
+        print("[DEV] DEBUG: Skipping to recommendation with preset context")
 
         userContext = UserContext(
             otts: [.netflix, .prime, .jioHotstar],

@@ -323,8 +323,8 @@ struct RecentPickCard: View {
 
 struct UserArchetype {
     let name: String        // e.g. "The Comfort Seeker"
-    let emoji: String       // e.g. "🎬"
-    let description: String // e.g. "You lean toward feel-good, easy watches"
+    let iconName: String    // SF Symbol name, e.g. "film"
+    let description: String // e.g. "Leans toward feel-good, easy watches"
     let traits: [String]    // e.g. ["Feel-good", "Light", "Safe picks"]
 
     static func derive(from weights: [String: Double]) -> UserArchetype {
@@ -361,33 +361,33 @@ struct UserArchetype {
         let (_, cogLabel, _) = topWeight(cogLevels)
         let (riskKey, riskLabel, _) = topWeight(riskLevels)
 
-        // Determine archetype name
+        // Determine archetype name and SF Symbol icon (no emoji per brand rule)
         let name: String
-        let emoji: String
+        let iconName: String
         switch emotionKey {
         case "feel_good", "uplifting":
             if riskKey == "safe_bet" {
                 name = "The Comfort Seeker"
-                emoji = "☀️"
+                iconName = "sun.max.fill"
             } else {
                 name = "The Optimist"
-                emoji = "🌈"
+                iconName = "sparkles"
             }
         case "dark", "disturbing":
             name = "The Deep Diver"
-            emoji = "🌊"
+            iconName = "water.waves"
         case "bittersweet":
             name = "The Film Buff"
-            emoji = "🎬"
+            iconName = "film"
         default:
             name = "The Explorer"
-            emoji = "🧭"
+            iconName = "safari"
         }
 
-        let desc = "You lean toward \(emotionLabel), \(cogLabel) watches"
+        let desc = "Leans toward \(emotionLabel), \(cogLabel) watches"
         let traits = [emotionLabel.capitalized, energyLabel.capitalized, riskLabel.capitalized]
 
-        return UserArchetype(name: name, emoji: emoji, description: desc, traits: traits)
+        return UserArchetype(name: name, iconName: iconName, description: desc, traits: traits)
     }
 }
 

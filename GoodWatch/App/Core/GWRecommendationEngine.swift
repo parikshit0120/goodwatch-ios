@@ -160,6 +160,12 @@ struct GWUserProfileComplete {
     var tasteProfile: GWUserTasteProfile?
     var moodMapping: GWMoodMapping?
     var applyRecencyGate: Bool  // true when interaction_points < 10 and feature flag enabled
+    /// Soft reject history: movieId -> rejection date. Used for 7-day cooldown (INV-E02).
+    /// Movies in this dict are excluded if rejected < softRejectCooldownDays ago.
+    var softRejectHistory: [String: Date]
+    /// Session-level excluded movie IDs (excludedMovieIds from RootFlowView).
+    /// Prevents same-movie appearing twice in a single session (INV-E03).
+    var sessionExcludedIds: Set<String>
 
     /// All excluded movie IDs (seen + notTonight + abandoned)
     var allExcludedIds: Set<String> {
@@ -187,7 +193,9 @@ struct GWUserProfileComplete {
         dimensionalLearning: GWDimensionalLearning = GWDimensionalLearning(),
         tasteProfile: GWUserTasteProfile? = nil,
         moodMapping: GWMoodMapping? = nil,
-        applyRecencyGate: Bool = false
+        applyRecencyGate: Bool = false,
+        softRejectHistory: [String: Date] = [:],
+        sessionExcludedIds: Set<String> = []
     ) {
         self.userId = userId
         self.preferredLanguages = preferredLanguages
@@ -212,6 +220,8 @@ struct GWUserProfileComplete {
         self.tasteProfile = tasteProfile
         self.moodMapping = moodMapping
         self.applyRecencyGate = applyRecencyGate
+        self.softRejectHistory = softRejectHistory
+        self.sessionExcludedIds = sessionExcludedIds
     }
 
     /// Build from UserContext (used in EmotionalHookView and MovieFilter)
@@ -441,6 +451,21 @@ final class GWRecommendationEngine {
                 reason = "abandoned"
             }
             return .invalid(.alreadyInteracted(id: movie.id, reason: reason))
+        }
+
+        // Rule 3B: Session dedup — excludedMovieIds prevents same movie in same session (INV-E03)
+        if profile.sessionExcludedIds.contains(movie.id) {
+            return .invalid(.alreadyInteracted(id: movie.id, reason: "session_dedup"))
+        }
+
+        // Rule 3C: Soft reject 7-day cooldown (INV-E02)
+        // Movies soft-rejected (show_me_another) get a cooldown period before reappearing
+        let softRejectCooldownDays = 7
+        if let rejectDate = profile.softRejectHistory[movie.id] {
+            let daysAgo = Calendar.current.dateComponents([.day], from: rejectDate, to: Date()).day ?? 0
+            if daysAgo < softRejectCooldownDays {
+                return .invalid(.alreadyInteracted(id: movie.id, reason: "softReject_cooldown"))
+            }
         }
 
         // Rule 4: Runtime in window

@@ -347,7 +347,7 @@ struct GWWatchFeedbackView: View {
                 .font(GWTypography.headline())
                 .foregroundColor(GWColors.white)
 
-            Text("Your feedback helps us pick better for you.")
+            Text("Feedback helps improve future picks.")
                 .font(GWTypography.body())
                 .foregroundColor(GWColors.lightGray)
                 .multilineTextAlignment(.center)

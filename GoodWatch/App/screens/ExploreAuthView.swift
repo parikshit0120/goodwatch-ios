@@ -79,7 +79,7 @@ struct ExploreAuthView: View {
                         benefitRow(
                             icon: "brain.head.profile",
                             title: "Smarter Picks",
-                            desc: "Your activity helps us recommend better."
+                            desc: "Activity data helps improve recommendations."
                         )
                     }
                     .padding(.horizontal, 32)
@@ -265,7 +265,7 @@ struct ExploreAuthView: View {
                         // Apple OAuth succeeded but Supabase user creation failed
                         // Fall back to anonymous so user isn't blocked from Explore
                         #if DEBUG
-                        print("⚠️ Apple Sign-In: OAuth OK but Supabase failed: \(error.localizedDescription)")
+                        print("[WARN] Apple Sign-In: OAuth OK but Supabase failed: \(error.localizedDescription)")
                         print("   Falling back to anonymous sign-in for Explore access")
                         #endif
                         await fallbackToAnonymousForExplore(provider: "Apple")
@@ -283,7 +283,7 @@ struct ExploreAuthView: View {
             }
             // Apple Sign-In itself failed (not just Supabase) — try anonymous fallback
             #if DEBUG
-            print("❌ Apple Sign In error: \(error.localizedDescription) (code: \(nsError.code))")
+            print("[ERROR] Apple Sign In error: \(error.localizedDescription) (code: \(nsError.code))")
             #endif
             Task {
                 await fallbackToAnonymousForExplore(provider: "Apple")
@@ -310,7 +310,7 @@ struct ExploreAuthView: View {
                     return  // User cancelled
                 }
                 #if DEBUG
-                print("❌ Google Sign-In error: \(error.localizedDescription)")
+                print("[ERROR] Google Sign-In error: \(error.localizedDescription)")
                 #endif
                 // Google Sign-In failed — try anonymous fallback
                 Task {
@@ -347,7 +347,7 @@ struct ExploreAuthView: View {
                 } catch {
                     // Google OAuth succeeded but Supabase failed — fall back to anonymous
                     #if DEBUG
-                    print("⚠️ Google Sign-In: OAuth OK but Supabase failed: \(error.localizedDescription)")
+                    print("[WARN] Google Sign-In: OAuth OK but Supabase failed: \(error.localizedDescription)")
                     #endif
                     await fallbackToAnonymousForExplore(provider: "Google")
                 }
@@ -401,7 +401,7 @@ struct ExploreAuthView: View {
             await MainActor.run {
                 isLoading = false
                 #if DEBUG
-                print("✅ Fallback to anonymous succeeded — proceeding to Explore")
+                print("[OK] Fallback to anonymous succeeded -- proceeding to Explore")
                 #endif
                 onSignedIn()
             }
@@ -411,7 +411,7 @@ struct ExploreAuthView: View {
             await MainActor.run {
                 isLoading = false
                 #if DEBUG
-                print("⚠️ Even anonymous fallback failed: \(error.localizedDescription) — proceeding anyway")
+                print("[WARN] Even anonymous fallback failed: \(error.localizedDescription) -- proceeding anyway")
                 #endif
                 onSignedIn()
             }

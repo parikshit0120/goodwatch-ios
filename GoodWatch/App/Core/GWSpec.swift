@@ -601,6 +601,16 @@ class TagWeightStore {
         UserDefaults.standard.removeObject(forKey: userDefaultsKey)
     }
 
+    /// Clear all tag weight data for GDPR account deletion (dataRemoval).
+    /// Removes cached weights and all stored user weight keys.
+    func clearAllWeights() {
+        cachedWeights = nil
+        cachedForKey = nil
+        UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+        // Also remove legacy key
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+    }
+
     /// Migrate legacy global weights to a user-specific key (one-time)
     private func migrateGlobalWeightsIfNeeded(toUser userId: String) {
         let userKey = "\(keyPrefix)\(userId)"
@@ -796,7 +806,9 @@ func updateTagWeights(
     var updated = tagWeights
     for tag in movie.tags {
         let currentWeight = updated[tag] ?? 1.0
-        updated[tag] = currentWeight + delta
+        // Clamp tag weights: floor at 0.0 to prevent negative bias,
+        // ceiling at 2.0 to prevent runaway inflation (INV-E01)
+        updated[tag] = min(2.0, max(0.0, currentWeight + delta))
     }
 
     return updated

@@ -349,7 +349,7 @@ struct WatchlistTab: View {
                 .font(.system(size: 40))
                 .foregroundColor(GWColors.gold.opacity(0.6))
 
-            Text("Your watchlist is empty")
+            Text("Watchlist is empty")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(GWColors.white)
 

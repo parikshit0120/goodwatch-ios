@@ -10,9 +10,9 @@ struct SortMenuSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private let sortGroups: [(icon: String, title: String, options: [SortOption])] = [
-        ("★", "Rating", [.ratingDesc, .ratingAsc]),
-        ("⏱", "Duration", [.durationDesc, .durationAsc]),
-        ("📅", "Year", [.yearDesc, .yearAsc])
+        ("*", "Rating", [.ratingDesc, .ratingAsc]),
+        ("Dur", "Duration", [.durationDesc, .durationAsc]),
+        ("Yr", "Year", [.yearDesc, .yearAsc])
     ]
 
     var body: some View {

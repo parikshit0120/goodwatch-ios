@@ -437,7 +437,7 @@ struct MainScreenView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header with close button
             HStack {
-                Text("DEBUG")
+                Text("DEV INFO")
                     .font(.system(size: 11, weight: .heavy, design: .monospaced))
                     .foregroundColor(.red)
                 Spacer()

@@ -171,6 +171,14 @@ final class GWInteractionPoints {
         _ = try? await GWNetworkSession.shared.data(for: request)
     }
 
+    /// Reset interaction points for GDPR account deletion (removeAllData).
+    func reset() {
+        if let userId = currentUserId {
+            UserDefaults.standard.set(0, forKey: "\(pointsKeyPrefix)\(userId)")
+            UserDefaults.standard.removeObject(forKey: "\(tierKeyPrefix)\(userId)")
+        }
+    }
+
     #if DEBUG
     /// Reset interaction points for testing. Debug builds only.
     func resetForTesting(userId: String) {

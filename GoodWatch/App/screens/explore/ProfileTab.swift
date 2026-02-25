@@ -131,12 +131,13 @@ struct ProfileTab: View {
 
     private func archetypeSection(_ archetype: UserArchetype) -> some View {
         VStack(spacing: 12) {
-            sectionHeader("Your Watch Personality")
+            sectionHeader("Watch Personality")
 
             VStack(spacing: 10) {
                 HStack(spacing: 10) {
-                    Text(archetype.emoji)
+                    Image(systemName: archetype.iconName)
                         .font(.system(size: 28))
+                        .foregroundColor(GWColors.gold)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(archetype.name)
@@ -178,7 +179,7 @@ struct ProfileTab: View {
 
     private var statsSection: some View {
         VStack(spacing: 12) {
-            sectionHeader("Your Activity")
+            sectionHeader("Activity")
 
             HStack(spacing: 12) {
                 statCard(
@@ -233,7 +234,7 @@ struct ProfileTab: View {
 
     private var tasteProfileSection: some View {
         VStack(spacing: 12) {
-            sectionHeader("Your Taste Profile")
+            sectionHeader("Taste Profile")
 
             VStack(spacing: 8) {
                 ForEach(topPreferences, id: \.0) { tag, weight in
@@ -297,7 +298,7 @@ struct ProfileTab: View {
                         .font(.system(size: 20))
                         .foregroundColor(GWColors.lightGray.opacity(0.4))
 
-                    Text("No movies saved yet. Tap the ♡ on any movie to start building your watchlist.")
+                    Text("No movies saved yet. Tap the heart on any movie to start building your watchlist.")
                         .font(.system(size: 13))
                         .foregroundColor(GWColors.lightGray.opacity(0.6))
                 }

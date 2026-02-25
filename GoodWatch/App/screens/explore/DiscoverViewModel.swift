@@ -70,7 +70,7 @@ class DiscoverViewModel: ObservableObject {
     ]
 
     static let durationOptions = [
-        "Under 90 min", "90–150 min", "150+ min", "Epic 180+"
+        "Under 90 min", "90-150 min", "150+ min", "Epic 180+"
     ]
 
     static let ratingOptions = [
@@ -206,8 +206,8 @@ enum SortOption: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .ratingDesc: return "Rating: High → Low"
-        case .ratingAsc: return "Rating: Low → High"
+        case .ratingDesc: return "Rating: High to Low"
+        case .ratingAsc: return "Rating: Low to High"
         case .durationDesc: return "Duration: Longest first"
         case .durationAsc: return "Duration: Shortest first"
         case .yearDesc: return "Year: Newest first"
@@ -223,9 +223,9 @@ enum SortOption: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .ratingDesc, .ratingAsc: return "★"
-        case .durationDesc, .durationAsc: return "⏱"
-        case .yearDesc, .yearAsc: return "📅"
+        case .ratingDesc, .ratingAsc: return "*"
+        case .durationDesc, .durationAsc: return "Dur"
+        case .yearDesc, .yearAsc: return "Yr"
         }
     }
 }

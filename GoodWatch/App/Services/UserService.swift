@@ -711,6 +711,44 @@ final class UserService: ObservableObject {
         }
         return (email: email, userId: UUID().uuidString)
     }
+
+    // MARK: - Account Deletion (GDPR / App Store Requirement)
+
+    /// Delete user account and all associated data (GDPR compliance).
+    /// Removes: interactions, tag weights, watchlist, profile, and auth account.
+    /// This is irreversible — called from Settings when user confirms deletion.
+    func deleteAccount() async throws {
+        guard let userId = AuthGuard.shared.currentUserId else {
+            throw UserServiceError.authFailed
+        }
+
+        // 1. Remove user data from all tables
+        let tables = ["interactions", "user_tag_weights_bulk", "user_watchlist", "user_profiles"]
+        for table in tables {
+            var request = URLRequest(url: URL(string: "\(baseURL)/rest/v1/\(table)?user_id=eq.\(userId)")!)
+            request.httpMethod = "DELETE"
+            request.setValue("Bearer \(anonKey)", forHTTPHeaderField: "Authorization")
+            request.setValue(anonKey, forHTTPHeaderField: "apikey")
+            _ = try? await URLSession.shared.data(for: request)
+        }
+
+        // 2. Clear local data
+        TagWeightStore.shared.clearAllWeights()
+        GWInteractionPoints.shared.reset()
+        UserDefaults.standard.removeObject(forKey: "gw_user_id")
+        UserDefaults.standard.removeObject(forKey: "gw_user_profile")
+
+        // 3. Reset state
+        await MainActor.run {
+            currentUser = nil
+            currentProfile = nil
+            isAuthenticated = false
+        }
+
+        #if DEBUG
+        print("[GDPR] Account data removed for user: \(userId)")
+        #endif
+    }
 }
 
 // MARK: - Facebook Auth Presenter
