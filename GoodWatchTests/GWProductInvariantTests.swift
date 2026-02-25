@@ -1191,7 +1191,7 @@ final class GWProductInvariantTests: XCTestCase {
 
     // ============================================
     // INV-L08: Language Priority Scoring
-    // "Language priority bonuses: tonight=0.10, #1=0.08, #2=0.06, #3=0.04, #4+=0.02"
+    // "Language priority bonuses: tonight=0.12, #1=0.10, #2=0.07, #3=0.04, #4+=0.02"
     // ============================================
 
     func testInvariant_L08_LanguagePriorityScoring() {
@@ -1251,7 +1251,7 @@ final class GWProductInvariantTests: XCTestCase {
     }
 
     func testInvariant_L08_TonightPrimaryNoStacking() {
-        // When tonight's primary equals #1 ranked, bonus should be +25 (tonight), not +25+20=+45 (stacked)
+        // When tonight's primary equals #1 ranked, bonus should be +0.12 (tonight), not +0.12+0.10=+0.22 (stacked)
         let profile = GWUserProfileComplete(
             userId: "inv-lang-nostack",
             preferredLanguages: ["hindi", "english"],
@@ -1267,7 +1267,7 @@ final class GWProductInvariantTests: XCTestCase {
             tagWeights: [:]
         )
 
-        // Hindi = tonight primary AND #1 ranked. Should get +25 (tonight), not +45 (stacked)
+        // Hindi = tonight primary AND #1 ranked. Should get +0.12 (tonight), not +0.22 (stacked)
         let hindiMovieTest = GWMovie(
             id: "inv-hindi-nostack", title: "Hindi No Stack", year: 2024, runtime: 120,
             language: "hi", platforms: ["jio_hotstar"], genres: ["Drama"],
@@ -1284,11 +1284,11 @@ final class GWProductInvariantTests: XCTestCase {
         let hindiScore = engine.computeScore(movie: hindiMovieTest, profile: profile)
         let englishScore = engine.computeScore(movie: englishMovieTest, profile: profile)
 
-        // Hindi(tonight +25) vs English(#2 +15) = gap of 10.
-        // If stacking occurred, gap would be 45-15=30. Must be <= 12 to prove no stacking.
+        // Hindi(tonight +0.12) vs English(#2 +0.07) = gap of 0.05.
+        // If stacking occurred, gap would be 0.22-0.07=0.15. Must be <= 0.10 to prove no stacking.
         let gap = hindiScore - englishScore
-        XCTAssertLessThanOrEqual(gap, 12.0,
-            "INV-L08 VIOLATED: Tonight primary + #1 ranked gap (\(gap)) suggests stacking (expected <=12, i.e. 25-15=10)")
+        XCTAssertLessThanOrEqual(gap, 0.10,
+            "INV-L08 VIOLATED: Tonight primary + #1 ranked gap (\(gap)) suggests stacking (expected <=0.10, i.e. 0.12-0.07=0.05)")
     }
 
     // ============================================

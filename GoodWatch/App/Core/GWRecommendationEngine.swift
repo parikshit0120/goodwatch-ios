@@ -888,10 +888,10 @@ final class GWRecommendationEngine {
         let scored = intlPool.map { movie -> (GWMovie, Double) in
             var score = computeScore(movie: movie, profile: profile)
 
-            // Replace language bonus with dubbed language bonus
-            // Dubbed in tonight's primary: +12 (lower than any native language bonus)
-            // Dubbed in #2 language: +8
-            // Dubbed in #3+: +4
+            // Replace language bonus with dubbed language bonus (scaled to 0-1 engine)
+            // Dubbed in tonight's primary: +0.06 (lower than any native language bonus)
+            // Dubbed in #2 language: +0.04
+            // Dubbed in #3+: +0.02
             let dubbedSet = Set(movie.dubbedLanguages.map { $0.lowercased() })
             let isoMap: [String: String] = [
                 "english": "en", "hindi": "hi", "tamil": "ta", "telugu": "te",
@@ -899,15 +899,15 @@ final class GWRecommendationEngine {
             ]
             let tonightIso = isoMap[resolvedTonight] ?? resolvedTonight
             if dubbedSet.contains(tonightIso) {
-                score += 12.0
+                score += 0.06
             } else {
                 for (idx, lang) in profile.preferredLanguages.enumerated() {
                     let iso = isoMap[lang.lowercased()] ?? lang.lowercased()
                     if dubbedSet.contains(iso) {
                         switch idx {
-                        case 0: score += 12.0
-                        case 1: score += 8.0
-                        default: score += 4.0
+                        case 0: score += 0.06
+                        case 1: score += 0.04
+                        default: score += 0.02
                         }
                         break
                     }
@@ -1045,9 +1045,8 @@ final class GWRecommendationEngine {
             tonightPrimary: profile.tonightPrimary
         )
 
-        // Language bonus is on absolute scale (5-25) to ensure meaningful impact on ranking.
-        // No upper clamp — the raw score is used for relative ranking, not display.
-        return max(baseScore + confidenceBoost + languageBonus, 0)
+        // All components are on 0-1 scale. Clamp to [0, 1].
+        return min(max(baseScore + confidenceBoost + languageBonus, 0), 1)
     }
 
     // MARK: - Confidence Boost (Threshold-Gated)
@@ -1084,12 +1083,17 @@ final class GWRecommendationEngine {
     /// ranked priority order, with tonight's primary getting the highest bonus.
     /// Priority affects SCORING only — all selected languages pass validation.
     ///
-    /// Scoring (normalized to 0-1 engine scale):
-    ///   Tonight's primary language:          +0.10
-    ///   #1 in ranked (not tonight primary):  +0.08
-    ///   #2 in ranked:                        +0.06
+    /// Scoring (balanced for 0-1 engine scale):
+    ///   Tonight's primary language:          +0.12
+    ///   #1 in ranked (not tonight primary):  +0.10
+    ///   #2 in ranked:                        +0.07
     ///   #3 in ranked:                        +0.04
     ///   #4+ in ranked:                       +0.02
+    ///
+    /// These values tip close races without overwhelming mood fit or quality.
+    /// Tonight Hindi (0.12) vs #3 English (0.04) = 0.08 gap = ~16% of tag range (0.50).
+    /// A perfect-mood English movie (0.75 + 0.04 = 0.79) still beats a mediocre
+    /// Hindi movie (0.40 + 0.12 = 0.52).
     private func computeLanguagePriorityBonus(movieLanguage: String, prioritizedLanguages: [String], tonightPrimary: String?) -> Double {
         // Only applies when user has 2+ languages (otherwise no priority distinction)
         guard prioritizedLanguages.count > 1 else { return 0.0 }
@@ -1110,9 +1114,9 @@ final class GWRecommendationEngine {
                    (l == "punjabi" && movie == "pa")
         }
 
-        // Tonight's primary gets highest bonus
+        // Tonight's primary — strong but not dominant
         if isLanguageMatch(movieLang, resolvedTonight) {
-            return 25.0
+            return 0.12
         }
 
         // Other languages scored by their ranked position
@@ -1121,10 +1125,10 @@ final class GWRecommendationEngine {
         }
 
         switch index {
-        case 0: return 20.0  // #1 ranked (but not tonight's primary — user switched tonight)
-        case 1: return 15.0  // #2 ranked
-        case 2: return 10.0  // #3 ranked
-        default: return 5.0  // #4+
+        case 0: return 0.10  // #1 ranked (but not tonight's primary — user switched tonight)
+        case 1: return 0.07  // #2 ranked
+        case 2: return 0.04  // #3 ranked
+        default: return 0.02 // #4+
         }
     }
 

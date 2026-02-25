@@ -552,3 +552,22 @@ SESSION: 2026-02-25 — Language Priority + Dubbed Content + Critical Fixes
 - 25 movies have dubbed data; the rest default to empty array
 - Protected file hashes in Supabase are current as of this session
 - Commit message should be: fix: language priority scoring scale, international dub seeds, protected hashes
+
+---
+
+## 2026-02-25 (Session 2)
+
+**Fix**: Balanced language scoring to 0-1 scale
+
+**What changed**:
+- computeLanguagePriorityBonus(): 25/20/15/10/5 -> 0.12/0.10/0.07/0.04/0.02
+- recommendInternationalPick() dubbed: 12/8/4 -> 0.06/0.04/0.02
+- Restored min(..., 1) upper clamp in computeScore()
+- Updated INV-L08 test threshold from 25.0 -> 0.10
+
+**Why**: Previous values (25/20/15/10/5) completely overwhelmed the 0-1 scoring
+system, making language the only factor. New values make language a strong tiebreaker
+(~16% of tag alignment range) without overriding mood fit or quality.
+
+**Files modified**: GWRecommendationEngine.swift, GWProductInvariantTests.swift, progress.txt
+**Tests**: Must pass 50/50
