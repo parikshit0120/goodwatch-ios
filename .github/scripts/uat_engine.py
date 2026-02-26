@@ -79,6 +79,30 @@ USER_TIERS = {
     "trusted":    {"min_rating": 6.0, "min_votes": 200,  "accept_count": 10},
 }
 
+# Supported platforms — only test platforms the app actually supports.
+# Uses EXACT key names from the streaming_providers JSONB in Supabase.
+# Discovered noise platforms (Sun Nxt, VI movies and tv) are excluded.
+SUPPORTED_PLATFORMS = [
+    "Netflix",
+    "JioHotstar",
+    "Amazon Prime Video",
+    "Zee5",
+    "Sony Liv",
+    "Apple TV",
+]
+
+# Top platforms (highest traffic) — used for dead zone classification
+TOP_PLATFORMS = {"Netflix", "JioHotstar", "Amazon Prime Video"}
+
+# Primary languages — used for dead zone classification
+PRIMARY_LANGUAGES = {"en", "hi", "ta", "te"}
+
+# Dead zone classification constants
+DZ_FIXABLE_PLATFORM = "fixable_platform"
+DZ_FIXABLE_QUALITY = "fixable_quality"
+DZ_ACCEPTED_THIN = "accepted_thin"
+DZ_ACCEPTED_QUALITY = "accepted_quality"
+
 DRY_RUN = "--dry-run" in sys.argv
 
 # SSL context for macOS
@@ -250,6 +274,7 @@ class UATEngine:
 
         # 2. Platforms: extract from streaming_providers JSONB
         # Format is flat: {"Netflix": "url", "JioHotstar": "url", ...}
+        # Filter to SUPPORTED_PLATFORMS only — removes noise (Sun Nxt, VI movies)
         print("[UAT] Discovering platforms...")
         sample = sb_select(
             "movies",
@@ -257,27 +282,31 @@ class UATEngine:
             filters="streaming_providers=not.is.null",
             limit=500,
         )
-        platform_set = set()
+        all_platform_keys = set()
         if sample:
             for m in sample:
                 providers = m.get("streaming_providers") or {}
                 if not isinstance(providers, dict):
                     continue
-                # Flat format: keys are platform names, values are URLs
                 for key in providers:
                     if isinstance(providers[key], str):
-                        platform_set.add(key)
+                        all_platform_keys.add(key)
                     elif isinstance(providers[key], dict):
-                        # TMDB nested format fallback: {"IN": {"flatrate": [...]}}
                         region_data = providers[key]
                         for ptype in ["flatrate", "ads", "free"]:
                             for p in region_data.get(ptype, []):
                                 name = p.get("provider_name", "")
                                 if name:
-                                    platform_set.add(name)
-        self.platforms = sorted(platform_set)
+                                    all_platform_keys.add(name)
+
+        # Intersect with supported platforms
+        supported_set = set(SUPPORTED_PLATFORMS)
+        self.platforms = sorted(all_platform_keys & supported_set)
+        filtered_out = sorted(all_platform_keys - supported_set)
+        if filtered_out:
+            print(f"[UAT]   Filtered out unsupported: {filtered_out}")
         if not self.platforms:
-            self.platforms = ["Netflix", "JioCinema", "Amazon Prime Video"]
+            self.platforms = list(SUPPORTED_PLATFORMS)
         print(f"[UAT]   Platforms: {self.platforms}")
 
         # 3. Moods: defined in engine, use known set
@@ -421,6 +450,39 @@ class UATEngine:
             "filter": "catalog_empty",
             "count_before": 0,
         }
+
+    def _classify_dead_zone(self, scenario, funnel):
+        """Classify a dead zone as fixable or accepted.
+
+        Returns one of:
+          fixable_platform — content exists in language, missing from top platform (sync gap)
+          fixable_quality  — content on platform but quality gate kills it for primary lang
+          accepted_thin    — regional language x niche platform (genuinely sparse)
+          accepted_quality — quality gate, non-primary combo
+        """
+        bottleneck = funnel.get("bottleneck_filter", "")
+        languages = set(scenario.get("languages") or [])
+        platforms = set(scenario.get("platforms") or [])
+        after_lang = funnel.get("after_language", 0)
+        after_plat = funnel.get("after_platform", 0)
+
+        is_primary_lang = bool(languages & PRIMARY_LANGUAGES)
+        is_top_platform = bool(platforms & TOP_PLATFORMS)
+
+        if bottleneck == "platform_filter":
+            if after_lang > 0 and is_top_platform:
+                return DZ_FIXABLE_PLATFORM
+            return DZ_ACCEPTED_THIN
+
+        if bottleneck == "quality_gate":
+            if after_plat > 0 and is_primary_lang and is_top_platform:
+                return DZ_FIXABLE_QUALITY
+            if not is_primary_lang or not is_top_platform:
+                return DZ_ACCEPTED_THIN
+            return DZ_ACCEPTED_QUALITY
+
+        # language_filter, runtime_filter, catalog_empty
+        return DZ_ACCEPTED_THIN
 
     # -----------------------------------------------------------------------
     # Phase 6: Scenario Matrix Generation
@@ -635,6 +697,8 @@ class UATEngine:
 
         if len(candidates) == 0:
             bottleneck = self._find_bottleneck(funnel)
+            funnel["bottleneck_filter"] = bottleneck["filter"]
+            dead_zone_class = self._classify_dead_zone(scenario, funnel)
             return {
                 **base,
                 "status": "fail",
@@ -643,6 +707,7 @@ class UATEngine:
                 "failure_reason": bottleneck["reason"],
                 "bottleneck_filter": bottleneck["filter"],
                 "candidates_before_bottleneck": bottleneck["count_before"],
+                "dead_zone_class": dead_zone_class,
             }
 
         # Pick top candidate by vote_average
@@ -743,7 +808,14 @@ class UATEngine:
     # -----------------------------------------------------------------------
 
     def _register_regression(self, failed_result):
-        """Auto-register a dead zone as a regression test."""
+        """Auto-register a dead zone as a regression test.
+        Only fixable dead zones are tracked — accepted ones are known limitations.
+        """
+        # Skip accepted dead zones — they're catalog limitations, not regressions
+        dz_class = failed_result.get("dead_zone_class") or ""
+        if dz_class.startswith("accepted"):
+            return
+
         config = {
             "mood": failed_result.get("mood"),
             "languages": failed_result.get("languages"),
@@ -870,6 +942,14 @@ class UATEngine:
             "catalog_size": len(self.catalog),
             "engine_version": "adaptive_gate_v1",
             "status": "completed",
+            "fixable_dead_zones": len([
+                r for r in failed
+                if (r.get("dead_zone_class") or "").startswith("fixable")
+            ]),
+            "accepted_dead_zones": len([
+                r for r in failed
+                if (r.get("dead_zone_class") or "").startswith("accepted")
+            ]),
         }
 
         if DRY_RUN:
@@ -888,7 +968,7 @@ class UATEngine:
             "top_movie_id", "top_movie_title", "top_movie_goodscore",
             "top_movie_language", "avg_candidate_goodscore", "score_spread",
             "genre_diversity", "failure_reason", "bottleneck_filter",
-            "candidates_before_bottleneck", "execution_ms",
+            "candidates_before_bottleneck", "execution_ms", "dead_zone_class",
         ]
         print("[UAT] Publishing scenarios...")
         for i in range(0, len(self.results), 500):
@@ -916,16 +996,21 @@ class UATEngine:
                 self._update_regression_pass(r)
 
         # 6. Print summary
+        fixable = [r for r in failed if (r.get("dead_zone_class") or "").startswith("fixable")]
+        accepted = [r for r in failed if (r.get("dead_zone_class") or "").startswith("accepted")]
+
         print(f"\n{'=' * 60}")
         print(f"UAT COMPLETE: {self.run_id}")
         print(f"{'=' * 60}")
-        print(f"Total scenarios: {len(self.results)}")
-        print(f"Passed:          {len(passed)}")
-        print(f"Failed:          {len(failed)}")
-        print(f"Quality warnings:{len(warnings)}")
+        print(f"Total scenarios:    {len(self.results)}")
+        print(f"Passed:             {len(passed)}")
+        print(f"Failed:             {len(failed)}")
+        print(f"  Fixable:          {len(fixable)}")
+        print(f"  Accepted:         {len(accepted)}")
+        print(f"Quality warnings:   {len(warnings)}")
         if scores:
-            print(f"Avg GoodScore:   {round(statistics.mean(scores), 2)}")
-            print(f"Min GoodScore:   {round(min(scores), 2)}")
+            print(f"Avg GoodScore:      {round(statistics.mean(scores), 2)}")
+            print(f"Min GoodScore:      {round(min(scores), 2)}")
         print(f"{'=' * 60}")
 
         if failed:
