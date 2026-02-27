@@ -80,7 +80,7 @@ USER_TIERS = {
 }
 
 # Supported platforms — only test platforms the app actually supports.
-# Uses EXACT key names from the streaming_providers JSONB in Supabase.
+# Uses names from the ott_providers JSONB array in Supabase.
 # Discovered noise platforms (Sun Nxt, VI movies and tv) are excluded.
 SUPPORTED_PLATFORMS = [
     "Netflix",
@@ -90,6 +90,18 @@ SUPPORTED_PLATFORMS = [
     "Sony Liv",
     "Apple TV",
 ]
+
+# Platform aliases — mirrors iOS GWRecommendationEngine.swift expansion logic.
+# Keys are lowercased SUPPORTED_PLATFORMS names; values are additional names
+# that should match for that platform (bidirectional substring matching).
+PLATFORM_ALIASES = {
+    "netflix": ["netflix kids"],
+    "amazon prime video": ["amazon prime video with ads", "amazon video", "prime video"],
+    "jiohotstar": ["hotstar", "disney+ hotstar", "jio hotstar"],
+    "apple tv": ["apple tv+"],
+    "sony liv": ["sonyliv"],
+    "zee5": [],
+}
 
 # Top platforms (highest traffic) — used for dead zone classification
 TOP_PLATFORMS = {"Netflix", "JioHotstar", "Amazon Prime Video"}
@@ -272,41 +284,11 @@ class UATEngine:
             self.languages = ["en", "hi"]  # absolute fallback
         print(f"[UAT]   Languages: {self.languages} (from {len(lang_counts)} total)")
 
-        # 2. Platforms: extract from streaming_providers JSONB
-        # Format is flat: {"Netflix": "url", "JioHotstar": "url", ...}
-        # Filter to SUPPORTED_PLATFORMS only — removes noise (Sun Nxt, VI movies)
-        print("[UAT] Discovering platforms...")
-        sample = sb_select(
-            "movies",
-            select="streaming_providers",
-            filters="streaming_providers=not.is.null",
-            limit=500,
-        )
-        all_platform_keys = set()
-        if sample:
-            for m in sample:
-                providers = m.get("streaming_providers") or {}
-                if not isinstance(providers, dict):
-                    continue
-                for key in providers:
-                    if isinstance(providers[key], str):
-                        all_platform_keys.add(key)
-                    elif isinstance(providers[key], dict):
-                        region_data = providers[key]
-                        for ptype in ["flatrate", "ads", "free"]:
-                            for p in region_data.get(ptype, []):
-                                name = p.get("provider_name", "")
-                                if name:
-                                    all_platform_keys.add(name)
-
-        # Intersect with supported platforms
-        supported_set = set(SUPPORTED_PLATFORMS)
-        self.platforms = sorted(all_platform_keys & supported_set)
-        filtered_out = sorted(all_platform_keys - supported_set)
-        if filtered_out:
-            print(f"[UAT]   Filtered out unsupported: {filtered_out}")
-        if not self.platforms:
-            self.platforms = list(SUPPORTED_PLATFORMS)
+        # 2. Platforms: use SUPPORTED_PLATFORMS directly (INV-UAT01)
+        # The iOS app uses a fixed set of supported platforms with alias expansion.
+        # We test all supported platforms to ensure dead zones are detected.
+        print("[UAT] Using supported platforms list...")
+        self.platforms = list(SUPPORTED_PLATFORMS)
         print(f"[UAT]   Platforms: {self.platforms}")
 
         # 3. Moods: defined in engine, use known set
@@ -327,7 +309,7 @@ class UATEngine:
         print("[UAT] Loading catalog...")
         self.catalog = sb_select_all(
             "movies",
-            select="id,tmdb_id,title,original_language,streaming_providers,"
+            select="id,tmdb_id,title,original_language,ott_providers,"
                    "vote_average,vote_count,runtime,genres,content_type,popularity",
             filters="content_type=eq.movie",
             batch_size=1000,
@@ -394,32 +376,36 @@ class UATEngine:
     def _has_platform(self, movie, user_platforms):
         """Check if movie is available on any of the user's platforms.
 
-        streaming_providers format is flat: {"Netflix": "url", "JioHotstar": "url"}
-        Keys are platform names, values are URLs.
+        ott_providers format is array: [{"id": 119, "name": "Amazon Prime Video",
+        "type": "flatrate", "logo_path": "..."}]
+        Matches using the same fuzzy logic as iOS GWRecommendationEngine (INV-UAT01).
         """
-        providers = movie.get("streaming_providers") or {}
-        if not isinstance(providers, dict):
+        providers = movie.get("ott_providers") or []
+        if not isinstance(providers, list):
             return False
 
-        user_platforms_lower = [p.lower() for p in user_platforms]
+        # Extract movie platform names (mirrors Movie.platformNames in iOS)
+        movie_platform_names = [
+            (p.get("name") or "").lower()
+            for p in providers
+            if isinstance(p, dict) and p.get("name")
+        ]
+        if not movie_platform_names:
+            return False
 
-        for key, val in providers.items():
-            if isinstance(val, str):
-                # Flat format: key is platform name
-                key_lower = key.lower()
-                for up in user_platforms_lower:
-                    if up in key_lower or key_lower in up:
-                        return True
-            elif isinstance(val, dict):
-                # TMDB nested format fallback: {"IN": {"flatrate": [...]}}
-                for access_type in ["flatrate", "ads", "free"]:
-                    for p in val.get(access_type, []):
-                        provider_name = (p.get("provider_name") or "").lower()
-                        if not provider_name:
-                            continue
-                        for up in user_platforms_lower:
-                            if up in provider_name or provider_name in up:
-                                return True
+        # Expand user platforms with aliases (mirrors iOS name expansion)
+        expanded = set()
+        for p in user_platforms:
+            p_lower = p.lower()
+            expanded.add(p_lower)
+            for alias in PLATFORM_ALIASES.get(p_lower, []):
+                expanded.add(alias)
+
+        # Bidirectional substring match (same as iOS)
+        for mp in movie_platform_names:
+            for up in expanded:
+                if up in mp or mp in up:
+                    return True
         return False
 
     # -----------------------------------------------------------------------
