@@ -9,6 +9,7 @@
 
 import Foundation
 import FirebaseAnalytics
+import FirebaseCrashlytics
 
 // MARK: - Event Types
 
@@ -126,9 +127,10 @@ class MetricsService {
             self._userId = id
         }
 
-        // Set Firebase user properties
+        // Set Firebase user properties + Crashlytics identity
         Analytics.setUserID(id)
         Analytics.setUserProperty(authType, forName: "auth_type")
+        Crashlytics.crashlytics().setUserID(id)
     }
 
     // MARK: - Track Event
@@ -136,14 +138,12 @@ class MetricsService {
     func track(_ event: MetricEvent, properties: [String: Any] = [:]) {
         let entry = LogEntry(timestamp: Date(), event: event, properties: properties)
 
-        // 1. Local session log (always)
-        sessionLogs.append(entry)
-
-        // 2. Firebase Analytics (immediate — Firebase handles its own batching)
+        // Firebase Analytics (immediate — Firebase handles its own batching)
         logToFirebase(event: event, properties: properties)
 
-        // 3. Buffer for Supabase (batch upload)
+        // Session log + Supabase buffer — both on the serial queue for thread safety
         queue.async { [weak self] in
+            self?.sessionLogs.append(entry)
             self?.supabaseBuffer.append(entry)
             if let count = self?.supabaseBuffer.count, count >= self?.bufferFlushThreshold ?? 20 {
                 self?.flushToSupabase()

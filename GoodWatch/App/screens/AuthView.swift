@@ -10,6 +10,7 @@ struct AuthView: View {
 
     @State private var contentOpacity: Double = 0
     @State private var isLoading: Bool = false
+    @State private var loadingMessage: String = ""
     @State private var errorMessage: String?
     @State private var newsletterOptIn: Bool = true
     @State private var newsletterEmail: String = ""
@@ -51,10 +52,10 @@ struct AuthView: View {
                         Text("Sign in with Apple")
                             .font(.system(size: 16, weight: .semibold))
                     }
-                    .foregroundColor(Color(hex: "1A1A1A"))
+                    .foregroundColor(GWColors.authButtonText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(Color(hex: "E8E8E8"))
+                    .background(GWColors.authButtonBackground)
                     .cornerRadius(25)
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
@@ -72,10 +73,10 @@ struct AuthView: View {
                         Text("Continue with Google")
                             .font(.system(size: 16, weight: .semibold))
                     }
-                    .foregroundColor(Color(hex: "1A1A1A"))
+                    .foregroundColor(GWColors.authButtonText)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(Color(hex: "E8E8E8"))
+                    .background(GWColors.authButtonBackground)
                     .cornerRadius(25)
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
@@ -179,13 +180,21 @@ struct AuthView: View {
             }
             .opacity(contentOpacity)
 
-            // Loading overlay
+            // Loading overlay with descriptive message
             if isLoading {
                 Color.black.opacity(0.5)
                     .ignoresSafeArea()
-                ProgressView()
-                    .tint(GWColors.gold)
-                    .scaleEffect(1.5)
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .tint(GWColors.gold)
+                        .scaleEffect(1.5)
+                    if !loadingMessage.isEmpty {
+                        Text(loadingMessage)
+                            .font(GWTypography.small())
+                            .foregroundColor(GWColors.lightGray)
+                            .transition(.opacity)
+                    }
+                }
             }
         }
         .onAppear {
@@ -213,6 +222,7 @@ struct AuthView: View {
 
     private func handleAppleSignIn(result: Result<ASAuthorization, Error>) {
         isLoading = true
+        loadingMessage = "Connecting to Apple..."
         errorMessage = nil
 
         switch result {
@@ -226,26 +236,52 @@ struct AuthView: View {
                         UserDefaults.standard.set(name, forKey: "gw_user_display_name")
                     }
                 }
+                // Provision local user instantly — navigate without waiting for Supabase
+                let appleEmail = appleIDCredential.email
+                let localUser = GWUser(
+                    id: UUID(),
+                    auth_provider: AuthProvider.apple.rawValue,
+                    email: appleEmail,
+                    device_id: appleIDCredential.user,
+                    created_at: ISO8601DateFormatter().string(from: Date()),
+                    last_active_at: nil
+                )
+                UserService.shared.currentUser = localUser
+                UserService.shared.currentProfile = GWUserProfile.empty(userId: localUser.id)
+                UserService.shared.isAuthenticated = true
+                UserDefaults.standard.set(localUser.id.uuidString, forKey: "gw_user_id")
+
+                isLoading = false
+                loadingMessage = ""
+                onContinue()
+
+                // Background: reconcile with Supabase + newsletter
+                let optIn = self.newsletterOptIn
+                let credential = appleIDCredential
                 Task {
                     do {
-                        _ = try await UserService.shared.signInWithApple(credential: appleIDCredential)
-                        await subscribeToNewsletterIfOptedIn()
-                        await MainActor.run {
-                            isLoading = false
-                            onContinue()
+                        let reconciledUser = try await UserService.shared.signInWithApple(credential: credential)
+                        if reconciledUser.id != localUser.id {
+                            await MainActor.run {
+                                UserService.shared.currentUser = reconciledUser
+                                UserDefaults.standard.set(reconciledUser.id.uuidString, forKey: "gw_user_id")
+                            }
                         }
                     } catch {
-                        // Apple Sign-In succeeded but Supabase user creation failed
-                        // Fall back to anonymous to not block the user
-                        await handleFallbackToAnonymous(provider: "Apple")
+                        #if DEBUG
+                        print("Supabase Apple auth background sync error: \(error.localizedDescription)")
+                        #endif
                     }
+                    if optIn { await subscribeToNewsletterIfOptedIn() }
                 }
             } else {
                 isLoading = false
+                loadingMessage = ""
                 errorMessage = "Could not get Apple credentials"
             }
         case .failure(let error):
             isLoading = false
+            loadingMessage = ""
             let nsError = error as NSError
 
             #if DEBUG
@@ -271,7 +307,12 @@ struct AuthView: View {
     }
 
     private func handleGoogleSignIn() {
+        #if DEBUG
+        let t0 = CFAbsoluteTimeGetCurrent()
+        print("[GW-AUTH] T+0.0s: Google sign-in button tapped")
+        #endif
         isLoading = true
+        loadingMessage = "Connecting to Google..."
         errorMessage = nil
 
         // Get the root view controller for presenting Google Sign-In
@@ -279,23 +320,31 @@ struct AuthView: View {
               let rootViewController = windowScene.windows.first?.rootViewController else {
             errorMessage = "Could not find root view controller"
             isLoading = false
+            loadingMessage = ""
             return
         }
 
         // Perform Google Sign-In
+        // Note: The SDK's token exchange takes 5-10s on slow WiFi — this is expected.
+        // The loading message reassures the user while Google's servers respond.
         GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController) { result, error in
+            #if DEBUG
+            print("[GW-AUTH] T+\(String(format: "%.1f", CFAbsoluteTimeGetCurrent()-t0))s: Google callback fired")
+            #endif
+
             if let error = error {
+                #if DEBUG
+                print("[GW-AUTH] Google error: \(error.localizedDescription)")
+                #endif
                 isLoading = false
+                loadingMessage = ""
                 let nsError = error as NSError
 
                 // Check if user cancelled
                 if nsError.code == GIDSignInError.canceled.rawValue {
-                    // User cancelled - no error message needed
                     return
                 }
 
-                // Other errors - fall back to anonymous
-                print("Google Sign-In error: \(error.localizedDescription)")
                 Task {
                     await handleFallbackToAnonymous(provider: "Google")
                 }
@@ -305,6 +354,7 @@ struct AuthView: View {
             guard let user = result?.user,
                   let idToken = user.idToken?.tokenString else {
                 isLoading = false
+                loadingMessage = ""
                 errorMessage = "Could not get Google credentials"
                 return
             }
@@ -316,30 +366,57 @@ struct AuthView: View {
                 UserDefaults.standard.set(name, forKey: "gw_user_display_name")
             }
 
-            // Sign in with Supabase using Google tokens
+            // Provision local user instantly — navigate without waiting for Supabase
+            let email = user.profile?.email
+            let localUser = GWUser(
+                id: UUID(),
+                auth_provider: AuthProvider.google.rawValue,
+                email: email,
+                device_id: UserService.shared.deviceId,
+                created_at: ISO8601DateFormatter().string(from: Date()),
+                last_active_at: nil
+            )
+            UserService.shared.currentUser = localUser
+            UserService.shared.currentProfile = GWUserProfile.empty(userId: localUser.id)
+            UserService.shared.isAuthenticated = true
+            UserDefaults.standard.set(localUser.id.uuidString, forKey: "gw_user_id")
+
+            #if DEBUG
+            print("[GW-AUTH] T+\(String(format: "%.1f", CFAbsoluteTimeGetCurrent()-t0))s: Local user provisioned, navigating")
+            #endif
+
+            isLoading = false
+            loadingMessage = ""
+            onContinue()
+
+            // Background: reconcile with Supabase + newsletter
+            let optIn = self.newsletterOptIn
             Task {
                 do {
-                    _ = try await UserService.shared.signInWithGoogle(
+                    let reconciledUser = try await UserService.shared.signInWithGoogle(
                         idToken: idToken,
                         accessToken: accessToken
                     )
-                    await self.subscribeToNewsletterIfOptedIn()
-                    await MainActor.run {
-                        isLoading = false
-                        onContinue()
+                    // Update local user if Supabase returned existing account
+                    if reconciledUser.id != localUser.id {
+                        await MainActor.run {
+                            UserService.shared.currentUser = reconciledUser
+                            UserDefaults.standard.set(reconciledUser.id.uuidString, forKey: "gw_user_id")
+                        }
                     }
                 } catch {
-                    // Google Sign-In succeeded but Supabase user creation failed
-                    // Fall back to anonymous to not block the user
-                    print("Supabase Google auth error: \(error.localizedDescription)")
-                    await handleFallbackToAnonymous(provider: "Google")
+                    #if DEBUG
+                    print("[GW-AUTH] Supabase background sync error: \(error.localizedDescription)")
+                    #endif
                 }
+                if optIn { await self.subscribeToNewsletterIfOptedIn() }
             }
         }
     }
 
     private func handleFacebookSignIn() {
         isLoading = true
+        loadingMessage = "Connecting to Facebook..."
         errorMessage = nil
 
         Task {
@@ -352,17 +429,20 @@ struct AuthView: View {
                         UserDefaults.standard.set(name, forKey: "gw_user_display_name")
                     }
                 }
-                await subscribeToNewsletterIfOptedIn()
+                // Navigate immediately — newsletter in background
+                let optIn = self.newsletterOptIn
                 await MainActor.run {
                     isLoading = false
+                    loadingMessage = ""
                     onContinue()
                 }
+                if optIn { await subscribeToNewsletterIfOptedIn() }
             } catch {
                 let nsError = error as NSError
                 // ASWebAuthenticationSessionError.canceledLogin = 1
                 if nsError.domain == "com.apple.AuthenticationServices.WebAuthenticationSession" && nsError.code == 1 {
                     // User cancelled - no error message needed
-                    await MainActor.run { isLoading = false }
+                    await MainActor.run { isLoading = false; loadingMessage = "" }
                     return
                 }
                 // Facebook Sign-In failed - fall back to anonymous
@@ -374,48 +454,46 @@ struct AuthView: View {
         }
     }
 
-    /// Falls back to anonymous sign-in when OAuth fails
-    /// This ensures users aren't blocked if sign-in services aren't configured
+    /// Falls back to anonymous sign-in when OAuth fails.
+    /// Provisions a local user instantly so the user is never stuck.
     private func handleFallbackToAnonymous(provider: String) async {
-        do {
-            _ = try await UserService.shared.signInAnonymously()
-            await MainActor.run {
-                isLoading = false
-                // Show a brief message that we're continuing without the provider
-                #if DEBUG
-                print("[WARN] \(provider) Sign-In failed, continuing anonymously")
-                #endif
-                onSkip()
-            }
-        } catch {
-            // Even anonymous failed - just continue anyway
-            await MainActor.run {
-                isLoading = false
-                onSkip()
-            }
+        // Provision local anonymous user instantly (zero network)
+        let localUser = GWUser.anonymous(deviceId: UserService.shared.deviceId)
+        await MainActor.run {
+            UserService.shared.currentUser = localUser
+            UserService.shared.currentProfile = GWUserProfile.empty(userId: localUser.id)
+            UserService.shared.isAuthenticated = true
+            UserDefaults.standard.set(localUser.id.uuidString, forKey: "gw_user_id")
+            isLoading = false
+            loadingMessage = ""
+            #if DEBUG
+            print("[AUTH] \(provider) sign-in failed, continuing with local anonymous user \(localUser.id.uuidString)")
+            #endif
+            onSkip()
         }
+        // Background: sync to Supabase (fire-and-forget)
+        Task { await UserService.shared.syncLocalUserToSupabase() }
     }
 
+    /// "Continue without account" — navigates instantly, syncs in background.
+    /// Creates a local anonymous user with a UUID so all downstream tracking
+    /// (AuthGuard, MetricsService, TagWeightStore, interactions) works immediately.
     private func handleAnonymousSignIn() {
-        isLoading = true
-        errorMessage = nil
+        // Provision local anonymous user instantly (zero network)
+        let localUser = GWUser.anonymous(deviceId: UserService.shared.deviceId)
+        UserService.shared.currentUser = localUser
+        UserService.shared.currentProfile = GWUserProfile.empty(userId: localUser.id)
+        UserService.shared.isAuthenticated = true
+        UserDefaults.standard.set(localUser.id.uuidString, forKey: "gw_user_id")
 
+        // Navigate immediately — zero wait
+        onSkip()
+
+        // Background: sync to Supabase + newsletter (fire-and-forget)
+        let optIn = newsletterOptIn
         Task {
-            do {
-                _ = try await UserService.shared.signInAnonymously()
-                // Subscribe to newsletter even for anonymous users
-                await subscribeToNewsletterIfOptedIn()
-                await MainActor.run {
-                    isLoading = false
-                    onSkip()
-                }
-            } catch {
-                // If Supabase isn't set up yet, just skip gracefully
-                await MainActor.run {
-                    isLoading = false
-                    onSkip()
-                }
-            }
+            await UserService.shared.syncLocalUserToSupabase()
+            if optIn { await subscribeToNewsletterIfOptedIn() }
         }
     }
 
@@ -452,7 +530,7 @@ struct AuthView: View {
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await GWNetworkSession.shared.data(for: request)
             if let httpResponse = response as? HTTPURLResponse {
                 #if DEBUG
                 print(httpResponse.statusCode < 300 ? "Newsletter: subscribed" : "Newsletter: failed (\(httpResponse.statusCode))")

@@ -24,6 +24,9 @@ final class RecentPicksService {
         let title: String
         let posterPath: String?
         let goodScore: Int
+        let platformDisplayName: String?
+        let deepLinkURL: String?
+        let webURL: String?
 
         /// Poster URL for display. Handles both full URLs and TMDB paths.
         var posterURL: String? {
@@ -31,15 +34,26 @@ final class RecentPicksService {
             if path.hasPrefix("http") { return path }
             return "https://image.tmdb.org/t/p/w185\(path)"
         }
+
+        /// Whether this pick has a watchable link (deeplink or web).
+        var hasWatchLink: Bool {
+            (deepLinkURL != nil && !(deepLinkURL?.isEmpty ?? true)) ||
+            (webURL != nil && !(webURL?.isEmpty ?? true))
+        }
     }
 
     // MARK: - Add Pick
 
     /// Record a movie as a recent pick. Called when recommendation is displayed.
-    func addPick(id: String, title: String, posterPath: String?, goodScore: Int) {
+    func addPick(id: String, title: String, posterPath: String?, goodScore: Int,
+                 platformDisplayName: String? = nil, deepLinkURL: String? = nil, webURL: String? = nil) {
         var picks = getPicks()
         picks.removeAll { $0.id == id }
-        picks.insert(RecentPick(id: id, title: title, posterPath: posterPath, goodScore: goodScore), at: 0)
+        let pick = RecentPick(
+            id: id, title: title, posterPath: posterPath, goodScore: goodScore,
+            platformDisplayName: platformDisplayName, deepLinkURL: deepLinkURL, webURL: webURL
+        )
+        picks.insert(pick, at: 0)
         picks = Array(picks.prefix(maxPicks))
         if let encoded = try? JSONEncoder().encode(picks) {
             UserDefaults.standard.set(encoded, forKey: key)

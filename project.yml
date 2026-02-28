@@ -23,6 +23,8 @@ targets:
         product: FirebaseAnalytics
       - package: firebase-ios-sdk
         product: FirebaseMessaging
+      - package: firebase-ios-sdk
+        product: FirebaseCrashlytics
       - package: GoogleSignIn-iOS
         product: GoogleSignIn
     entitlements:
@@ -63,6 +65,22 @@ targets:
             CFBundleURLSchemes:
               - goodwatch
         GIDClientID: 1064227633048-375dsiqq8vlt0o2l34lfr66q224fivg4.apps.googleusercontent.com
+        LSApplicationQueriesSchemes:
+          - youtube
+          - nflx
+          - aiv
+          - com.amazon.aiv.play
+          - hotstar
+    postBuildScripts:
+      - name: "Upload Crashlytics dSYMs"
+        script: |
+          "${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"
+        inputFiles:
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}"
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}"
+          - "${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist"
+          - "$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist"
+          - "$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)"
     scheme:
       testTargets:
         - GoodWatchTests

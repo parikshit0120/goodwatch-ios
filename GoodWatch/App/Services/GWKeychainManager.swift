@@ -50,21 +50,32 @@ final class GWKeychainManager {
     }
 
     // MARK: - Onboarding State
+    // Stored in UserDefaults (NOT Keychain) so it resets on app uninstall/reinstall.
+    // Keychain persists across reinstalls which caused users to skip onboarding.
 
     private let onboardingStepKey = "gw_onboarding_step"
+    private let keychainMigratedKey = "gw_onboarding_migrated_to_ud"
 
-    /// Store last completed onboarding step
+    /// Store last completed onboarding step (UserDefaults — clears on reinstall)
     func storeOnboardingStep(_ step: Int) {
-        _ = saveToKeychain(key: onboardingStepKey, value: String(step))
+        UserDefaults.standard.set(step, forKey: onboardingStepKey)
     }
 
-    /// Get last completed onboarding step for resume
+    /// Get last completed onboarding step for resume (UserDefaults — clears on reinstall)
     func getOnboardingStep() -> Int {
-        guard let stepString = readFromKeychain(key: onboardingStepKey),
-              let step = Int(stepString) else {
-            return 0
-        }
-        return step
+        return UserDefaults.standard.integer(forKey: onboardingStepKey)
+    }
+
+    /// One-time migration: remove stale onboarding step from Keychain on existing devices.
+    /// Call once at app launch.
+    func migrateOnboardingFromKeychain() {
+        guard !UserDefaults.standard.bool(forKey: keychainMigratedKey) else { return }
+        // Delete old Keychain entry if it exists
+        deleteFromKeychain(key: onboardingStepKey)
+        UserDefaults.standard.set(true, forKey: keychainMigratedKey)
+        #if DEBUG
+        print("[GWKeychain] Migrated: removed onboarding step from Keychain")
+        #endif
     }
 
     // MARK: - Private Keychain Operations

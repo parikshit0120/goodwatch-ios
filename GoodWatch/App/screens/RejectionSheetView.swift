@@ -126,7 +126,7 @@ struct ReasonButton: View {
                 .foregroundColor(GWColors.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
-                .background(Color.white.opacity(0.05))
+                .background(GWColors.subtleInteractiveFill)
                 .overlay(
                     RoundedRectangle(cornerRadius: GWRadius.md)
                         .stroke(GWColors.surfaceBorder, lineWidth: 1.5)

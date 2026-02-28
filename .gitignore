@@ -24,3 +24,12 @@ Packages/
 
 # SPM
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+__pycache__/
+*.log
+*.backup
+Logos/
+UI Screens/
+UI Screenshots/
+node_modules/
+package.json
+package-lock.json

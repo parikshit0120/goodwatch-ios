@@ -22,6 +22,7 @@ struct PickCarouselView: View {
     let replacedPositions: Set<Int>
     let userOTTs: [OTTPlatform]
     let userMood: String?
+    let trailerKeys: [String: String]  // movie ID -> YouTube key (FIX 10)
     let onWatchNow: (Movie, OTTProvider) -> Void
     let onReject: (GWMovie, GWCardRejectionReason) -> Void
     let onStartOver: () -> Void
@@ -169,6 +170,7 @@ struct PickCarouselView: View {
                     canReject: GWFeatureFlags.shared.isEnabled("card_rejection") && !replacedPositions.contains(index),
                     userOTTs: userOTTs,
                     userMood: userMood,
+                    trailerKey: trailerKeys[gwMovie.id],
                     onWatchNow: { provider in
                         onWatchNow(movie, provider)
                     },

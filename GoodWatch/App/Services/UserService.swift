@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AuthenticationServices
 import SafariServices
+import FirebaseCrashlytics
 
 // MARK: - User Service
 final class UserService: ObservableObject {
@@ -62,6 +63,7 @@ final class UserService: ObservableObject {
                     self.currentProfile = profile
                 }
             } catch {
+                Crashlytics.crashlytics().record(error: error)
                 #if DEBUG
                 print("Failed to load cached user: \(error)")
                 #endif
@@ -110,17 +112,69 @@ final class UserService: ObservableObject {
         return createdUser
     }
 
+    // MARK: - Background Sync for Local Anonymous User
+
+    /// Syncs a locally-provisioned anonymous user to Supabase.
+    /// Uses the UUID already set on currentUser to avoid identity mismatch.
+    /// If an existing server record is found for this device, adopts that identity.
+    /// Safe to call as fire-and-forget from a background Task.
+    func syncLocalUserToSupabase() async {
+        guard let localUser = await MainActor.run(body: { self.currentUser }) else { return }
+
+        do {
+            // Check if server already has a record for this device
+            if let existing = try? await fetchUserByDeviceId(deviceId) {
+                // Server record exists — adopt it (preserves existing watch history)
+                cacheUserId(existing.id)
+                await MainActor.run {
+                    self.currentUser = existing
+                    self.isAuthenticated = true
+                }
+                if let profile = try? await fetchProfile(userId: existing.id) {
+                    await MainActor.run { self.currentProfile = profile }
+                } else {
+                    let newProfile = try await createProfile(userId: existing.id)
+                    await MainActor.run { self.currentProfile = newProfile }
+                }
+                return
+            }
+
+            // No server record — create with our local UUID
+            let created = try await createUser(localUser)
+            cacheUserId(created.id)
+            await MainActor.run {
+                self.currentUser = created
+                self.isAuthenticated = true
+            }
+
+            // Create profile on server
+            let profile = try await createProfile(userId: created.id)
+            await MainActor.run { self.currentProfile = profile }
+        } catch {
+            Crashlytics.crashlytics().record(error: error)
+            #if DEBUG
+            print("[AUTH] Background Supabase sync failed: \(error.localizedDescription) — local user still active")
+            #endif
+            // Local user continues to work. Will retry on next app launch via loadCachedUser().
+        }
+    }
+
     // MARK: - Google Sign In
     func signInWithGoogle(idToken: String, accessToken: String) async throws -> GWUser {
+        #if DEBUG
+        let t0 = CFAbsoluteTimeGetCurrent()
+        print("[GW-AUTH-SVC] T+0.0s: signInWithGoogle started")
+        #endif
         await MainActor.run { isLoading = true }
         defer { DispatchQueue.main.async { [self] in isLoading = false } }
 
         // Exchange tokens with Supabase Auth
         let authResponse = try await exchangeGoogleToken(idToken: idToken, accessToken: accessToken)
+        #if DEBUG
+        print("[GW-AUTH-SVC] T+\(String(format: "%.1f", CFAbsoluteTimeGetCurrent()-t0))s: exchangeGoogleToken done (email: \(authResponse.email))")
+        #endif
 
         // Check if user exists by email (handles cross-provider linking)
-        // Scenario: User signed up with Apple, uninstalled, reinstalled, now signing in with Google
-        // → Find existing account by email, reuse it (preserves all history)
         if let existingUser = try? await fetchUserByEmail(authResponse.email) {
             // Upgrade anonymous user if needed
             if existingUser.auth_provider == AuthProvider.anonymous.rawValue {
@@ -134,7 +188,7 @@ final class UserService: ObservableObject {
 
             #if DEBUG
             if existingUser.auth_provider != AuthProvider.google.rawValue {
-                print("🔗 Account linking: Found existing \(existingUser.auth_provider) account for \(authResponse.email), reusing for Google sign-in")
+                print("Account linking: Found existing \(existingUser.auth_provider) account for \(authResponse.email), reusing for Google sign-in")
             }
             #endif
 
@@ -144,9 +198,12 @@ final class UserService: ObservableObject {
             }
             cacheUserId(existingUser.id)
 
-            // Fetch profile
-            if let profile = try? await fetchProfile(userId: existingUser.id) {
-                await MainActor.run { self.currentProfile = profile }
+            // Fetch profile in background — don't block navigation
+            let existingId = existingUser.id
+            Task {
+                if let profile = try? await self.fetchProfile(userId: existingId) {
+                    await MainActor.run { self.currentProfile = profile }
+                }
             }
 
             return existingUser

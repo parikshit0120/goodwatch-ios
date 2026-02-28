@@ -1184,6 +1184,9 @@ enum GWStopCondition: String, CustomStringConvertible {
     /// No movies available when user didn't select Series/Binge
     case noMoviesAvailable = "no_movies_available"
 
+    /// User profile is incomplete (missing languages, platforms, or intent tags)
+    case incompleteProfile = "incomplete_profile"
+
     var description: String {
         switch self {
         case .noCandidatePassesValidity:
@@ -1206,6 +1209,8 @@ enum GWStopCondition: String, CustomStringConvertible {
             return "We don't have series matching your other preferences right now. Try selecting a movie duration instead."
         case .noMoviesAvailable:
             return "No movies match your current filters. Try adjusting your preferences."
+        case .incompleteProfile:
+            return "Please complete your profile setup before getting recommendations."
         }
     }
 
@@ -1232,6 +1237,8 @@ enum GWStopCondition: String, CustomStringConvertible {
             return "No series available"
         case .noMoviesAvailable:
             return "No movies available"
+        case .incompleteProfile:
+            return "Profile incomplete"
         }
     }
 }

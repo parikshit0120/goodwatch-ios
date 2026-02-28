@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-GoodWatch UAT Engine v1.0
+GoodWatch UAT Engine v1.1
 =========================
 Automated User Acceptance Testing for the recommendation engine.
 Generates scenario matrix from REAL Supabase data, replicates the
@@ -114,14 +114,14 @@ DZ_FIXABLE_PLATFORM = "fixable_platform"
 DZ_FIXABLE_QUALITY = "fixable_quality"
 DZ_ACCEPTED_THIN = "accepted_thin"
 DZ_ACCEPTED_QUALITY = "accepted_quality"
+DZ_QUALITY_RELAXED = "quality_relaxed"
 
 DRY_RUN = "--dry-run" in sys.argv
 
-# SSL context for macOS
-try:
-    SSL_CTX = ssl.create_default_context()
-except Exception:
-    SSL_CTX = ssl._create_unverified_context()
+# SSL context (macOS Python sometimes lacks certs)
+SSL_CTX = ssl.create_default_context()
+SSL_CTX.check_hostname = False
+SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 # ---------------------------------------------------------------------------
@@ -684,6 +684,63 @@ class UATEngine:
         if len(candidates) == 0:
             bottleneck = self._find_bottleneck(funnel)
             funnel["bottleneck_filter"] = bottleneck["filter"]
+
+            # ---------------------------------------------------------------
+            # Level 3: Quality Relaxation (mirrors iOS GWProductionSafety)
+            # Keep language+platform hard gates, drop quality+runtime gates.
+            # If we find candidates, classify as quality_relaxed (not fail).
+            # ---------------------------------------------------------------
+            if bottleneck["filter"] in ("quality_gate", "runtime_filter"):
+                relaxed_pool = [
+                    m for m in self.catalog
+                    if m.get("original_language") in languages
+                    and self._has_platform(m, platforms)
+                ]
+                funnel["after_level3_relaxed"] = len(relaxed_pool)
+
+                if relaxed_pool:
+                    relaxed_pool.sort(
+                        key=lambda m: m.get("vote_average") or 0, reverse=True
+                    )
+                    top = relaxed_pool[0]
+                    top_10 = relaxed_pool[: min(10, len(relaxed_pool))]
+                    top_scores = [m.get("vote_average") or 0 for m in top_10]
+                    avg_score = (
+                        round(sum(top_scores) / len(top_scores), 2)
+                        if top_scores else 0
+                    )
+                    spread = (
+                        round(max(top_scores) - min(top_scores), 2)
+                        if len(top_scores) > 1 else 0
+                    )
+                    genres_set = set()
+                    for m in top_10:
+                        for g in (m.get("genres") or []):
+                            if isinstance(g, str):
+                                genres_set.add(g)
+                            elif isinstance(g, dict):
+                                genres_set.add(g.get("name", ""))
+
+                    return {
+                        **base,
+                        "status": "quality_relaxed",
+                        "candidate_count": len(relaxed_pool),
+                        "scored_count": len(relaxed_pool),
+                        "top_movie_id": top.get("tmdb_id"),
+                        "top_movie_title": top.get("title"),
+                        "top_movie_goodscore": top.get("vote_average"),
+                        "top_movie_language": top.get("original_language"),
+                        "avg_candidate_goodscore": avg_score,
+                        "score_spread": spread,
+                        "genre_diversity": len(genres_set),
+                        "failure_reason": (
+                            f"quality_relaxed_from_{bottleneck['filter']}"
+                        ),
+                        "bottleneck_filter": bottleneck["filter"],
+                        "candidates_before_bottleneck": bottleneck["count_before"],
+                        "dead_zone_class": DZ_QUALITY_RELAXED,
+                    }
+
             dead_zone_class = self._classify_dead_zone(scenario, funnel)
             return {
                 **base,
@@ -763,8 +820,11 @@ class UATEngine:
             avg_score = r.get("avg_candidate_goodscore")
             tier_gate = self.tiers.get(tier, self.tiers["new_user"])
 
-            if count == 0:
+            status = r.get("status", "fail")
+            if count == 0 and status != "quality_relaxed":
                 health = "dead"
+            elif status == "quality_relaxed":
+                health = "yellow"
             elif count <= 2:
                 health = "red"
             elif count <= 9:
@@ -884,6 +944,7 @@ class UATEngine:
         passed = [r for r in self.results if r["status"] == "pass"]
         failed = [r for r in self.results if r["status"] == "fail"]
         warnings = [r for r in self.results if r["status"] == "quality_warning"]
+        quality_relaxed = [r for r in self.results if r["status"] == "quality_relaxed"]
 
         scores = [
             r["top_movie_goodscore"]
@@ -908,26 +969,27 @@ class UATEngine:
                 if len(scores) > 10 else None
             ),
             "mood_coverage": json.dumps({
-                mood: len([r for r in self.results if r.get("mood") == mood and r["status"] == "pass"])
+                mood: len([r for r in self.results if r.get("mood") == mood and r["status"] in ("pass", "quality_relaxed")])
                 for mood in self.moods
             }),
             "language_coverage": json.dumps({
                 lang: len([
                     r for r in self.results
-                    if lang in (r.get("languages") or []) and r["status"] == "pass"
+                    if lang in (r.get("languages") or []) and r["status"] in ("pass", "quality_relaxed")
                 ])
                 for lang in self.languages
             }),
             "platform_coverage": json.dumps({
                 self._slug(p): len([
                     r for r in self.results
-                    if p in (r.get("platforms") or []) and r["status"] == "pass"
+                    if p in (r.get("platforms") or []) and r["status"] in ("pass", "quality_relaxed")
                 ])
                 for p in self.platforms
             }),
             "catalog_size": len(self.catalog),
-            "engine_version": "adaptive_gate_v1",
+            "engine_version": "adaptive_gate_v2_level3",
             "status": "completed",
+            "quality_relaxed": len(quality_relaxed),
             "fixable_dead_zones": len([
                 r for r in failed
                 if (r.get("dead_zone_class") or "").startswith("fixable")
@@ -989,7 +1051,8 @@ class UATEngine:
         print(f"UAT COMPLETE: {self.run_id}")
         print(f"{'=' * 60}")
         print(f"Total scenarios:    {len(self.results)}")
-        print(f"Passed:             {len(passed)}")
+        print(f"Passed (normal):    {len(passed)}")
+        print(f"Quality relaxed:    {len(quality_relaxed)}  (Level 3 — user sees warning)")
         print(f"Failed:             {len(failed)}")
         print(f"  Fixable:          {len(fixable)}")
         print(f"  Accepted:         {len(accepted)}")

@@ -543,19 +543,24 @@ final class GWRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(output.movie?.id, Self.englishNetflixMovie.id, "Should return the valid English movie")
     }
 
-    func testRecommendIsDeterministic() {
+    func testRecommendAlwaysFromValidPool() {
         // Given: Fixed inputs
         let profile = Self.englishOnlyProfile()
         let movies = [Self.englishNetflixMovie, Self.lateNightMovie]
+        let validIds = Set(movies.map { $0.id })
 
-        // When: Running recommendation multiple times
+        // When: Running recommendation multiple times (INV-L04: weighted random, not deterministic)
         let output1 = engine.recommend(from: movies, profile: profile)
         let output2 = engine.recommend(from: movies, profile: profile)
         let output3 = engine.recommend(from: movies, profile: profile)
 
-        // Then: All results should be identical (deterministic)
-        XCTAssertEqual(output1.movie?.id, output2.movie?.id, "First two should match")
-        XCTAssertEqual(output2.movie?.id, output3.movie?.id, "Second two should match")
+        // Then: All results must be from the valid candidate pool
+        for (i, output) in [output1, output2, output3].enumerated() {
+            if let movie = output.movie {
+                XCTAssertTrue(validIds.contains(movie.id),
+                    "Run \(i): result '\(movie.id)' not in valid pool")
+            }
+        }
     }
 
     // ============================================

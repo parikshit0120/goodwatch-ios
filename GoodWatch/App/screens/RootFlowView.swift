@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseCrashlytics
 
 // ============================================
 // ROOT FLOW VIEW - Navigation Controller
@@ -10,7 +11,7 @@ import SwiftUI
 //
 // Flow:
 //   Landing -> Auth -> MoodSelector -> PlatformSelector
-//   -> DurationSelector -> EmotionalHook -> ConfidenceMoment
+//   -> DurationSelector -> ConfidenceMoment
 //   -> MainScreen (with RejectionSheet overlay)
 //
 // Resume:
@@ -29,7 +30,6 @@ struct RootFlowView: View {
         case platformSelector = 3
         case languagePriority = 12  // v1.3: between platform and duration
         case durationSelector = 4
-        case emotionalHook = 5
         case confidenceMoment = 6
         case mainScreen = 7
         case enjoyScreen = 8
@@ -52,6 +52,7 @@ struct RootFlowView: View {
     @State private var currentGoodScore: Int = 0
     @State private var isLoadingRecommendation: Bool = false
     @State private var recommendationError: String?
+    @State private var currentFallbackLevel: GWFallbackLevel = .none
     @State private var excludedMovieIds: Set<UUID> = []
     @State private var recommendationReady: Bool = false
     @State private var confidenceMinTimeElapsed: Bool = false
@@ -77,6 +78,10 @@ struct RootFlowView: View {
     @State private var currentTrendTag: String? = nil
     @State private var trendBoostsByUUID: [String: GWTrendBoost] = [:]
 
+    // Trailer state (FIX 10)
+    @State private var currentTrailerKey: String? = nil
+    @State private var carouselTrailerKeys: [String: String] = [:]  // movie ID -> YouTube key
+
     // Decision timing: tracks when current recommendation was shown
     // Used to measure how long user deliberates before accept/reject
     @State private var recommendationShownTime: Date? = nil
@@ -94,6 +99,10 @@ struct RootFlowView: View {
         insertion: .move(edge: .trailing).combined(with: .opacity),
         removal: .move(edge: .leading).combined(with: .opacity)
     )
+
+    // Recent Picks sheet + bubble
+    @State private var showRecentPicksSheet: Bool = false
+    @State private var showRecentPicksBubble: Bool = false
 
     // Update checker
     @StateObject private var updateChecker = GWUpdateChecker.shared
@@ -237,12 +246,66 @@ struct RootFlowView: View {
                 .animation(.easeOut(duration: 0.3), value: showReviewPrompt)
                 .zIndex(100)
             }
+
+            // Recent Picks sheet overlay (auto-shows on landing if picks exist)
+            if showRecentPicksSheet {
+                let picks = RecentPicksService.shared.getPicks()
+                if !picks.isEmpty {
+                    RecentPicksSheet(
+                        picks: picks,
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                showRecentPicksSheet = false
+                            }
+                            // FIX 1: Use DispatchQueue for reliable bubble appearance
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    showRecentPicksBubble = true
+                                }
+                            }
+                        },
+                        onClearAll: {
+                            RecentPicksService.shared.clear()
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                showRecentPicksSheet = false
+                                showRecentPicksBubble = false
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.easeOut(duration: 0.3), value: showRecentPicksSheet)
+                    .zIndex(90)
+                }
+            }
+
+            // Recent Picks floating bubble (bottom-right, shows after sheet dismiss)
+            // FIX 1: Only show on landing screen, hidden during onboarding/recommendation
+            if showRecentPicksBubble && !showRecentPicksSheet && currentScreen == .landing {
+                let pickCount = RecentPicksService.shared.getPicks().count
+                if pickCount > 0 {
+                    RecentPicksBubble(count: pickCount) {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showRecentPicksSheet = true
+                        }
+                    }
+                    .animation(.easeOut(duration: 0.3), value: showRecentPicksBubble)
+                    .zIndex(80)
+                }
+            }
         }
         .onAppear {
             if !restorePicksIfNeeded() {
                 resumeFromSavedState()
             }
             checkForPendingFeedback()
+            // Auto-show Recent Picks sheet on landing if picks exist
+            if currentScreen == .landing && !RecentPicksService.shared.getPicks().isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showRecentPicksSheet = true
+                    }
+                }
+            }
             // Check for app updates (rate-limited, non-blocking)
             updateChecker.checkForUpdate()
             // Fetch remote mood config and feature flags early (non-blocking)
@@ -277,6 +340,16 @@ struct RootFlowView: View {
                     } catch {
                         // Timeout fired — cancel remaining tasks and move on
                         group.cancelAll()
+                    }
+                }
+            }
+        }
+        // FIX 1: Backup bubble trigger via onChange — handles edge cases where onDismiss misses
+        .onChange(of: showRecentPicksSheet) { _, isShowing in
+            if !isShowing && currentScreen == .landing && !RecentPicksService.shared.getPicks().isEmpty && !showRecentPicksBubble {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showRecentPicksBubble = true
                     }
                 }
             }
@@ -356,7 +429,8 @@ struct RootFlowView: View {
                         print("[ONBOARDING-MEMORY] duration: \(saved.minDuration)-\(saved.maxDuration)m, series: \(saved.requiresSeries)")
                     }
                     #endif
-                    if let saved = GWOnboardingMemory.shared.load() {
+                    if let saved = GWOnboardingMemory.shared.load(),
+                       !saved.otts.isEmpty, !saved.languages.isEmpty {
                         userContext.otts = saved.otts
                         userContext.languages = saved.languages
                         userContext.minDuration = saved.minDuration
@@ -374,6 +448,7 @@ struct RootFlowView: View {
                         navigateTo(.confidenceMoment)
                         fetchRecommendation()
                     } else {
+                        // Memory missing, expired, or incomplete — go through full onboarding
                         navigateTo(.platformSelector)
                     }
                 },
@@ -431,10 +506,6 @@ struct RootFlowView: View {
                     returnToLanding()
                 }
             )
-
-        case .emotionalHook:
-            // DEPRECATED in v1.3: EmotionalHook skipped. If somehow reached, skip forward.
-            Color.clear.onAppear { navigateTo(.confidenceMoment) }
 
         case .confidenceMoment:
             ConfidenceMomentView(onComplete: {
@@ -494,6 +565,7 @@ struct RootFlowView: View {
                 replacedPositions: replacedPositions,
                 userOTTs: userContext.otts,
                 userMood: userContext.intent.mood,
+                trailerKeys: carouselTrailerKeys,
                 onWatchNow: { movie, provider in
                     handleMultiPickWatchNow(movie: movie, provider: provider)
                 },
@@ -509,65 +581,84 @@ struct RootFlowView: View {
             )
         } else if let movie = currentMovie {
             // Single pick: existing MainScreenView (pickCount == 1)
-            #if DEBUG
-            MainScreenView(
-                movie: movie,
-                goodScore: currentGoodScore,
-                userOTTs: userContext.otts,
-                userMood: userContext.intent.mood,
-                onWatchNow: { provider in
-                    handleWatchNow(movie: movie, provider: provider)
-                },
-                onNotTonight: {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showRejectionSheet = true
-                    }
-                },
-                onAlreadySeen: {
-                    handleAlreadySeen(movie: movie)
-                },
-                onStartOver: {
-                    returnToLanding()
-                },
-                onExplore: {
-                    navigateTo(.explore)
-                },
-                internationalPick: internationalPick,
-                trendTag: currentTrendTag,
-                debugInfo: debugOverlayInfo
-            )
-            #else
-            MainScreenView(
-                movie: movie,
-                goodScore: currentGoodScore,
-                userOTTs: userContext.otts,
-                userMood: userContext.intent.mood,
-                onWatchNow: { provider in
-                    handleWatchNow(movie: movie, provider: provider)
-                },
-                onNotTonight: {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showRejectionSheet = true
-                    }
-                },
-                onAlreadySeen: {
-                    handleAlreadySeen(movie: movie)
-                },
-                onStartOver: {
-                    returnToLanding()
-                },
-                onExplore: {
-                    navigateTo(.explore)
-                },
-                internationalPick: internationalPick,
-                trendTag: currentTrendTag
-            )
-            #endif
+            VStack(spacing: 0) {
+                if currentFallbackLevel == .relaxedQuality {
+                    QualityRelaxedBannerView()
+                }
+
+                #if DEBUG
+                MainScreenView(
+                    movie: movie,
+                    goodScore: currentGoodScore,
+                    userOTTs: userContext.otts,
+                    userMood: userContext.intent.mood,
+                    onWatchNow: { provider in
+                        handleWatchNow(movie: movie, provider: provider)
+                    },
+                    onNotTonight: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showRejectionSheet = true
+                        }
+                    },
+                    onAlreadySeen: {
+                        handleAlreadySeen(movie: movie)
+                    },
+                    onStartOver: {
+                        returnToLanding()
+                    },
+                    onExplore: {
+                        navigateTo(.explore)
+                    },
+                    internationalPick: internationalPick,
+                    trendTag: currentTrendTag,
+                    trailerKey: currentTrailerKey,
+                    isTopPick: currentFallbackLevel == .none,
+                    debugInfo: debugOverlayInfo
+                )
+                #else
+                MainScreenView(
+                    movie: movie,
+                    goodScore: currentGoodScore,
+                    userOTTs: userContext.otts,
+                    userMood: userContext.intent.mood,
+                    onWatchNow: { provider in
+                        handleWatchNow(movie: movie, provider: provider)
+                    },
+                    onNotTonight: {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showRejectionSheet = true
+                        }
+                    },
+                    onAlreadySeen: {
+                        handleAlreadySeen(movie: movie)
+                    },
+                    onStartOver: {
+                        returnToLanding()
+                    },
+                    onExplore: {
+                        navigateTo(.explore)
+                    },
+                    internationalPick: internationalPick,
+                    trendTag: currentTrendTag,
+                    trailerKey: currentTrailerKey,
+                    isTopPick: currentFallbackLevel == .none
+                )
+                #endif
+            }
         } else if let error = recommendationError {
             noRecommendationView(message: error)
         } else {
-            // Still loading - show confidence moment style loading
+            // Still loading - show confidence moment style loading with safety timeout
             ConfidenceMomentView(onComplete: {})
+                .onAppear {
+                    // Safety timeout: if still loading after 15 seconds, show error
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
+                        if currentScreen == .mainScreen && currentMovie == nil && recommendationError == nil && recommendedPicks.isEmpty {
+                            recommendationError = "Taking too long to find a match. Please try again."
+                            isLoadingRecommendation = false
+                        }
+                    }
+                }
         }
     }
 
@@ -771,7 +862,7 @@ struct RootFlowView: View {
 
     private func returnToLandingInternal(clearMemory: Bool) {
         // Track onboarding abandonment if user is mid-onboarding
-        let onboardingScreens: Set<Screen> = [.moodSelector, .platformSelector, .languagePriority, .durationSelector, .emotionalHook]
+        let onboardingScreens: Set<Screen> = [.moodSelector, .platformSelector, .languagePriority, .durationSelector]
         if onboardingScreens.contains(currentScreen) {
             MetricsService.shared.track(.onboardingAbandoned, properties: [
                 "abandoned_at_step": currentScreen.rawValue,
@@ -804,8 +895,20 @@ struct RootFlowView: View {
         pickCount = 1
         replacedPositions = []
         currentProfile = nil
+        currentFallbackLevel = .none
+        currentTrailerKey = nil
+        carouselTrailerKeys = [:]
 
         navigateBack(to: .landing)
+
+        // Show Recent Picks bubble on landing if picks exist
+        if !RecentPicksService.shared.getPicks().isEmpty {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showRecentPicksBubble = true
+                }
+            }
+        }
     }
 
     // MARK: - No Recommendation View
@@ -831,9 +934,10 @@ struct RootFlowView: View {
             Spacer().frame(height: 16)
 
             Button {
-                navigateBack(to: .platformSelector)
+                currentFallbackLevel = .none
+                navigateBack(to: .moodSelector)
             } label: {
-                Text("Adjust preferences")
+                Text("Try a different mood")
                     .font(GWTypography.button())
                     .foregroundColor(GWColors.black)
                     .frame(maxWidth: .infinity)
@@ -844,9 +948,10 @@ struct RootFlowView: View {
             .padding(.horizontal, GWSpacing.screenPadding)
 
             Button {
+                currentFallbackLevel = .none
                 navigateBack(to: .landing)
             } label: {
-                Text("Start over")
+                Text("Back to home")
                     .font(GWTypography.body(weight: .medium))
                     .foregroundColor(GWColors.lightGray)
             }
@@ -886,19 +991,29 @@ struct RootFlowView: View {
         // Persist picks so they survive app backgrounding
         saveCurrentPicks()
 
-        // Record recent picks for Landing screen history
+        // Record recent picks for Landing screen history (with OTT deeplink data)
         if pickCount > 1 {
             for pick in recommendedPicks {
                 let score = pick.composite_score > 0 ? Int(round(pick.composite_score)) : Int(round(pick.goodscore * 10))
+                // Try to find matching Movie from rawMoviePool to get OTT provider info
+                let matchingMovie = rawMoviePool.first { $0.id.uuidString == pick.id }
+                let provider = matchingMovie?.bestMatchingProvider(for: userContext.otts)
                 RecentPicksService.shared.addPick(
                     id: pick.id, title: pick.title,
-                    posterPath: pick.poster_url, goodScore: score
+                    posterPath: pick.poster_url, goodScore: score,
+                    platformDisplayName: provider?.displayName,
+                    deepLinkURL: provider?.deepLinkURL?.absoluteString,
+                    webURL: provider?.webURL?.absoluteString
                 )
             }
         } else if let movie = currentMovie {
+            let provider = movie.bestMatchingProvider(for: userContext.otts)
             RecentPicksService.shared.addPick(
                 id: movie.id.uuidString, title: movie.title,
-                posterPath: movie.poster_path, goodScore: currentGoodScore
+                posterPath: movie.poster_path, goodScore: currentGoodScore,
+                platformDisplayName: provider?.displayName,
+                deepLinkURL: provider?.deepLinkURL?.absoluteString,
+                webURL: provider?.webURL?.absoluteString
             )
         }
 
@@ -915,6 +1030,12 @@ struct RootFlowView: View {
     // MARK: - Navigation
 
     private func navigateTo(_ screen: Screen) {
+        Crashlytics.crashlytics().log("nav: \(currentScreen) -> \(screen)")
+        // Dismiss Recent Picks overlays when leaving landing
+        if currentScreen == .landing && screen != .landing {
+            showRecentPicksSheet = false
+            showRecentPicksBubble = false
+        }
         screenTransition = .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .leading).combined(with: .opacity)
@@ -961,19 +1082,14 @@ struct RootFlowView: View {
         //   PlatformSelector saves step 3 -> now goes to languagePriority
         //   LanguagePriority saves step 3 (same as platform, resumes to language)
         //   DurationSelector saves step 4
-        //   EmotionalHook saves step 5 (deprecated v1.3 — treat as duration complete)
+        //   Step 5 was EmotionalHook (removed v1.3) — legacy compat: treat as duration complete
         switch savedStep {
         case 2:
             currentScreen = .platformSelector
         case 3:
             currentScreen = .languagePriority
-        case 4:
-            // Duration selected — go to ConfidenceMoment (skipping EmotionalHook)
-            currentScreen = .confidenceMoment
-            fetchRecommendation()
-        case 5:
-            // v1.3: User was mid-EmotionalHook (now skipped). Duration is complete.
-            // Go straight to ConfidenceMoment.
+        case 4, 5:
+            // Duration complete (step 5 = legacy EmotionalHook, now removed)
             currentScreen = .confidenceMoment
             fetchRecommendation()
         default:
@@ -986,8 +1102,38 @@ struct RootFlowView: View {
     private func fetchRecommendation() {
         isLoadingRecommendation = true
         recommendationError = nil
+        currentFallbackLevel = .none
         recommendationReady = false
         confidenceMinTimeElapsed = false
+        currentTrailerKey = nil  // FIX 10: Reset trailer key for new recommendation
+
+        // Crashlytics context — if the app crashes during recommendation, we'll know what the user selected
+        Crashlytics.crashlytics().setCustomValue(userContext.mood.rawValue, forKey: "mood")
+        Crashlytics.crashlytics().setCustomValue(userContext.otts.map { $0.rawValue }.joined(separator: ","), forKey: "platforms")
+        Crashlytics.crashlytics().setCustomValue(userContext.languages.map { $0.rawValue }.joined(separator: ","), forKey: "languages")
+        Crashlytics.crashlytics().setCustomValue("\(userContext.minDuration)-\(userContext.maxDuration)", forKey: "runtime")
+
+        #if DEBUG
+        print("[REC-START] fetchRecommendation called")
+        print("   mood: \(userContext.mood.rawValue)")
+        print("   platforms: \(userContext.otts.map { $0.rawValue })")
+        print("   languages: \(userContext.languages.map { $0.rawValue })")
+        print("   runtime: \(userContext.minDuration)-\(userContext.maxDuration)")
+        print("   requiresSeries: \(userContext.requiresSeries)")
+        print("   intent_tags: \(userContext.intent.intent_tags)")
+        #endif
+
+        // Guard: if critical context is missing, show error immediately
+        if userContext.otts.isEmpty || userContext.languages.isEmpty {
+            #if DEBUG
+            print("[REC-START] ABORT: empty platforms or languages")
+            #endif
+            recommendationError = "Missing preferences. Please select your platforms and languages."
+            isLoadingRecommendation = false
+            recommendationReady = true
+            tryTransitionToMainScreen()
+            return
+        }
 
         Task {
             // Ensure user exists
@@ -1002,18 +1148,34 @@ struct RootFlowView: View {
             // Set user for per-user tag weights and watchlist
             TagWeightStore.shared.setUser(userId.uuidString)
             WatchlistManager.shared.setUser(userId.uuidString)
+            GWInteractionPoints.shared.setUser(userId.uuidString)
 
-            // Load taste profile (recomputes if stale >24h or never loaded)
-            await GWTasteEngine.shared.recomputeIfNeeded(userId: userId.uuidString)
+            // v1.3 FIX 2: Parallelize all independent async operations for speed
+            let contentTypeFilter: String? = userContext.requiresSeries ? "tv" : "movie"
+            let userLanguages = userContext.languages.map { $0.rawValue }
 
-            // Ensure remote mood config is loaded (fetched once per session, 3s timeout)
-            await GWMoodConfigService.shared.waitForLoad(timeout: 3.0)
+            // v1.3 FIX 2: Fire ALL independent operations in parallel including movie fetch.
+            // Movie fetch doesn't depend on taste/mood/trend results, so run simultaneously.
+            // Total time = max(individual ops) instead of sum(parallel batch) + fetch time.
+            let tasteTask = Task { await GWTasteEngine.shared.recomputeIfNeeded(userId: userId.uuidString) }
+            let moodTask = Task { await GWMoodConfigService.shared.waitForLoad(timeout: 1.5) }
+            let trendTask = Task { return await GWTrendBoostService.shared.fetchActiveTrendBoosts() }
+            let histTask = Task { return await self.fetchHistoricalExclusions(userId: userId) }
+            let maturityTask = Task { return await InteractionService.shared.getUserMaturityInfo(userId: userId) }
+            let movieTask = Task { try await SupabaseService.shared.fetchMoviesForAvailabilityCheck(
+                languages: userLanguages,
+                contentType: contentTypeFilter,
+                acceptCount: 0,
+                limit: 1000
+            ) }
+            let intlMovieTask = Task { try await SupabaseService.shared.fetchMovies(limit: 500) }
 
-            // Fetch active trend boosts (cached for 1 hour, INV-T01/T02)
-            let trendBoostsByTmdbId = await GWTrendBoostService.shared.fetchActiveTrendBoosts()
-
-            // Fetch shown/rejected history from Supabase to avoid cross-session repeats
-            let historicalExclusions = await fetchHistoricalExclusions(userId: userId)
+            // Await all parallel results (total time = max of individual ops, not sum)
+            await tasteTask.value
+            await moodTask.value
+            let trendBoostsByTmdbId = await trendTask.value
+            let historicalExclusions = await histTask.value
+            let maturityInfo = await maturityTask.value
             let allExcludedIds = excludedMovieIds.union(historicalExclusions)
 
             // Build profile from context — uses combined session + historical exclusions
@@ -1022,22 +1184,11 @@ struct RootFlowView: View {
                 userId: userId.uuidString,
                 excludedIds: allExcludedIds.map { $0.uuidString }
             )
-
-            // Get user maturity info for content filtering
-            let maturityInfo = await InteractionService.shared.getUserMaturityInfo(userId: userId)
             let contentFilter = GWNewUserContentFilter(maturityInfo: maturityInfo)
 
-            // Fetch movies from Supabase
+            // Await movie fetch (already running in parallel since launch)
             do {
-                let contentTypeFilter: String? = userContext.requiresSeries ? "tv" : "movie"
-                let userLanguages = userContext.languages.map { $0.rawValue }
-
-                let movies = try await SupabaseService.shared.fetchMoviesForAvailabilityCheck(
-                    languages: userLanguages,
-                    contentType: contentTypeFilter,
-                    acceptCount: 0,
-                    limit: 1000
-                )
+                let movies = try await movieTask.value
 
                 #if DEBUG
                 print("[REC] RECOMMENDATION DEBUG:")
@@ -1088,24 +1239,13 @@ struct RootFlowView: View {
                 #endif
 
                 // Determine pick count from interaction points
-                GWInteractionPoints.shared.setUser(userId.uuidString)
-                let ppFlag = GWFeatureFlags.shared.isEnabled("progressive_picks")
-                let rawPickCount = GWInteractionPoints.shared.effectivePickCount
-                #if DEBUG
-                // In screenshot mode, always enable progressive picks
-                let screenshotCarousel = UserDefaults.standard.bool(forKey: "gw_screenshot_mode") && rawPickCount > 1
-                let effectivePickCount = (ppFlag || screenshotCarousel) ? rawPickCount : 1
-                #else
-                let effectivePickCount = ppFlag ? rawPickCount : 1
-                #endif
+                // Carousel is the default UI — no feature flag gate
+                let effectivePickCount = GWInteractionPoints.shared.effectivePickCount
 
                 #if DEBUG
                 print("[CAROUSEL] === Carousel Debug ===")
                 print("[CAROUSEL] User ID: \(userId.uuidString)")
                 print("[CAROUSEL] Interaction Points: \(GWInteractionPoints.shared.currentPoints)")
-                print("[CAROUSEL] Computed Pick Count: \(rawPickCount)")
-                print("[CAROUSEL] Max Tier Reached: \(UserDefaults.standard.integer(forKey: "gw_max_pick_tier_reached_\(userId.uuidString)"))")
-                print("[CAROUSEL] Feature Flag progressive_picks: \(ppFlag)")
                 print("[CAROUSEL] Effective Pick Count: \(effectivePickCount)")
                 print("[CAROUSEL] ========================")
                 #endif
@@ -1122,7 +1262,7 @@ struct RootFlowView: View {
 
                 // Compute international pick (dubbed content — INV-L09)
                 // Uses ALL fetched movies (not just language-filtered) to find dubbed content
-                let allMoviesForIntl = try await SupabaseService.shared.fetchMovies(limit: 500)
+                let allMoviesForIntl = try await intlMovieTask.value
                 let allGwForIntl = allMoviesForIntl.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
                 // Compute main pool top score for ceiling calculation
                 let mainPoolScores = gwMoviePool.map { engine.computeScore(movie: $0, profile: profile) }
@@ -1156,25 +1296,26 @@ struct RootFlowView: View {
                     for (i, pick) in picks.enumerated() {
                         print("   Pick[\(i)]: \(pick.title) | tags=\(pick.tags) | score=\(engine.computeScore(movie: pick, profile: profile))")
                     }
-
-                    // Screenshot mode fallback: if multi-pick returned empty but we need
-                    // carousel, use top-scored movies from the pool directly
-                    if picks.isEmpty && UserDefaults.standard.bool(forKey: "gw_screenshot_mode") {
-                        print("[SCREENSHOT] Multi-pick empty, using raw movies for carousel")
-                        // Try filtered pool first, then fall back to ALL fetched movies
-                        var fallbackPool = gwMoviePool
-                        if fallbackPool.count < effectivePickCount {
-                            fallbackPool = movies.map { GWMovie(from: $0) }
-                        }
-                        // Sort by composite score (highest first)
-                        let scored = fallbackPool.sorted {
-                            ($0.composite_score > 0 ? $0.composite_score : $0.goodscore) >
-                            ($1.composite_score > 0 ? $1.composite_score : $1.goodscore)
-                        }
-                        picks = Array(scored.prefix(min(effectivePickCount, scored.count)))
-                        print("[SCREENSHOT] Fallback picks: \(picks.count)")
-                    }
                     #endif
+
+                    // Fallback: if multi-pick returned fewer than requested,
+                    // fill from top-scored movies in the pool so carousel always shows
+                    if picks.count < effectivePickCount {
+                        let existingIds = Set(picks.map { $0.id })
+                        var fallbackPool = gwMoviePool.filter { !existingIds.contains($0.id) }
+                        if fallbackPool.count + picks.count < effectivePickCount {
+                            fallbackPool = movies.map { GWMovie(from: $0) }.filter { !existingIds.contains($0.id) }
+                        }
+                        let scored = fallbackPool.sorted {
+                            engine.computeScore(movie: $0, profile: profile) >
+                            engine.computeScore(movie: $1, profile: profile)
+                        }
+                        let needed = effectivePickCount - picks.count
+                        picks.append(contentsOf: scored.prefix(needed))
+                        #if DEBUG
+                        print("[CAROUSEL] Fallback filled: \(picks.count) total picks")
+                        #endif
+                    }
 
                     if !picks.isEmpty {
                         await MainActor.run {
@@ -1218,6 +1359,23 @@ struct RootFlowView: View {
                                             userId: userId,
                                             movieId: movieUUID
                                         )
+                                    }
+                                }
+                            }
+
+                            // Fetch trailer keys for all carousel picks in parallel (FIX 10)
+                            self.carouselTrailerKeys = [:]
+                            Task {
+                                for pick in picks {
+                                    if let rawMovie = movies.first(where: { $0.id.uuidString == pick.id }),
+                                       let tmdbId = rawMovie.tmdb_id {
+                                        Task {
+                                            if let key = await TrailerService.fetchTrailerKey(tmdbId: tmdbId) {
+                                                await MainActor.run {
+                                                    self.carouselTrailerKeys[pick.id] = key
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1347,9 +1505,18 @@ struct RootFlowView: View {
                         self.isLoadingRecommendation = false
                         self.recommendationShownTime = Date()  // Start decision timer
                         self.pickCount = 1  // Ensure single-pick mode routing
+                        self.currentFallbackLevel = fallbackLevel
                         self.internationalPick = resolvedIntlPick
                         self.trendBoostsByUUID = resolvedTrendBoosts
                         self.currentTrendTag = resolvedTrendBoosts[gwMovie.id]?.relevance_tag
+
+                        // Fetch trailer key in background (FIX 10)
+                        if let tmdbId = movie.tmdb_id {
+                            Task {
+                                let key = await TrailerService.fetchTrailerKey(tmdbId: tmdbId)
+                                await MainActor.run { self.currentTrailerKey = key }
+                            }
+                        }
 
                         // Track metrics
                         MetricsService.shared.track(.pickShown, properties: [
@@ -1421,6 +1588,7 @@ struct RootFlowView: View {
                     }
                 }
             } catch {
+                Crashlytics.crashlytics().record(error: error)
                 await MainActor.run {
                     self.isLoadingRecommendation = false
                     self.recommendationError = "Something went wrong. Please check your connection and try again."
@@ -1542,6 +1710,7 @@ struct RootFlowView: View {
                     }
                 }
             } catch {
+                Crashlytics.crashlytics().record(error: error)
                 await MainActor.run {
                     self.isLoadingRecommendation = false
                     self.recommendationError = "Something went wrong finding another pick. Please try again."
@@ -2034,6 +2203,7 @@ struct RootFlowView: View {
                     }
                 }
             } catch {
+                Crashlytics.crashlytics().record(error: error)
                 await MainActor.run {
                     self.isLoadingRecommendation = false
                     self.recommendationError = "Something went wrong. Please try again."
@@ -2062,6 +2232,7 @@ struct RootFlowView: View {
 
             return rejectedIds.union(shownIds)
         } catch {
+            Crashlytics.crashlytics().record(error: error)
             #if DEBUG
             print("[WARN] Failed to fetch historical exclusions: \(error)")
             #endif

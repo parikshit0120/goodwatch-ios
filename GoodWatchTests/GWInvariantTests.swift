@@ -332,10 +332,13 @@ final class GWInvariantTests: XCTestCase {
     }
 
     // ============================================
-    // INVARIANT 4: Same input → same output (determinism)
+    // INVARIANT 4: Weighted random from valid pool (INV-L04)
+    // Engine uses top-10 weighted random (temperature 0.15),
+    // so output is NOT deterministic but MUST always be from
+    // the valid candidate pool.
     // ============================================
 
-    func testInvariant_Determinism_SameInput_SameOutput() {
+    func testInvariant_WeightedRandom_AlwaysFromValidPool() {
         let profile = GWUserProfileComplete(
             userId: "invariant-test-determinism",
             preferredLanguages: ["english"],
@@ -351,23 +354,25 @@ final class GWInvariantTests: XCTestCase {
         )
 
         let movies = [Self.englishMovie1, Self.englishMovie2]
+        let validIds = Set(movies.map { $0.id })
 
-        // Run recommendation 10 times
-        var results: [String?] = []
-        for _ in 0..<10 {
+        // Run recommendation 10 times — each result must be from valid pool
+        for run in 0..<10 {
             let output = engine.recommend(from: movies, profile: profile)
-            results.append(output.movie?.id)
-        }
-
-        // INVARIANT: All results must be identical
-        let firstResult = results[0]
-        for (index, result) in results.enumerated() {
-            XCTAssertEqual(result, firstResult,
-                "INVARIANT VIOLATION: Non-deterministic output at run \(index): expected '\(firstResult ?? "nil")' got '\(result ?? "nil")'")
+            XCTAssertNotNil(output.movie,
+                "INVARIANT VIOLATION: nil result at run \(run) with valid candidates")
+            if let movie = output.movie {
+                XCTAssertTrue(validIds.contains(movie.id),
+                    "INVARIANT VIOLATION: result '\(movie.id)' not in valid pool at run \(run)")
+                // Verify the pick is individually valid
+                if case .invalid(let failure) = engine.isValidMovie(movie, profile: profile) {
+                    XCTFail("INVARIANT VIOLATION: returned movie fails validation: \(failure)")
+                }
+            }
         }
     }
 
-    func testInvariant_Determinism_OrderIndependence() {
+    func testInvariant_OrderIndependence_BothFromValidPool() {
         let profile = GWUserProfileComplete(
             userId: "invariant-test-order",
             preferredLanguages: ["english"],
@@ -384,13 +389,22 @@ final class GWInvariantTests: XCTestCase {
 
         let movies1 = [Self.englishMovie1, Self.englishMovie2]
         let movies2 = [Self.englishMovie2, Self.englishMovie1] // Reversed order
+        let validIds = Set(movies1.map { $0.id })
 
         let output1 = engine.recommend(from: movies1, profile: profile)
         let output2 = engine.recommend(from: movies2, profile: profile)
 
-        // INVARIANT: Same movies in different order should produce same result
-        XCTAssertEqual(output1.movie?.id, output2.movie?.id,
-            "INVARIANT VIOLATION: Different order produced different results")
+        // Both must produce a valid result from the same candidate pool
+        XCTAssertNotNil(output1.movie, "INVARIANT VIOLATION: nil result for original order")
+        XCTAssertNotNil(output2.movie, "INVARIANT VIOLATION: nil result for reversed order")
+        if let m1 = output1.movie {
+            XCTAssertTrue(validIds.contains(m1.id),
+                "INVARIANT VIOLATION: result '\(m1.id)' not in valid pool (original order)")
+        }
+        if let m2 = output2.movie {
+            XCTAssertTrue(validIds.contains(m2.id),
+                "INVARIANT VIOLATION: result '\(m2.id)' not in valid pool (reversed order)")
+        }
     }
 
     // ============================================

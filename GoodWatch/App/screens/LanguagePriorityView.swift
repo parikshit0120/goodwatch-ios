@@ -168,45 +168,41 @@ struct LanguagePriorityView: View {
         .allowsHitTesting(!isLocking)
     }
 
-    // MARK: - Language Pool (horizontal scrollable chips)
+    // MARK: - Language Pool (wrapping grid — all visible, no horizontal scroll)
 
     @ViewBuilder
     private var languagePool: some View {
-        VStack(spacing: 12) {
-            // Primary row + More button
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(availableLanguages, id: \.self) { language in
-                        let isAvailable = OTTLanguageAvailability.shared.isLanguageAvailable(language, onPlatforms: ctx.otts)
-                        Button {
-                            if isAvailable || ctx.otts.isEmpty {
-                                addLanguage(language)
-                            }
-                        } label: {
-                            Text(language.displayName)
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(
-                                    (!isAvailable && !ctx.otts.isEmpty) ? GWColors.lightGray.opacity(0.4) : GWColors.white
-                                )
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .fill(GWColors.darkGray.opacity(0.6))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .stroke(GWColors.surfaceBorder, lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .opacity((!isAvailable && !ctx.otts.isEmpty) ? 0.5 : 1.0)
+        LazyVGrid(columns: [
+            GridItem(.adaptive(minimum: 90, maximum: 130), spacing: 10)
+        ], spacing: 10) {
+            ForEach(availableLanguages, id: \.self) { language in
+                let isAvailable = OTTLanguageAvailability.shared.isLanguageAvailable(language, onPlatforms: ctx.otts)
+                Button {
+                    if isAvailable || ctx.otts.isEmpty {
+                        addLanguage(language)
                     }
-
+                } label: {
+                    Text(language.displayName)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(
+                            (!isAvailable && !ctx.otts.isEmpty) ? GWColors.lightGray.opacity(0.4) : GWColors.white
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(GWColors.darkGray.opacity(0.6))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                        )
                 }
-                .padding(.horizontal, GWSpacing.screenPadding)
+                .buttonStyle(.plain)
+                .opacity((!isAvailable && !ctx.otts.isEmpty) ? 0.5 : 1.0)
             }
         }
+        .padding(.horizontal, GWSpacing.screenPadding)
     }
 
     // MARK: - Priority Funnel
@@ -249,7 +245,7 @@ struct LanguagePriorityView: View {
 
     private func removeLanguage(at index: Int) {
         guard index < selectedLanguages.count else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        _ = withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             selectedLanguages.remove(at: index)
         }
     }

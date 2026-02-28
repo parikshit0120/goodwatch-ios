@@ -79,9 +79,9 @@ struct LandingView: View {
                                 .clipped()
                                 .cornerRadius(6)
                         } else {
-                            // Dark placeholder — matches grid, never empty
+                            // Placeholder — matches grid, never empty
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.06))
+                                .fill(GWColors.subtleFill)
                                 .frame(width: posterW, height: posterH)
                         }
                     }
@@ -155,9 +155,6 @@ struct LandingView: View {
 
                 Spacer()
 
-                // Recent Picks — compact poster thumbnails for visual recall
-                recentPicksSection
-
                 // Bottom action area
                 VStack(spacing: 14) {
                     // Primary CTA
@@ -211,33 +208,6 @@ struct LandingView: View {
         }
     }
 
-    // MARK: - Recent Picks Section
-
-    @ViewBuilder
-    private var recentPicksSection: some View {
-        let recentPicks = RecentPicksService.shared.getPicks()
-        if !recentPicks.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Recent Picks")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(GWColors.lightGray)
-                    .padding(.horizontal, 20)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(recentPicks) { pick in
-                            RecentPickCard(pick: pick)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                }
-            }
-            .padding(.top, 24)
-            .padding(.bottom, 12)
-            .opacity(textOpacity)
-        }
-    }
-
     // MARK: - Poster Preloading
 
     private func preloadPosters() {
@@ -276,45 +246,6 @@ struct LandingView: View {
                     postersReady = true
                 }
             }
-        }
-    }
-}
-
-// MARK: - Recent Pick Card
-
-struct RecentPickCard: View {
-    let pick: RecentPicksService.RecentPick
-
-    var body: some View {
-        VStack(spacing: 6) {
-            // Poster thumbnail
-            if let urlString = pick.posterURL {
-                GWCachedImage(url: urlString) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(GWColors.darkGray)
-                        .frame(width: 80, height: 120)
-                }
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 80, height: 120)
-                .clipped()
-                .cornerRadius(8)
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(GWColors.darkGray)
-                    .frame(width: 80, height: 120)
-            }
-
-            // Title (1 line)
-            Text(pick.title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(GWColors.white)
-                .lineLimit(1)
-                .frame(width: 80)
-
-            // GoodScore
-            Text("\(pick.goodScore)")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(LinearGradient.goldGradient)
         }
     }
 }

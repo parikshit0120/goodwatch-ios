@@ -1,19 +1,86 @@
 import SwiftUI
 
 // MARK: - GoodWatch Design System
-// Premium dark theme with gold accents
+// Adaptive light/dark theme with gold accents
 
 enum GWColors {
-    // Base Palette
-    static let black = Color(hex: "0A0A0A")           // Background
-    static let darkGray = Color(hex: "1C1C1E")        // Surfaces
-    static let white = Color.white                     // Primary text
-    static let lightGray = Color(hex: "8E8E93")       // Secondary text
-    static let gold = Color(hex: "D4AF37")            // ONLY for GoodScore + Primary CTA
+    // Base Palette — adaptive for system light/dark mode
+    static let black = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "0A0A0A") : UIColor(hex: "F2F2F7")
+    })
+
+    static let darkGray = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "1C1C1E") : UIColor.white
+    })
+
+    static let white = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor.white : UIColor(hex: "1C1C1E")
+    })
+
+    static let lightGray = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "8E8E93") : UIColor(hex: "6B7280")
+    })
+
+    static let gold = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "D4AF37") : UIColor(hex: "B8860B")
+    })
 
     // Support Colors
-    static let overlay = Color.black.opacity(0.75)
-    static let surfaceBorder = Color.white.opacity(0.1)
+    static let overlay = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.black.withAlphaComponent(0.75)
+            : UIColor.black.withAlphaComponent(0.5)
+    })
+
+    static let surfaceBorder = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.white.withAlphaComponent(0.1)
+            : UIColor.black.withAlphaComponent(0.08)
+    })
+
+    // Surface variants — for inline hardcoded shades
+    static let surfaceElevated = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "1A1A1A") : UIColor.white
+    })
+
+    static let surfaceSecondary = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "2A2A2A") : UIColor(hex: "F0F0F0")
+    })
+
+    static let surfaceTertiary = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "2C2C2E") : UIColor.white
+    })
+
+    // Auth button colors — inverted for visibility on adaptive backgrounds
+    static let authButtonBackground = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "E8E8E8") : UIColor(hex: "1A1A1A")
+    })
+
+    static let authButtonText = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "1A1A1A") : UIColor.white
+    })
+
+    // Gold gradient endpoint
+    static let goldDark = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(hex: "C9A227") : UIColor(hex: "A07608")
+    })
+
+    // Subtle fill for placeholders on background
+    static let subtleFill = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.white.withAlphaComponent(0.06)
+            : UIColor.black.withAlphaComponent(0.04)
+    })
+
+    // Subtle fill for interactive surfaces (buttons on sheets)
+    static let subtleInteractiveFill = Color(UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor.white.withAlphaComponent(0.05)
+            : UIColor.black.withAlphaComponent(0.04)
+    })
+
+    // Logo container — always dark regardless of mode
+    static let logoPill = Color(UIColor(hex: "0A0A0A"))
 }
 
 enum GWTypography {
@@ -122,11 +189,35 @@ extension LinearGradient {
     static var goldGradient: LinearGradient {
         LinearGradient(
             gradient: Gradient(colors: [
-                Color(hex: "D4AF37"),
-                Color(hex: "C9A227")
+                GWColors.gold,
+                GWColors.goldDark
             ]),
             startPoint: .top,
             endPoint: .bottom
+        )
+    }
+}
+
+// MARK: - UIColor Extension for Hex (needed for adaptive colors)
+extension UIColor {
+    convenience init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 6:
+            (a, r, g, b) = (255, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = ((int >> 24) & 0xFF, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            red: CGFloat(r) / 255,
+            green: CGFloat(g) / 255,
+            blue: CGFloat(b) / 255,
+            alpha: CGFloat(a) / 255
         )
     }
 }

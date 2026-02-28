@@ -18,7 +18,8 @@ enum GWFallbackLevel: Int, Codable {
     case none = 0           // No fallback needed
     case relaxedTags = 1    // Relaxed intent_tags (same genre family)
     case relaxedRuntime = 2 // Relaxed runtime by +15 min max
-    case exhausted = 3      // All fallbacks failed
+    case relaxedQuality = 3 // Quality relaxation: skip goodscore/tags/quality gate
+    case exhausted = 4      // All fallbacks failed
 }
 
 struct GWFallbackLog: Codable {
@@ -134,6 +135,24 @@ extension GWRecommendationEngine {
             return (level2Result, .relaxedRuntime, log)
         }
 
+        // Step 3B: Fallback Level 3 - Quality relaxation
+        // Keep language + platform + availability + interaction-history FIXED
+        // Remove: goodscore threshold, mood/tag filter, quality gate
+        let level3Result = recommendQualityRelaxed(from: movies, profile: relaxedProfile)
+        if level3Result.movie != nil {
+            let log = createFallbackLog(
+                level: .relaxedQuality,
+                userId: profile.userId,
+                movieId: level3Result.movie?.id,
+                original: profile,
+                relaxed: relaxedProfile,
+                candidateCount: originalValidCount,
+                movieGoodscore: level3Result.movie?.goodscore ?? 0
+            )
+            logFallback(log)
+            return (level3Result, .relaxedQuality, log)
+        }
+
         // Step 4: All fallbacks exhausted
         let log = createFallbackLog(
             level: .exhausted,
@@ -157,6 +176,75 @@ extension GWRecommendationEngine {
     ) -> (output: GWRecommendationOutput, fallbackLevel: GWFallbackLevel, fallbackLog: GWFallbackLog?) {
         let gwMovies = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
         return recommendWithFallback(from: gwMovies, profile: profile)
+    }
+
+    // ============================================
+    // Level 3: Quality-Relaxed Recommendation
+    // ============================================
+
+    /// Level 3 fallback: keeps hard gates (availability, language, platform, interactions,
+    /// content type) but drops soft gates (goodscore, tags, quality gate, runtime, recency).
+    /// Sorts by goodscore descending, picks from top-10 via weighted random.
+    private func recommendQualityRelaxed(
+        from movies: [GWMovie],
+        profile: GWUserProfileComplete
+    ) -> GWRecommendationOutput {
+        var candidates: [GWMovie] = []
+
+        for movie in movies {
+            let result = isValidMovie(movie, profile: profile)
+            switch result {
+            case .valid:
+                candidates.append(movie)
+            case .invalid(let failure):
+                switch failure {
+                // Hard gates -- always respect
+                case .movieUnavailable, .languageMismatch, .platformMismatch, .alreadyInteracted:
+                    continue
+                // Content type -- respect (movie users get movies, series users get series)
+                case .contentTypeMismatch:
+                    continue
+                // Soft gates -- allow through at Level 3
+                case .goodscoreBelowThreshold, .noMatchingTags, .qualityGateFailed,
+                     .runtimeOutOfWindow, .recencyGateFailed:
+                    candidates.append(movie)
+                }
+            }
+        }
+
+        guard !candidates.isEmpty else {
+            return GWRecommendationOutput(movie: nil, stopCondition: .noCandidatePassesValidity)
+        }
+
+        // Sort by goodscore descending (best available quality)
+        let sorted = candidates.sorted { $0.goodscore > $1.goodscore }
+
+        // Pick from top-10 via weighted random (same temperature as engine)
+        let topN = Array(sorted.prefix(10))
+        let picked = qualityRelaxedWeightedPick(from: topN)
+        return GWRecommendationOutput(movie: picked, stopCondition: nil)
+    }
+
+    /// Weighted random pick using goodscore as the weight signal.
+    private func qualityRelaxedWeightedPick(from candidates: [GWMovie]) -> GWMovie? {
+        guard !candidates.isEmpty else { return nil }
+        if candidates.count == 1 { return candidates[0] }
+
+        let temperature = 0.15
+        let maxScore = candidates[0].goodscore
+        let weights = candidates.map { exp(($0.goodscore - maxScore) / temperature) }
+        let totalWeight = weights.reduce(0, +)
+        guard totalWeight > 0 else { return candidates[0] }
+
+        let roll = Double.random(in: 0..<totalWeight)
+        var cumulative = 0.0
+        for (i, weight) in weights.enumerated() {
+            cumulative += weight
+            if roll < cumulative {
+                return candidates[i]
+            }
+        }
+        return candidates.last
     }
 
     /// Relax a mood mapping: expand dimensional ranges by +/-2, remove anti-tags

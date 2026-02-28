@@ -1,6 +1,7 @@
 import SwiftUI
 import GoogleSignIn
 import FirebaseCore
+import FirebaseCrashlytics
 import FirebaseMessaging
 import UserNotifications
 
@@ -102,6 +103,10 @@ struct GoodWatchApp: App {
     }
 
     init() {
+        // One-time: remove stale onboarding step from Keychain on existing devices.
+        // Onboarding step now lives in UserDefaults (clears on uninstall/reinstall).
+        GWKeychainManager.shared.migrateOnboardingFromKeychain()
+
         // Track app open on launch
         MetricsService.shared.track(.appOpen)
 

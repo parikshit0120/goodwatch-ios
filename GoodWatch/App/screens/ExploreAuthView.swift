@@ -98,10 +98,10 @@ struct ExploreAuthView: View {
                                 Text("Sign in with Apple")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(Color(hex: "1A1A1A"))
+                            .foregroundColor(GWColors.authButtonText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color(hex: "E8E8E8"))
+                            .background(GWColors.authButtonBackground)
                             .cornerRadius(25)
                         }
 
@@ -115,10 +115,10 @@ struct ExploreAuthView: View {
                                 Text("Continue with Google")
                                     .font(.system(size: 16, weight: .semibold))
                             }
-                            .foregroundColor(Color(hex: "1A1A1A"))
+                            .foregroundColor(GWColors.authButtonText)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color(hex: "E8E8E8"))
+                            .background(GWColors.authButtonBackground)
                             .cornerRadius(25)
                         }
 

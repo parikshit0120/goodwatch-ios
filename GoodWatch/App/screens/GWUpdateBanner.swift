@@ -67,7 +67,7 @@ struct GWUpdateBanner: View {
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
                 .padding(.vertical, 12)
-                .background(Color(hex: "1A1A1A"))
+                .background(GWColors.surfaceElevated)
                 .overlay(
                     Rectangle()
                         .frame(height: 1)

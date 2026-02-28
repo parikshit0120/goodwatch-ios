@@ -202,8 +202,8 @@ struct ExplorePlatformTile: View {
                                 ? platform.gradient
                                 : LinearGradient(
                                     gradient: Gradient(colors: [
-                                        Color(hex: "2C2C2E"),
-                                        Color(hex: "1C1C1E")
+                                        GWColors.surfaceTertiary,
+                                        GWColors.darkGray
                                     ]),
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -216,7 +216,7 @@ struct ExplorePlatformTile: View {
                                 .stroke(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            Color.white.opacity(isSelected ? 0.15 : 0.1),
+                                            GWColors.surfaceBorder,
                                             Color.clear
                                         ]),
                                         startPoint: .top,

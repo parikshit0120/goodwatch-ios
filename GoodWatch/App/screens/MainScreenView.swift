@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 // Screen 6: Main Screen (The Entire Product)
 // GoodScore reveal with animation - THE CRITICAL MOMENT
@@ -14,6 +15,8 @@ struct MainScreenView: View {
     let onExplore: (() -> Void)?
     let internationalPick: GWMovie?  // Dubbed international content (INV-L09). Nil = no dubbed pick available.
     let trendTag: String?  // Trend relevance tag (INV-T01/T02/T03). Nil = no active trend boost.
+    let trailerKey: String?  // YouTube video key for trailer (FIX 10). Nil = no trailer available.
+    let isTopPick: Bool  // Level 0 strict match, no fallback (FIX 6).
 
     #if DEBUG
     let debugInfo: DebugRecommendationInfo?
@@ -31,7 +34,9 @@ struct MainScreenView: View {
         onStartOver: (() -> Void)? = nil,
         onExplore: (() -> Void)? = nil,
         internationalPick: GWMovie? = nil,
-        trendTag: String? = nil
+        trendTag: String? = nil,
+        trailerKey: String? = nil,
+        isTopPick: Bool = false
     ) {
         self.movie = movie
         self.goodScore = goodScore
@@ -44,6 +49,8 @@ struct MainScreenView: View {
         self.onExplore = onExplore
         self.internationalPick = internationalPick
         self.trendTag = trendTag
+        self.trailerKey = trailerKey
+        self.isTopPick = isTopPick
         #if DEBUG
         self.debugInfo = nil
         #endif
@@ -63,6 +70,8 @@ struct MainScreenView: View {
         onExplore: (() -> Void)? = nil,
         internationalPick: GWMovie? = nil,
         trendTag: String? = nil,
+        trailerKey: String? = nil,
+        isTopPick: Bool = false,
         debugInfo: DebugRecommendationInfo?
     ) {
         self.movie = movie
@@ -76,6 +85,8 @@ struct MainScreenView: View {
         self.onExplore = onExplore
         self.internationalPick = internationalPick
         self.trendTag = trendTag
+        self.trailerKey = trailerKey
+        self.isTopPick = isTopPick
         self.debugInfo = debugInfo
     }
     #endif
@@ -97,6 +108,9 @@ struct MainScreenView: View {
     @State private var buttonOffset: CGFloat = 20
     @State private var secondaryOpacity: Double = 0
     @State private var whyThisOpacity: Double = 0
+
+    // Full summary popup (FIX 9)
+    @State private var showFullSummary: Bool = false
 
     // Cancellable animation work items — cleaned up on disappear
     @State private var animationWorkItems: [DispatchWorkItem] = []
@@ -168,6 +182,14 @@ struct MainScreenView: View {
         !otherProviders.isEmpty
     }
 
+    // MARK: - Summary Truncation (FIX 8)
+
+    private func truncatedOverview(_ text: String, maxWords: Int = 20) -> (text: String, isTruncated: Bool) {
+        let words = text.split(separator: " ")
+        if words.count <= maxWords { return (text, false) }
+        return (words.prefix(maxWords).joined(separator: " ") + "...", true)
+    }
+
     var body: some View {
         ZStack {
             GWColors.black
@@ -236,8 +258,8 @@ struct MainScreenView: View {
                 VStack(spacing: 0) {
                     Spacer().frame(height: trendTag != nil ? 8 : 16)
 
-                    // Film Poster with content type badge
-                    ZStack(alignment: .topTrailing) {
+                    // Film Poster with close button, badge, and trailer play button (FIX 3, 4, 10)
+                    ZStack {
                         GWCachedImage(url: movie.posterURL(size: .w342)) {
                             posterSkeleton
                         }
@@ -246,15 +268,53 @@ struct MainScreenView: View {
                         .cornerRadius(GWRadius.xl)
                         .shadow(color: .black.opacity(0.4), radius: 16, x: 0, y: 8)
 
-                        // Content type badge (Movie / Series)
-                        Text(movie.contentTypeLabel)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(GWColors.black)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(GWColors.gold)
-                            .cornerRadius(GWRadius.sm)
-                            .padding(10)
+                        // Close button — top LEFT (FIX 3)
+                        if onStartOver != nil {
+                            VStack {
+                                HStack {
+                                    Button(action: { onStartOver?() }) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 32, height: 32)
+                                            .background(Color.black.opacity(0.55))
+                                            .clipShape(Circle())
+                                    }
+                                    .padding(12)
+                                    Spacer()
+                                }
+                                Spacer()
+                            }
+                        }
+
+                        // Content type badge — top CENTER (FIX 4)
+                        VStack {
+                            Text(movie.contentTypeLabel)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(GWColors.black)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(GWColors.gold)
+                                .cornerRadius(GWRadius.sm)
+                                .padding(.top, 10)
+                            Spacer()
+                        }
+
+                        // Play button — CENTER (FIX 10, only if trailer exists)
+                        if trailerKey != nil {
+                            Button(action: playTrailer) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.55))
+                                        .frame(width: 56, height: 56)
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 24))
+                                        .foregroundColor(.white)
+                                        .offset(x: 2)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .opacity(posterOpacity)
                     .scaleEffect(posterScale)
@@ -277,28 +337,32 @@ struct MainScreenView: View {
                         if !movie.yearString.isEmpty {
                             Text(movie.yearString)
                         }
-                        Text("·")
+                        Text("\u{00B7}")
                         Text(movie.runtimeDisplay)
                     }
                     .font(GWTypography.small())
                     .foregroundColor(GWColors.lightGray)
                     .opacity(titleOpacity)
 
-                    // Primary Genre
-                    if let primaryGenre = movie.genreNames.first {
-                        Text(primaryGenre)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(GWColors.lightGray)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(GWColors.darkGray)
-                            .cornerRadius(GWRadius.sm)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: GWRadius.sm)
-                                    .stroke(GWColors.surfaceBorder, lineWidth: 1)
-                            )
-                            .padding(.top, 6)
-                            .opacity(titleOpacity)
+                    // Genre badges row (FIX 7) — first 4 genres as compact pills
+                    let displayGenres = Array(movie.genreNames.prefix(4))
+                    if !displayGenres.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(displayGenres, id: \.self) { genre in
+                                Text(genre)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(GWColors.lightGray)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: GWRadius.sm)
+                                            .stroke(GWColors.surfaceBorder, lineWidth: 1)
+                                    )
+                                    .cornerRadius(GWRadius.sm)
+                            }
+                        }
+                        .padding(.top, 6)
+                        .opacity(titleOpacity)
                     }
 
                     // CAUSAL "WHY THIS" COPY
@@ -312,19 +376,28 @@ struct MainScreenView: View {
                             .opacity(whyThisOpacity)
                     }
 
-                    // 2-LINE PITCH: overview + credits
+                    // Summary: truncated to ~20 words + "more" link (FIX 8, 9)
                     VStack(spacing: 6) {
-                        // Line 1: Succinct overview (first complete sentence)
-                        if let overview = movie.shortOverview {
-                            Text(overview)
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(GWColors.lightGray.opacity(0.85))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(3)
-                                .padding(.horizontal, 32)
+                        if let overview = movie.overview, !overview.isEmpty {
+                            let result = truncatedOverview(overview)
+                            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                                Text(result.text)
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(GWColors.lightGray.opacity(0.85))
+                                if result.isTruncated {
+                                    Text(" ")
+                                    Button("more") {
+                                        showFullSummary = true
+                                    }
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(GWColors.gold)
+                                }
+                            }
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
                         }
 
-                        // Line 2: Director + Cast pitch
+                        // Director + Cast pitch
                         if let pitch = movie.pitchLine {
                             Text(pitch)
                                 .font(.system(size: 12, weight: .medium))
@@ -353,6 +426,19 @@ struct MainScreenView: View {
                         }
                     }
                     #endif
+
+                    // "Top Pick" badge — only for Level 0 strict match (FIX 6)
+                    if isTopPick {
+                        Text("Top Pick")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(GWColors.black)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(GWColors.gold)
+                            .cornerRadius(GWRadius.full)
+                            .padding(.top, 6)
+                            .opacity(scoreBoxOpacity)
+                    }
 
                     Spacer()
 
@@ -495,6 +581,33 @@ struct MainScreenView: View {
             }
             #endif
         }
+        .sheet(isPresented: $showFullSummary) {
+            // Full storyline popup (FIX 9)
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text(movie.title)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(GWColors.white)
+                    Spacer()
+                    Button(action: { showFullSummary = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(GWColors.lightGray)
+                            .font(.system(size: 24))
+                    }
+                }
+
+                ScrollView {
+                    Text(movie.overview ?? "")
+                        .font(.system(size: 14))
+                        .foregroundColor(GWColors.white)
+                        .lineSpacing(6)
+                }
+            }
+            .padding(20)
+            .background(GWColors.darkGray)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
         .onAppear {
             runRevealAnimation()
         }
@@ -582,6 +695,8 @@ struct MainScreenView: View {
     }
     #endif
 
+    // MARK: - OTT Deep Link Opener
+
     private func openOTT(_ provider: OTTProvider) {
         if let deepLink = provider.deepLinkURL {
             if UIApplication.shared.canOpenURL(deepLink) {
@@ -591,6 +706,26 @@ struct MainScreenView: View {
         }
         if let webURL = provider.webURL {
             openURL(webURL)
+        }
+    }
+
+    // MARK: - Trailer Playback (FIX 10)
+
+    private func playTrailer() {
+        guard let key = trailerKey else { return }
+        let youtubeAppURL = URL(string: "youtube://\(key)")!
+        let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
+
+        if UIApplication.shared.canOpenURL(youtubeAppURL) {
+            UIApplication.shared.open(youtubeAppURL)
+        } else {
+            // Fallback: SFSafariViewController for in-app playback
+            let safariVC = SFSafariViewController(url: youtubeWebURL)
+            safariVC.preferredControlTintColor = UIColor(GWColors.gold)
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                rootVC.present(safariVC, animated: true)
+            }
         }
     }
 

@@ -41,19 +41,27 @@
 	<string>1064227633048-375dsiqq8vlt0o2l34lfr66q224fivg4.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>youtube</string>
+		<string>nflx</string>
+		<string>aiv</string>
+		<string>com.amazon.aiv.play</string>
+		<string>hotstar</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
-	<key>UILaunchScreen</key>
-	<dict/>
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -180,8 +180,8 @@ struct PlatformTile: View {
                         .fill(
                             LinearGradient(
                                 gradient: Gradient(colors: [
-                                    Color(hex: "2C2C2E"),
-                                    Color(hex: "1C1C1E")
+                                    GWColors.surfaceTertiary,
+                                    GWColors.darkGray
                                 ]),
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -194,7 +194,7 @@ struct PlatformTile: View {
                                 .stroke(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            Color.white.opacity(0.1),
+                                            GWColors.surfaceBorder,
                                             Color.clear
                                         ]),
                                         startPoint: .top,

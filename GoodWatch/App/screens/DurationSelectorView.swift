@@ -354,7 +354,7 @@ struct DurationCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(hex: "2A2A2A"))
+                .background(GWColors.surfaceSecondary)
                 .cornerRadius(8)
             }
         }

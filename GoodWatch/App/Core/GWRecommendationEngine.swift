@@ -250,7 +250,7 @@ struct GWUserProfileComplete {
         self.sessionExcludedIds = sessionExcludedIds
     }
 
-    /// Build from UserContext (used in EmotionalHookView and MovieFilter)
+    /// Build from UserContext (used in MovieFilter)
     static func from(context: UserContext, userId: String, excludedIds: [String]) -> GWUserProfileComplete {
         // Load learning data from local storage
         let learningData = InteractionService.shared.getLearningData(
@@ -800,6 +800,11 @@ final class GWRecommendationEngine {
     func recommend(from movies: [GWMovie], profile: GWUserProfileComplete) -> GWRecommendationOutput {
         if movies.isEmpty {
             return GWRecommendationOutput(movie: nil, stopCondition: .emptyCatalog)
+        }
+
+        // Guard: Incomplete profile — must have languages, platforms, and intent tags
+        if profile.preferredLanguages.isEmpty || profile.platforms.isEmpty || profile.intentTags.isEmpty {
+            return GWRecommendationOutput(movie: nil, stopCondition: .incompleteProfile)
         }
 
         // Adaptive Quality Gate (INV-R06):

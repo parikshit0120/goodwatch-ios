@@ -66,16 +66,18 @@ struct OTTProvider: Codable, Identifiable {
     }
 
     /// Deep link URL for the OTT app
+    /// FIX 5: Prime Video uses universal link (opens app if installed, Safari if not).
+    /// Custom scheme aiv:// was unreliable and often opened Chrome/Safari instead.
     var deepLinkURL: URL? {
         let lowered = name.lowercased()
         if lowered.contains("netflix") {
             return URL(string: "nflx://")
         }
         if lowered.contains("amazon prime") || lowered.contains("prime video") {
-            return URL(string: "aiv://")
+            return URL(string: "https://app.primevideo.com")
         }
         if lowered == "amazon video" {
-            return URL(string: "aiv://")
+            return URL(string: "https://app.primevideo.com")
         }
         if lowered.contains("hotstar") {
             return URL(string: "hotstar://")
@@ -96,7 +98,7 @@ struct OTTProvider: Codable, Identifiable {
             return URL(string: "https://www.netflix.com")
         }
         if lowered.contains("amazon prime") || lowered.contains("prime video") {
-            return URL(string: "https://www.primevideo.com")
+            return URL(string: "https://app.primevideo.com")
         }
         if lowered == "amazon video" {
             return URL(string: "https://www.amazon.in")
