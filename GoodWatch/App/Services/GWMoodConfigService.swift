@@ -226,53 +226,53 @@ final class GWMoodConfigService {
     /// Matches EXACTLY the current hardcoded behavior in MoodSelectorView.swift
     private func loadFallbackDefaults() {
         let defaults: [GWMoodMapping] = [
-            // Feel-good: ["feel_good", "uplifting", "safe_bet", "light", "calm"]
+            // Feel-good: comfort >= 7, darkness <= 4
             GWMoodMapping(
                 moodKey: "feel_good", displayName: "Feel-good",
-                targetComfortMin: nil, targetComfortMax: nil,
-                targetDarknessMin: nil, targetDarknessMax: nil,
+                targetComfortMin: 7, targetComfortMax: nil,
+                targetDarknessMin: nil, targetDarknessMax: 4,
                 targetEmotionalIntensityMin: nil, targetEmotionalIntensityMax: nil,
                 targetEnergyMin: nil, targetEnergyMax: nil,
                 targetComplexityMin: nil, targetComplexityMax: nil,
                 targetRewatchabilityMin: nil, targetRewatchabilityMax: nil,
                 targetHumourMin: nil, targetHumourMax: nil,
                 targetMentalstimulationMin: nil, targetMentalstimulationMax: nil,
-                idealComfort: 5.0, idealDarkness: 5.0,
-                idealEmotionalIntensity: 5.0, idealEnergy: 5.0,
-                idealComplexity: 5.0, idealRewatchability: 5.0,
-                idealHumour: 5.0, idealMentalstimulation: 5.0,
+                idealComfort: 8.0, idealDarkness: 2.0,
+                idealEmotionalIntensity: 4.0, idealEnergy: 6.0,
+                idealComplexity: 4.0, idealRewatchability: 7.0,
+                idealHumour: 6.0, idealMentalstimulation: 4.0,
                 compatibleTags: ["feel_good", "uplifting", "safe_bet", "light", "calm"],
-                antiTags: [],
-                weightComfort: 0.5, weightDarkness: 0.5,
-                weightEmotionalIntensity: 0.5, weightEnergy: 0.5,
-                weightComplexity: 0.5, weightRewatchability: 0.5,
-                weightHumour: 0.5, weightMentalstimulation: 0.5,
-                archetypeMovieIds: [], version: 0
+                antiTags: ["dark", "disturbing"],
+                weightComfort: 0.9, weightDarkness: 0.8,
+                weightEmotionalIntensity: 0.4, weightEnergy: 0.5,
+                weightComplexity: 0.3, weightRewatchability: 0.5,
+                weightHumour: 0.6, weightMentalstimulation: 0.3,
+                archetypeMovieIds: [], version: 1
             ),
-            // Easy watch: ["light", "background_friendly", "safe_bet", "calm"]
+            // Easy watch: darkness <= 4, comfort >= 5
             GWMoodMapping(
                 moodKey: "easy_watch", displayName: "Easy watch",
-                targetComfortMin: nil, targetComfortMax: nil,
-                targetDarknessMin: nil, targetDarknessMax: nil,
+                targetComfortMin: 5, targetComfortMax: nil,
+                targetDarknessMin: nil, targetDarknessMax: 4,
                 targetEmotionalIntensityMin: nil, targetEmotionalIntensityMax: nil,
                 targetEnergyMin: nil, targetEnergyMax: nil,
                 targetComplexityMin: nil, targetComplexityMax: nil,
                 targetRewatchabilityMin: nil, targetRewatchabilityMax: nil,
                 targetHumourMin: nil, targetHumourMax: nil,
                 targetMentalstimulationMin: nil, targetMentalstimulationMax: nil,
-                idealComfort: 5.0, idealDarkness: 5.0,
-                idealEmotionalIntensity: 5.0, idealEnergy: 5.0,
-                idealComplexity: 5.0, idealRewatchability: 5.0,
-                idealHumour: 5.0, idealMentalstimulation: 5.0,
+                idealComfort: 7.0, idealDarkness: 2.0,
+                idealEmotionalIntensity: 4.0, idealEnergy: 5.0,
+                idealComplexity: 3.0, idealRewatchability: 6.0,
+                idealHumour: 5.0, idealMentalstimulation: 3.0,
                 compatibleTags: ["light", "background_friendly", "safe_bet", "calm"],
-                antiTags: [],
-                weightComfort: 0.5, weightDarkness: 0.5,
-                weightEmotionalIntensity: 0.5, weightEnergy: 0.5,
-                weightComplexity: 0.5, weightRewatchability: 0.5,
-                weightHumour: 0.5, weightMentalstimulation: 0.5,
-                archetypeMovieIds: [], version: 0
+                antiTags: ["dark", "disturbing", "acquired_taste"],
+                weightComfort: 0.8, weightDarkness: 0.7,
+                weightEmotionalIntensity: 0.4, weightEnergy: 0.4,
+                weightComplexity: 0.6, weightRewatchability: 0.5,
+                weightHumour: 0.4, weightMentalstimulation: 0.3,
+                archetypeMovieIds: [], version: 1
             ),
-            // Surprise me: [] (empty, any movie passes)
+            // Surprise me: NO GATE (open to anything)
             GWMoodMapping(
                 moodKey: "surprise_me", displayName: "Surprise me",
                 targetComfortMin: nil, targetComfortMax: nil,
@@ -295,51 +295,51 @@ final class GWMoodConfigService {
                 weightHumour: 0.5, weightMentalstimulation: 0.5,
                 archetypeMovieIds: [], version: 0
             ),
-            // Gripping: ["tense", "high_energy", "full_attention", "medium"]
+            // Gripping: emotionalIntensity >= 7
             GWMoodMapping(
                 moodKey: "gripping", displayName: "Gripping",
                 targetComfortMin: nil, targetComfortMax: nil,
                 targetDarknessMin: nil, targetDarknessMax: nil,
-                targetEmotionalIntensityMin: nil, targetEmotionalIntensityMax: nil,
+                targetEmotionalIntensityMin: 7, targetEmotionalIntensityMax: nil,
                 targetEnergyMin: nil, targetEnergyMax: nil,
                 targetComplexityMin: nil, targetComplexityMax: nil,
                 targetRewatchabilityMin: nil, targetRewatchabilityMax: nil,
                 targetHumourMin: nil, targetHumourMax: nil,
                 targetMentalstimulationMin: nil, targetMentalstimulationMax: nil,
-                idealComfort: 5.0, idealDarkness: 5.0,
-                idealEmotionalIntensity: 5.0, idealEnergy: 5.0,
-                idealComplexity: 5.0, idealRewatchability: 5.0,
-                idealHumour: 5.0, idealMentalstimulation: 5.0,
+                idealComfort: 4.0, idealDarkness: 5.0,
+                idealEmotionalIntensity: 8.0, idealEnergy: 7.0,
+                idealComplexity: 6.0, idealRewatchability: 5.0,
+                idealHumour: 3.0, idealMentalstimulation: 6.0,
                 compatibleTags: ["tense", "high_energy", "full_attention", "medium"],
                 antiTags: [],
-                weightComfort: 0.5, weightDarkness: 0.5,
-                weightEmotionalIntensity: 0.5, weightEnergy: 0.5,
-                weightComplexity: 0.5, weightRewatchability: 0.5,
-                weightHumour: 0.5, weightMentalstimulation: 0.5,
-                archetypeMovieIds: [], version: 0
+                weightComfort: 0.3, weightDarkness: 0.4,
+                weightEmotionalIntensity: 0.9, weightEnergy: 0.7,
+                weightComplexity: 0.5, weightRewatchability: 0.3,
+                weightHumour: 0.3, weightMentalstimulation: 0.5,
+                archetypeMovieIds: [], version: 1
             ),
-            // Dark & Heavy: ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"]
+            // Dark & Heavy: darkness >= 7, comfort <= 5
             GWMoodMapping(
                 moodKey: "dark_heavy", displayName: "Dark & Heavy",
-                targetComfortMin: nil, targetComfortMax: nil,
-                targetDarknessMin: nil, targetDarknessMax: nil,
+                targetComfortMin: nil, targetComfortMax: 5,
+                targetDarknessMin: 7, targetDarknessMax: nil,
                 targetEmotionalIntensityMin: nil, targetEmotionalIntensityMax: nil,
                 targetEnergyMin: nil, targetEnergyMax: nil,
                 targetComplexityMin: nil, targetComplexityMax: nil,
                 targetRewatchabilityMin: nil, targetRewatchabilityMax: nil,
                 targetHumourMin: nil, targetHumourMax: nil,
                 targetMentalstimulationMin: nil, targetMentalstimulationMax: nil,
-                idealComfort: 5.0, idealDarkness: 5.0,
-                idealEmotionalIntensity: 5.0, idealEnergy: 5.0,
-                idealComplexity: 5.0, idealRewatchability: 5.0,
-                idealHumour: 5.0, idealMentalstimulation: 5.0,
+                idealComfort: 3.0, idealDarkness: 8.0,
+                idealEmotionalIntensity: 8.0, idealEnergy: 6.0,
+                idealComplexity: 7.0, idealRewatchability: 4.0,
+                idealHumour: 2.0, idealMentalstimulation: 6.0,
                 compatibleTags: ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"],
                 antiTags: [],
-                weightComfort: 0.5, weightDarkness: 0.5,
-                weightEmotionalIntensity: 0.5, weightEnergy: 0.5,
-                weightComplexity: 0.5, weightRewatchability: 0.5,
-                weightHumour: 0.5, weightMentalstimulation: 0.5,
-                archetypeMovieIds: [], version: 0
+                weightComfort: 0.7, weightDarkness: 0.9,
+                weightEmotionalIntensity: 0.7, weightEnergy: 0.4,
+                weightComplexity: 0.5, weightRewatchability: 0.3,
+                weightHumour: 0.3, weightMentalstimulation: 0.4,
+                archetypeMovieIds: [], version: 1
             ),
         ]
 

@@ -606,35 +606,97 @@ final class GWRecommendationEngine {
     // SECTION 3B: Remote Mood Filtering (INV-R11)
     // ============================================
 
-    /// Dimensional range check + anti-tag filtering using remote mood mapping.
-    /// Falls back to tag intersection for movies without emotional_profile.
+    /// Dimensional range check + anti-tag filtering using mood mapping.
+    /// Movies without emotional_profile FAIL the gate (conservative).
+    /// Individual nil dimensions with an active gate also FAIL.
     private func passesRemoteMoodFilter(movie: GWMovie, mapping: GWMoodMapping, intentTags: [String]) -> Bool {
+        // Check if this mapping has any dimensional gates at all
+        let hasDimensionalGates = mapping.targetComfortMin != nil || mapping.targetComfortMax != nil
+            || mapping.targetDarknessMin != nil || mapping.targetDarknessMax != nil
+            || mapping.targetEmotionalIntensityMin != nil || mapping.targetEmotionalIntensityMax != nil
+            || mapping.targetEnergyMin != nil || mapping.targetEnergyMax != nil
+            || mapping.targetComplexityMin != nil || mapping.targetComplexityMax != nil
+            || mapping.targetRewatchabilityMin != nil || mapping.targetRewatchabilityMax != nil
+            || mapping.targetHumourMin != nil || mapping.targetHumourMax != nil
+            || mapping.targetMentalstimulationMin != nil || mapping.targetMentalstimulationMax != nil
+
         guard let ep = movie.emotionalProfile else {
-            // No emotional profile: fall back to tag check if compatible_tags is non-empty
+            // No emotional profile: fail if gates exist, pass if no gates (surprise_me)
+            if hasDimensionalGates { return false }
+            // No gates and no profile: fall back to tag check
             if !mapping.compatibleTags.isEmpty {
                 let movieTags = Set(movie.tags)
                 return !movieTags.intersection(Set(mapping.compatibleTags)).isEmpty
             }
-            return true // Surprise me (empty tags) -- allow through
+            return true
         }
 
-        // Check each dimension against min/max range
-        if let min = mapping.targetComfortMin, (ep.comfort ?? 5) < min { return false }
-        if let max = mapping.targetComfortMax, (ep.comfort ?? 5) > max { return false }
-        if let min = mapping.targetDarknessMin, (ep.darkness ?? 5) < min { return false }
-        if let max = mapping.targetDarknessMax, (ep.darkness ?? 5) > max { return false }
-        if let min = mapping.targetEmotionalIntensityMin, (ep.emotionalIntensity ?? 5) < min { return false }
-        if let max = mapping.targetEmotionalIntensityMax, (ep.emotionalIntensity ?? 5) > max { return false }
-        if let min = mapping.targetEnergyMin, (ep.energy ?? 5) < min { return false }
-        if let max = mapping.targetEnergyMax, (ep.energy ?? 5) > max { return false }
-        if let min = mapping.targetComplexityMin, (ep.complexity ?? 5) < min { return false }
-        if let max = mapping.targetComplexityMax, (ep.complexity ?? 5) > max { return false }
-        if let min = mapping.targetRewatchabilityMin, (ep.rewatchability ?? 5) < min { return false }
-        if let max = mapping.targetRewatchabilityMax, (ep.rewatchability ?? 5) > max { return false }
-        if let min = mapping.targetHumourMin, (ep.humour ?? 5) < min { return false }
-        if let max = mapping.targetHumourMax, (ep.humour ?? 5) > max { return false }
-        if let min = mapping.targetMentalstimulationMin, (ep.mentalStimulation ?? 5) < min { return false }
-        if let max = mapping.targetMentalstimulationMax, (ep.mentalStimulation ?? 5) > max { return false }
+        // Check each dimension against min/max range.
+        // If a gate exists but the dimension value is nil, FAIL (conservative).
+        if let min = mapping.targetComfortMin {
+            guard let val = ep.comfort else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetComfortMax {
+            guard let val = ep.comfort else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetDarknessMin {
+            guard let val = ep.darkness else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetDarknessMax {
+            guard let val = ep.darkness else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetEmotionalIntensityMin {
+            guard let val = ep.emotionalIntensity else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetEmotionalIntensityMax {
+            guard let val = ep.emotionalIntensity else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetEnergyMin {
+            guard let val = ep.energy else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetEnergyMax {
+            guard let val = ep.energy else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetComplexityMin {
+            guard let val = ep.complexity else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetComplexityMax {
+            guard let val = ep.complexity else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetRewatchabilityMin {
+            guard let val = ep.rewatchability else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetRewatchabilityMax {
+            guard let val = ep.rewatchability else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetHumourMin {
+            guard let val = ep.humour else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetHumourMax {
+            guard let val = ep.humour else { return false }
+            if val > max { return false }
+        }
+        if let min = mapping.targetMentalstimulationMin {
+            guard let val = ep.mentalStimulation else { return false }
+            if val < min { return false }
+        }
+        if let max = mapping.targetMentalstimulationMax {
+            guard let val = ep.mentalStimulation else { return false }
+            if val > max { return false }
+        }
 
         // Anti-tag check: reject if movie has anti-tags
         if !mapping.antiTags.isEmpty {
@@ -820,12 +882,34 @@ final class GWRecommendationEngine {
         }
 
         // Filter to valid movies + apply adaptive quality gate
+        let hasDimensionalGate = (profile.moodMapping?.version ?? 0) > 0
         var validMovies: [GWMovie] = []
         for movie in movies {
             if case .valid = isValidMovie(movie, profile: profile) {
                 // Additional quality gate filter (INV-R06)
                 if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
                     validMovies.append(movie)
+                }
+            }
+        }
+
+        // Dimensional gate logging
+        if hasDimensionalGate {
+            let moodKey = profile.moodMapping?.moodKey ?? "unknown"
+            print("[ENGINE] Dimensional gate: \(movies.count) candidates -> \(validMovies.count) after gate for mood \(moodKey)")
+        }
+
+        // Level 2 fallback: if dimensional gate eliminated ALL candidates, retry with tag-only
+        if validMovies.isEmpty && hasDimensionalGate {
+            let moodKey = profile.moodMapping?.moodKey ?? "unknown"
+            print("[ENGINE] Dimensional gate: 0 candidates after gate for mood \(moodKey), falling back to tag-only")
+            var fallbackProfile = profile
+            fallbackProfile.moodMapping = nil  // Bypass dimensional gate, use tag intersection
+            for movie in movies {
+                if case .valid = isValidMovie(movie, profile: fallbackProfile) {
+                    if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
+                        validMovies.append(movie)
+                    }
                 }
             }
         }

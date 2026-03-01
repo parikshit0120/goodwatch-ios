@@ -516,4 +516,108 @@ final class GWInvariantTests: XCTestCase {
         XCTAssertNil(output.movie,
             "INVARIANT VIOLATION: Movie on wrong platform was returned")
     }
+
+    // ============================================
+    // INVARIANT: Dimensional gate filters by emotional profile
+    // ============================================
+
+    func testDimensionalGate_DarkHeavy_RejectsLowDarkness() {
+        // Grand Budapest Hotel scenario: bittersweet + acquired_taste tags overlap
+        // with dark_heavy intent, but darkness=6 is below the gate threshold of 7.
+        let quirkyComedy = GWMovie(
+            id: "inv-test-gbh",
+            title: "Quirky Comedy (GBH-like)",
+            year: 2014,
+            runtime: 100,
+            language: "en",
+            platforms: ["netflix"],
+            poster_url: nil,
+            overview: "A whimsical comedy",
+            genres: ["Comedy"],
+            tags: ["bittersweet", "acquired_taste", "medium", "high_energy", "rewatchable"],
+            goodscore: 85.0,
+            available: true,
+            emotionalProfile: EmotionalProfile(
+                complexity: 6, darkness: 6, comfort: 5,
+                energy: 8, mentalStimulation: 5,
+                rewatchability: 7, emotionalIntensity: 8, humour: 6
+            )
+        )
+
+        // Genuinely dark movie: darkness=8, comfort=3
+        let darkMovie = GWMovie(
+            id: "inv-test-dark",
+            title: "Genuinely Dark Film",
+            year: 2020,
+            runtime: 130,
+            language: "en",
+            platforms: ["netflix"],
+            poster_url: nil,
+            overview: "A truly dark story",
+            genres: ["Drama", "Thriller"],
+            tags: ["dark", "heavy", "full_attention", "acquired_taste"],
+            goodscore: 90.0,
+            available: true,
+            emotionalProfile: EmotionalProfile(
+                complexity: 7, darkness: 8, comfort: 3,
+                energy: 6, mentalStimulation: 6,
+                rewatchability: 4, emotionalIntensity: 9, humour: 2
+            )
+        )
+
+        // Dark & Heavy mood mapping: darkness >= 7, comfort <= 5
+        let darkHeavyMapping = GWMoodMapping(
+            moodKey: "dark_heavy", displayName: "Dark & Heavy",
+            targetComfortMin: nil, targetComfortMax: 5,
+            targetDarknessMin: 7, targetDarknessMax: nil,
+            targetEmotionalIntensityMin: nil, targetEmotionalIntensityMax: nil,
+            targetEnergyMin: nil, targetEnergyMax: nil,
+            targetComplexityMin: nil, targetComplexityMax: nil,
+            targetRewatchabilityMin: nil, targetRewatchabilityMax: nil,
+            targetHumourMin: nil, targetHumourMax: nil,
+            targetMentalstimulationMin: nil, targetMentalstimulationMax: nil,
+            idealComfort: 3.0, idealDarkness: 8.0,
+            idealEmotionalIntensity: 8.0, idealEnergy: 6.0,
+            idealComplexity: 7.0, idealRewatchability: 4.0,
+            idealHumour: 2.0, idealMentalstimulation: 6.0,
+            compatibleTags: ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"],
+            antiTags: [],
+            weightComfort: 0.7, weightDarkness: 0.9,
+            weightEmotionalIntensity: 0.7, weightEnergy: 0.4,
+            weightComplexity: 0.5, weightRewatchability: 0.3,
+            weightHumour: 0.3, weightMentalstimulation: 0.4,
+            archetypeMovieIds: [], version: 1
+        )
+
+        let profile = GWUserProfileComplete(
+            userId: "invariant-test-dim-gate",
+            preferredLanguages: ["english"],
+            platforms: ["netflix"],
+            runtimeWindow: GWRuntimeWindow(min: 60, max: 180),
+            mood: "dark_heavy",
+            intentTags: ["dark", "bittersweet", "heavy", "full_attention", "acquired_taste"],
+            seen: [],
+            notTonight: [],
+            abandoned: [],
+            recommendationStyle: .safe,
+            tagWeights: [:],
+            moodMapping: darkHeavyMapping
+        )
+
+        let movies = [quirkyComedy, darkMovie]
+        let output = engine.recommend(from: movies, profile: profile)
+
+        // INVARIANT: Quirky comedy (darkness=6) must be rejected by dimensional gate
+        // Only the genuinely dark movie (darkness=8) should pass
+        XCTAssertNotNil(output.movie,
+            "INVARIANT VIOLATION: No movie returned despite valid dark candidate")
+        XCTAssertEqual(output.movie?.id, darkMovie.id,
+            "INVARIANT VIOLATION: Expected dark movie, got '\(output.movie?.title ?? "nil")' (darkness gate should block GBH-like movie)")
+
+        // Also verify the quirky comedy fails isValidMovie with the dimensional gate
+        let validation = engine.isValidMovie(quirkyComedy, profile: profile)
+        if case .valid = validation {
+            XCTFail("INVARIANT VIOLATION: Quirky comedy (darkness=6) passed dimensional gate requiring darkness >= 7")
+        }
+    }
 }
