@@ -1,0 +1,10 @@
+name = "goodwatch-supabase-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+SUPABASE_URL = "https://jdjqrlkynwfhbtyuddjk.supabase.co"
+
+[[routes]]
+pattern = "api.goodwatch.movie/*"
+zone_name = "goodwatch.movie"

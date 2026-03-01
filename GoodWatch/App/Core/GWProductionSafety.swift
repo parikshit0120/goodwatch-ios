@@ -113,12 +113,12 @@ extension GWRecommendationEngine {
             return (level1Result, .relaxedTags, log)
         }
 
-        // Step 3: Fallback Level 2 - Relax runtime by +15 min + drop recency gate
+        // Step 3: Fallback Level 2 - Relax runtime by +15 min + bump to tier3 (no year filter, score>=60)
         relaxedProfile.runtimeWindow = GWRuntimeWindow(
             min: max(30, profile.runtimeWindow.min - 15),
             max: min(240, profile.runtimeWindow.max + 15)
         )
-        relaxedProfile.applyRecencyGate = false
+        relaxedProfile.interactionPoints = max(relaxedProfile.interactionPoints, 50)  // Force tier3
 
         let level2Result = recommend(from: movies, profile: relaxedProfile)
         if level2Result.movie != nil {
@@ -206,7 +206,7 @@ extension GWRecommendationEngine {
                     continue
                 // Soft gates -- allow through at Level 3
                 case .goodscoreBelowThreshold, .noMatchingTags, .qualityGateFailed,
-                     .runtimeOutOfWindow, .recencyGateFailed:
+                     .runtimeOutOfWindow, .recencyGateFailed, .tieredGateFailed:
                     candidates.append(movie)
                 }
             }

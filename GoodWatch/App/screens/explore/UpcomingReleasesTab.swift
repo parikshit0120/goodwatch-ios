@@ -41,6 +41,27 @@ struct UpcomingReleasesTab: View {
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                // Sort button (leftmost)
+                Button {
+                    viewModel.showSortMenu.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .font(.system(size: 12))
+                        Text("Sort")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(viewModel.sortOption != .yearDesc ? GWColors.gold : GWColors.lightGray)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(viewModel.sortOption != .yearDesc ? GWColors.gold.opacity(0.15) : GWColors.darkGray)
+                    .cornerRadius(GWRadius.full)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: GWRadius.full)
+                            .stroke(viewModel.sortOption != .yearDesc ? GWColors.gold : GWColors.surfaceBorder, lineWidth: 1)
+                    )
+                }
+
                 FilterChipButton(
                     title: viewModel.activeGenres.isEmpty ? "Genre" : "Genre \u{00B7} \(viewModel.activeGenres.count)",
                     isActive: !viewModel.activeGenres.isEmpty,
@@ -51,6 +72,30 @@ struct UpcomingReleasesTab: View {
                     title: viewModel.activeLanguages.isEmpty ? "Language" : "Language \u{00B7} \(viewModel.activeLanguages.count)",
                     isActive: !viewModel.activeLanguages.isEmpty,
                     action: { viewModel.showLanguageFilter.toggle() }
+                )
+
+                FilterChipButton(
+                    title: viewModel.activeMoods.isEmpty ? "Mood" : "Mood \u{00B7} \(viewModel.activeMoods.count)",
+                    isActive: !viewModel.activeMoods.isEmpty,
+                    action: { viewModel.showMoodFilter.toggle() }
+                )
+
+                FilterChipButton(
+                    title: viewModel.activeDurations.isEmpty ? "Duration" : "Duration \u{00B7} \(viewModel.activeDurations.count)",
+                    isActive: !viewModel.activeDurations.isEmpty,
+                    action: { viewModel.showDurationFilter.toggle() }
+                )
+
+                FilterChipButton(
+                    title: viewModel.activeRatings.isEmpty ? "Rating" : "Rating \u{00B7} \(viewModel.activeRatings.count)",
+                    isActive: !viewModel.activeRatings.isEmpty,
+                    action: { viewModel.showRatingFilter.toggle() }
+                )
+
+                FilterChipButton(
+                    title: viewModel.activeDecades.isEmpty ? "Decade" : "Decade \u{00B7} \(viewModel.activeDecades.count)",
+                    isActive: !viewModel.activeDecades.isEmpty,
+                    action: { viewModel.showDecadeFilter.toggle() }
                 )
             }
             .padding(.horizontal, 16)
@@ -186,11 +231,26 @@ struct UpcomingReleasesTab: View {
         .sheet(item: $viewModel.selectedMovie) { movie in
             MovieDetailSheet(movie: movie)
         }
+        .sheet(isPresented: $viewModel.showSortMenu) {
+            SortMenuSheet(selectedSort: $viewModel.sortOption)
+        }
         .sheet(isPresented: $viewModel.showGenreFilter) {
             FilterSheet(title: "Genre", options: UpcomingReleasesViewModel.genres, selected: $viewModel.activeGenres)
         }
         .sheet(isPresented: $viewModel.showLanguageFilter) {
             FilterSheet(title: "Language", options: DiscoverViewModel.languageOptions, selected: $viewModel.activeLanguages)
+        }
+        .sheet(isPresented: $viewModel.showMoodFilter) {
+            FilterSheet(title: "Mood", options: DiscoverViewModel.moodOptions, selected: $viewModel.activeMoods)
+        }
+        .sheet(isPresented: $viewModel.showDurationFilter) {
+            FilterSheet(title: "Duration", options: DiscoverViewModel.durationOptions, selected: $viewModel.activeDurations)
+        }
+        .sheet(isPresented: $viewModel.showRatingFilter) {
+            FilterSheet(title: "Rating", options: DiscoverViewModel.ratingOptions, selected: $viewModel.activeRatings)
+        }
+        .sheet(isPresented: $viewModel.showDecadeFilter) {
+            FilterSheet(title: "Decade", options: DiscoverViewModel.decadeOptions, selected: $viewModel.activeDecades)
         }
     }
 

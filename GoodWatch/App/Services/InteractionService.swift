@@ -98,6 +98,23 @@ final class InteractionService {
         )
     }
 
+    // MARK: - Explore Journey Signals
+
+    /// Record that user viewed a movie detail sheet in Explore
+    func recordExploreView(userId: UUID, movieId: UUID) async throws {
+        try await recordInteraction(userId: userId, movieId: movieId, action: .explore_view)
+    }
+
+    /// Record that user tapped a "Watch On" platform link in Explore
+    func recordExploreWatchClick(userId: UUID, movieId: UUID) async throws {
+        try await recordInteraction(userId: userId, movieId: movieId, action: .explore_watch_click)
+    }
+
+    /// Record that user added a movie to watchlist from Explore
+    func recordExploreWatchlistAdd(userId: UUID, movieId: UUID) async throws {
+        try await recordInteraction(userId: userId, movieId: movieId, action: .explore_watchlist_add)
+    }
+
     // MARK: - Record Already Seen
     func recordAlreadySeen(userId: UUID, movieId: UUID) async throws {
         try await recordInteraction(userId: userId, movieId: movieId, action: .already_seen)
@@ -143,8 +160,14 @@ final class InteractionService {
     }
 
     // MARK: - Get Rejected Movie IDs
+    // "already_seen" rejections expire after 6 months (cooldown).
+    // "not_interested" and "permanent_skip" remain permanent.
     func getRejectedMovieIds(userId: UUID) async throws -> Set<UUID> {
-        let urlString = "\(baseURL)/rest/v1/rejected_movies?user_id=eq.\(userId.uuidString)&select=movie_id"
+        let sixMonthsAgo = Calendar.current.date(byAdding: .month, value: -6, to: Date())!
+        let dateString = ISO8601DateFormatter().string(from: sixMonthsAgo)
+
+        // Fetch where: reason != already_seen (permanent) OR created_at >= 6 months ago (recent already_seen)
+        let urlString = "\(baseURL)/rest/v1/rejected_movies?user_id=eq.\(userId.uuidString)&or=(reason.neq.already_seen,created_at.gte.\(dateString))&select=movie_id"
         guard let url = URL(string: urlString) else { throw InteractionServiceError.invalidURL }
 
         var request = URLRequest(url: url)

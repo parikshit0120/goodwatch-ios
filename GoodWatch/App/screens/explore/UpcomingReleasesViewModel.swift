@@ -97,10 +97,22 @@ class UpcomingReleasesViewModel: ObservableObject {
     // Multi-select filters (client-side on fetched results)
     @Published var activeGenres: Set<String> = []
     @Published var activeLanguages: Set<String> = []
+    @Published var activeMoods: Set<String> = []
+    @Published var activeDurations: Set<String> = []
+    @Published var activeRatings: Set<String> = []
+    @Published var activeDecades: Set<String> = []
+
+    // Sort
+    @Published var sortOption: SortOption = .yearDesc
 
     // Sheet states
     @Published var showGenreFilter: Bool = false
     @Published var showLanguageFilter: Bool = false
+    @Published var showMoodFilter: Bool = false
+    @Published var showDurationFilter: Bool = false
+    @Published var showRatingFilter: Bool = false
+    @Published var showDecadeFilter: Bool = false
+    @Published var showSortMenu: Bool = false
 
     // MARK: - Options
 
@@ -119,13 +131,19 @@ class UpcomingReleasesViewModel: ObservableObject {
     // MARK: - Computed Properties
 
     var hasActiveFilters: Bool {
-        !activeGenres.isEmpty || !activeLanguages.isEmpty
+        !activeGenres.isEmpty || !activeLanguages.isEmpty ||
+        !activeMoods.isEmpty || !activeDurations.isEmpty ||
+        !activeRatings.isEmpty || !activeDecades.isEmpty
     }
 
     var activeFilterTags: [String] {
         var tags: [String] = []
         tags.append(contentsOf: activeGenres)
         tags.append(contentsOf: activeLanguages)
+        tags.append(contentsOf: activeMoods)
+        tags.append(contentsOf: activeDurations)
+        tags.append(contentsOf: activeRatings)
+        tags.append(contentsOf: activeDecades)
         return tags
     }
 
@@ -157,12 +175,20 @@ class UpcomingReleasesViewModel: ObservableObject {
     func clearAllFilters() {
         activeGenres.removeAll()
         activeLanguages.removeAll()
+        activeMoods.removeAll()
+        activeDurations.removeAll()
+        activeRatings.removeAll()
+        activeDecades.removeAll()
         applyClientFilters()
     }
 
     func removeFilter(_ tag: String) {
         activeGenres.remove(tag)
         activeLanguages.remove(tag)
+        activeMoods.remove(tag)
+        activeDurations.remove(tag)
+        activeRatings.remove(tag)
+        activeDecades.remove(tag)
         applyClientFilters()
     }
 
@@ -178,9 +204,17 @@ class UpcomingReleasesViewModel: ObservableObject {
             .store(in: &cancellables)
 
         // Client-side filters
-        Publishers.CombineLatest($activeGenres, $activeLanguages)
+        let filterStream = Publishers.CombineLatest4(
+            $activeGenres, $activeLanguages, $activeMoods, $activeDurations
+        ).map { _ in () }
+
+        let secondaryStream = Publishers.CombineLatest3(
+            $activeRatings, $activeDecades, $sortOption
+        ).map { _ in () }
+
+        Publishers.Merge(filterStream, secondaryStream)
             .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
-            .sink { [weak self] _, _ in
+            .sink { [weak self] in
                 self?.applyClientFilters()
             }
             .store(in: &cancellables)
@@ -247,6 +281,110 @@ class UpcomingReleasesViewModel: ObservableObject {
             let isoCodes = Set(activeLanguages.compactMap { Self.languageToISO[$0.lowercased()] })
             filtered = filtered.filter { item in
                 isoCodes.contains(item.original_language.lowercased())
+            }
+        }
+
+        // Mood filter (genre-based, same logic as ClientMovieFilter)
+        if !activeMoods.isEmpty {
+            filtered = filtered.filter { item in
+                guard let genres = item.genreNames else { return false }
+                let genreSet = Set(genres.map { $0.lowercased() })
+                return ClientMovieFilter.matchesMoodForGenres(genreSet: genreSet, moods: activeMoods)
+            }
+        }
+
+        // Rating filter (use enriched movie GoodScore if available)
+        if !activeRatings.isEmpty {
+            filtered = filtered.filter { item in
+                let score: Double
+                if let movie = enrichedMovies[item.tmdb_id], let gs = movie.goodScoreDisplay {
+                    score = Double(gs) / 10.0
+                } else if let va = item.vote_average, va > 0 {
+                    score = va
+                } else {
+                    return false
+                }
+                for rating in activeRatings {
+                    switch rating {
+                    case "6+": if score >= 6.0 { return true }
+                    case "7+": if score >= 7.0 { return true }
+                    case "8+": if score >= 8.0 { return true }
+                    default: break
+                    }
+                }
+                return false
+            }
+        }
+
+        // Decade filter (use release_date year)
+        if !activeDecades.isEmpty {
+            filtered = filtered.filter { item in
+                guard let dateStr = item.release_date,
+                      let yearStr = dateStr.split(separator: "-").first,
+                      let year = Int(yearStr) else { return false }
+                for decade in activeDecades {
+                    switch decade {
+                    case "2020s": if year >= 2020 && year <= 2029 { return true }
+                    case "2010s": if year >= 2010 && year <= 2019 { return true }
+                    case "2000s": if year >= 2000 && year <= 2009 { return true }
+                    case "90s": if year >= 1990 && year <= 1999 { return true }
+                    case "80s": if year >= 1980 && year <= 1989 { return true }
+                    case "Classic": if year < 1980 { return true }
+                    default: break
+                    }
+                }
+                return false
+            }
+        }
+
+        // Duration filter (use enriched movie runtime if available)
+        if !activeDurations.isEmpty {
+            filtered = filtered.filter { item in
+                guard let movie = enrichedMovies[item.tmdb_id] else { return true }
+                let runtime = movie.runtimeMinutes
+                if runtime <= 0 { return true }
+                for duration in activeDurations {
+                    switch duration {
+                    case "Under 90 min": if runtime < 90 { return true }
+                    case "90-150 min", "90\u{2013}150 min": if runtime >= 90 && runtime <= 150 { return true }
+                    case "150+ min": if runtime >= 150 { return true }
+                    case "Epic 180+": if runtime >= 180 { return true }
+                    default: break
+                    }
+                }
+                return false
+            }
+        }
+
+        // Sort (apply on filtered results)
+        switch sortOption {
+        case .ratingDesc:
+            filtered.sort { a, b in
+                let scoreA = enrichedMovies[a.tmdb_id]?.rating ?? a.vote_average ?? 0
+                let scoreB = enrichedMovies[b.tmdb_id]?.rating ?? b.vote_average ?? 0
+                return scoreA > scoreB
+            }
+        case .ratingAsc:
+            filtered.sort { a, b in
+                let scoreA = enrichedMovies[a.tmdb_id]?.rating ?? a.vote_average ?? 0
+                let scoreB = enrichedMovies[b.tmdb_id]?.rating ?? b.vote_average ?? 0
+                return scoreA < scoreB
+            }
+        case .yearDesc:
+            filtered.sort { ($0.release_date ?? "") > ($1.release_date ?? "") }
+        case .yearAsc:
+            filtered.sort { ($0.release_date ?? "") < ($1.release_date ?? "") }
+        case .durationDesc:
+            filtered.sort { a, b in
+                let rtA = enrichedMovies[a.tmdb_id]?.runtimeMinutes ?? 0
+                let rtB = enrichedMovies[b.tmdb_id]?.runtimeMinutes ?? 0
+                return rtA > rtB
+            }
+        case .durationAsc:
+            filtered.sort { a, b in
+                let rtA = enrichedMovies[a.tmdb_id]?.runtimeMinutes ?? 0
+                let rtB = enrichedMovies[b.tmdb_id]?.runtimeMinutes ?? 0
+                return rtA < rtB
             }
         }
 

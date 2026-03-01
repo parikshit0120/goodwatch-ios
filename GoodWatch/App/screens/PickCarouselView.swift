@@ -152,11 +152,6 @@ struct PickCarouselView: View {
                     onAlreadySeen: {
                         flippedIndex = nil
                         onReject(gwMovie, .alreadySeen)
-                    },
-                    onCancel: {
-                        withAnimation(.easeOut(duration: GWDesignTokens.rejectionFlipDuration)) {
-                            flippedIndex = nil
-                        }
                     }
                 )
             } else {

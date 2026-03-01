@@ -18,7 +18,6 @@ struct RejectionOverlayView: View {
     let movie: Movie
     let onNotInterested: () -> Void
     let onAlreadySeen: () -> Void
-    let onCancel: () -> Void
 
     @State private var isFlipped: Bool = false
     @State private var showingBack: Bool = false
@@ -142,15 +141,6 @@ struct RejectionOverlayView: View {
                         .cornerRadius(GWRadius.md)
                 }
                 .padding(.horizontal, 24)
-
-                Spacer().frame(height: 8)
-
-                // Cancel — flip back
-                Button(action: onCancel) {
-                    Text("Never mind")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(GWColors.lightGray)
-                }
 
                 Spacer()
             }

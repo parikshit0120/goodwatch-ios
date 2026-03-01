@@ -126,6 +126,51 @@ enum ClientMovieFilter {
         }
     }
 
+    /// Mood matching from a pre-built genre set (used by UpcomingReleasesViewModel)
+    static func matchesMoodForGenres(genreSet: Set<String>, moods: Set<String>) -> Bool {
+        for mood in moods {
+            switch mood.lowercased() {
+            case "feel-good":
+                if genreSet.contains("comedy") || genreSet.contains("romance") ||
+                   genreSet.contains("family") || genreSet.contains("animation") { return true }
+            case "intense":
+                if genreSet.contains("thriller") || genreSet.contains("action") ||
+                   genreSet.contains("war") { return true }
+            case "dark":
+                if genreSet.contains("horror") || genreSet.contains("crime") ||
+                   genreSet.contains("thriller") { return true }
+            case "light-hearted":
+                if genreSet.contains("comedy") || genreSet.contains("animation") ||
+                   genreSet.contains("family") { return true }
+            case "edge-of-seat":
+                if genreSet.contains("thriller") || genreSet.contains("mystery") ||
+                   genreSet.contains("action") { return true }
+            case "inspirational":
+                if genreSet.contains("drama") || genreSet.contains("biography") ||
+                   genreSet.contains("history") { return true }
+            case "fun":
+                if genreSet.contains("comedy") || genreSet.contains("adventure") ||
+                   genreSet.contains("action") { return true }
+            case "epic":
+                if genreSet.contains("war") || genreSet.contains("history") ||
+                   genreSet.contains("science fiction") || genreSet.contains("fantasy") { return true }
+            case "wild":
+                if genreSet.contains("action") || genreSet.contains("adventure") ||
+                   genreSet.contains("crime") { return true }
+            case "gripping":
+                if genreSet.contains("thriller") || genreSet.contains("drama") ||
+                   genreSet.contains("mystery") { return true }
+            case "visceral":
+                if genreSet.contains("horror") || genreSet.contains("action") ||
+                   genreSet.contains("war") { return true }
+            case "emotional":
+                if genreSet.contains("drama") || genreSet.contains("romance") { return true }
+            default: break
+            }
+        }
+        return false
+    }
+
     /// Simple mood matching based on genre keywords
     private static func matchesMood(movie: Movie, moods: Set<String>) -> Bool {
         let genres = Set(movie.genreNames.map { $0.lowercased() })

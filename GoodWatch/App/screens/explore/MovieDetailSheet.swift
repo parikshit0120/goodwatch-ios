@@ -65,8 +65,12 @@ struct MovieDetailSheet: View {
                 HStack {
                     // Heart / Watchlist button
                     Button {
+                        let wasInWatchlist = isInWatchlist
                         withAnimation(.easeInOut(duration: 0.2)) {
                             watchlist.toggle(movie.id.uuidString)
+                        }
+                        if !wasInWatchlist {
+                            recordExploreSignal(.explore_watchlist_add)
                         }
                     } label: {
                         Image(systemName: isInWatchlist ? "heart.fill" : "heart")
@@ -101,6 +105,9 @@ struct MovieDetailSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)
+        .onAppear {
+            recordExploreSignal(.explore_view)
+        }
     }
 
     // MARK: - Backdrop Area
@@ -312,6 +319,9 @@ struct MovieDetailSheet: View {
     }
 
     private func openProvider(_ provider: OTTProvider) {
+        // Record explore watch click signal
+        recordExploreSignal(.explore_watch_click)
+
         // Try deep link first, fall back to web URL
         if let deepLink = provider.deepLinkURL {
             openURL(deepLink) { accepted in
@@ -353,6 +363,19 @@ struct MovieDetailSheet: View {
             }
         }
         return Array(result.prefix(6))
+    }
+
+    // MARK: - Explore Signal Recording
+
+    private func recordExploreSignal(_ action: InteractionAction) {
+        guard let userId = AuthGuard.shared.currentUserId else { return }
+        Task {
+            try? await InteractionService.shared.recordInteraction(
+                userId: userId,
+                movieId: movie.id,
+                action: action
+            )
+        }
     }
 
     private func platformGradient(for name: String) -> LinearGradient {

@@ -69,6 +69,7 @@ enum GWValidationFailure: CustomStringConvertible {
     case contentTypeMismatch(expected: String, actual: String?)
     case qualityGateFailed(rating: Double, voteCount: Int)
     case recencyGateFailed(year: Int)
+    case tieredGateFailed(reason: String)
 
     var ruleLabel: String {
         switch self {
@@ -82,6 +83,7 @@ enum GWValidationFailure: CustomStringConvertible {
         case .contentTypeMismatch: return "contentType"
         case .qualityGateFailed: return "qualityGate"
         case .recencyGateFailed: return "recencyGate"
+        case .tieredGateFailed: return "tieredGate"
         }
     }
 
@@ -107,6 +109,8 @@ enum GWValidationFailure: CustomStringConvertible {
             return "QUALITY_GATE_FAILED: rating \(rating), votes \(voteCount)"
         case .recencyGateFailed(let year):
             return "RECENCY_GATE_FAILED: movie year \(year) < 2010"
+        case .tieredGateFailed(let reason):
+            return "TIERED_GATE_FAILED: \(reason)"
         }
     }
 }
@@ -183,7 +187,7 @@ struct GWUserProfileComplete {
     var dimensionalLearning: GWDimensionalLearning
     var tasteProfile: GWUserTasteProfile?
     var moodMapping: GWMoodMapping?
-    var applyRecencyGate: Bool  // true when interaction_points < 10 and feature flag enabled
+    var interactionPoints: Int  // Tiered quality/recency gates based on interaction_points
     /// Soft reject history: movieId -> rejection date. Used for 7-day cooldown (INV-E02).
     /// Movies in this dict are excluded if rejected < softRejectCooldownDays ago.
     var softRejectHistory: [String: Date]
@@ -218,7 +222,7 @@ struct GWUserProfileComplete {
         dimensionalLearning: GWDimensionalLearning = GWDimensionalLearning(),
         tasteProfile: GWUserTasteProfile? = nil,
         moodMapping: GWMoodMapping? = nil,
-        applyRecencyGate: Bool = false,
+        interactionPoints: Int = 0,
         softRejectHistory: [String: Date] = [:],
         sessionExcludedIds: Set<String> = []
     ) {
@@ -245,7 +249,7 @@ struct GWUserProfileComplete {
         self.dimensionalLearning = dimensionalLearning
         self.tasteProfile = tasteProfile
         self.moodMapping = moodMapping
-        self.applyRecencyGate = applyRecencyGate
+        self.interactionPoints = interactionPoints
         self.softRejectHistory = softRejectHistory
         self.sessionExcludedIds = sessionExcludedIds
     }
@@ -272,10 +276,9 @@ struct GWUserProfileComplete {
             resolvedIntentTags = context.intent.intent_tags
         }
 
-        // Recency gate: exclude pre-2010 movies for new users (interaction_points < 10)
-        let recencyGateEnabled = GWFeatureFlags.shared.isEnabled("new_user_recency_gate")
+        // Tiered quality/recency gates based on interaction_points
         GWInteractionPoints.shared.setUser(userId)
-        let shouldApplyRecencyGate = recencyGateEnabled && GWInteractionPoints.shared.currentPoints < 10
+        let currentInteractionPoints = GWInteractionPoints.shared.currentPoints
 
         return GWUserProfileComplete(
             userId: userId,
@@ -295,7 +298,7 @@ struct GWUserProfileComplete {
             dimensionalLearning: learningData.dimensional,
             tasteProfile: tasteProfile,
             moodMapping: moodMapping,
-            applyRecencyGate: shouldApplyRecencyGate
+            interactionPoints: currentInteractionPoints
         )
     }
 }
@@ -542,13 +545,43 @@ final class GWRecommendationEngine {
             }
         }
 
-        // Rule 5B: Recency gate for new users
-        // Exclude pre-2010 movies when interaction_points < 10 (feature-flagged)
-        if profile.applyRecencyGate && movie.year < 2010 {
-            return .invalid(.recencyGateFailed(year: movie.year))
+        // Rule 5B: TIERED HARD GATES (quality + recency) based on interaction_points
+        // These are NON-NEGOTIABLE minimums applied BEFORE mood scoring/adaptive relaxation.
+        // Tier 1 (0-9 pts):  GoodScore >= 80, year >= 2010
+        // Tier 2 (10-49 pts): GoodScore >= 70, year >= 2000
+        // Tier 3 (50+ pts):  GoodScore >= 60, no year filter
+        let tieredScore: Double
+        if movie.composite_score > 0 {
+            tieredScore = movie.composite_score
+        } else {
+            tieredScore = movie.goodscore > 10 ? movie.goodscore : movie.goodscore * 10
         }
 
-        // Rule 6: GoodScore threshold
+        let pts = profile.interactionPoints
+        if pts < 10 {
+            // Tier 1: Fresh users — only the best, recent movies
+            if tieredScore < 80 {
+                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 80 (tier1, pts=\(pts))"))
+            }
+            if movie.year > 0 && movie.year < 2010 {
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2010 (tier1, pts=\(pts))"))
+            }
+        } else if pts < 50 {
+            // Tier 2: Building trust — solid picks, modern catalog
+            if tieredScore < 70 {
+                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 70 (tier2, pts=\(pts))"))
+            }
+            if movie.year > 0 && movie.year < 2000 {
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2000 (tier2, pts=\(pts))"))
+            }
+        } else {
+            // Tier 3: Experienced users — broader catalog, no year filter
+            if tieredScore < 60 {
+                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 60 (tier3, pts=\(pts))"))
+            }
+        }
+
+        // Rule 6: GoodScore threshold (mood-dependent, on top of tiered hard gate)
         // If composite_score is available (> 0), prefer it for the threshold check
         var threshold = gwGoodscoreThreshold(
             mood: profile.mood,
@@ -560,13 +593,7 @@ final class GWRecommendationEngine {
         // The adaptive quality gate in recommend() handles small catalogs
         // by checking actual candidate availability at runtime.
 
-        let scoreForCheck: Double
-        if movie.composite_score > 0 {
-            // composite_score is already on 0-100 scale
-            scoreForCheck = movie.composite_score
-        } else {
-            scoreForCheck = movie.goodscore > 10 ? movie.goodscore : movie.goodscore * 10
-        }
+        let scoreForCheck: Double = tieredScore  // Reuse normalized score from tiered gate
         if scoreForCheck < threshold {
             return .invalid(.goodscoreBelowThreshold(
                 score: scoreForCheck,
@@ -844,7 +871,8 @@ final class GWRecommendationEngine {
         case .invalid(let failure):
             switch failure {
             // Fundamentally unavailable — exclude from pool
-            case .movieUnavailable, .languageMismatch, .platformMismatch, .alreadyInteracted:
+            case .movieUnavailable, .languageMismatch, .platformMismatch, .alreadyInteracted,
+                 .tieredGateFailed:
                 return false
             // Quality/mood/runtime filters — movie IS available, just filtered by session criteria
             case .goodscoreBelowThreshold, .noMatchingTags, .qualityGateFailed,
@@ -868,6 +896,18 @@ final class GWRecommendationEngine {
         if profile.preferredLanguages.isEmpty || profile.platforms.isEmpty || profile.intentTags.isEmpty {
             return GWRecommendationOutput(movie: nil, stopCondition: .incompleteProfile)
         }
+
+        // Log tiered gate tier
+        let pts = profile.interactionPoints
+        let tierLabel: String
+        if pts < 10 {
+            tierLabel = "tier1 (score>=80, year>=2010)"
+        } else if pts < 50 {
+            tierLabel = "tier2 (score>=70, year>=2000)"
+        } else {
+            tierLabel = "tier3 (score>=60, no year filter)"
+        }
+        print("[ENGINE] Tiered gate: pts=\(pts) -> \(tierLabel)")
 
         // Adaptive Quality Gate (INV-R06):
         // Count candidates after language+platform filtering to determine quality gate.

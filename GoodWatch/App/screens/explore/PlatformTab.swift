@@ -15,6 +15,13 @@ struct PlatformTab: View {
         VStack(spacing: 0) {
             // Platform grid — circular 3D tiles
             platformGrid
+                .padding(.bottom, 12)
+                .background(GWColors.surfaceTertiary.opacity(0.3))
+
+            // Divider between platform selector and results
+            Rectangle()
+                .fill(GWColors.surfaceBorder)
+                .frame(height: 1)
 
             // Selected platform info + sort
             if viewModel.selectedPlatform != nil {
@@ -61,12 +68,12 @@ struct PlatformTab: View {
     private var selectedPlatformRow: some View {
         HStack {
             if let platform = viewModel.selectedPlatform {
-                Text(platform)
+                Text("Movies on \(platform)")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(GWColors.white)
 
                 if let count = viewModel.platformCounts[platform], count > 0 {
-                    Text("\(count) movies")
+                    Text("(\(count))")
                         .font(.system(size: 13))
                         .foregroundColor(GWColors.lightGray)
                 }
@@ -95,7 +102,7 @@ struct PlatformTab: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.top, 12)
         .padding(.bottom, 8)
     }
 

@@ -408,12 +408,13 @@ final class GWRecommendationEngineTests: XCTestCase {
         // When: Validating
         let result = engine.isValidMovie(movie, profile: profile)
 
-        // Then: Should fail with goodscore violation
+        // Then: Should fail with quality violation (tiered gate or goodscore threshold)
         if case .invalid(let failure) = result {
-            if case .goodscoreBelowThreshold = failure {
-                // Expected
-            } else {
-                XCTFail("Expected goodscoreBelowThreshold, got: \(failure)")
+            switch failure {
+            case .goodscoreBelowThreshold, .tieredGateFailed:
+                break // Expected — rejected for quality
+            default:
+                XCTFail("Expected quality rejection, got: \(failure)")
             }
         } else {
             XCTFail("Low score movie (65) should NOT be valid (threshold 75)")

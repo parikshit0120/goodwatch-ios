@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 // ============================================
 // MOVIE GRID CARD - 3-column grid card
@@ -8,6 +9,8 @@ struct MovieGridCard: View {
     let movie: Movie
     let isInWatchlist: Bool
     let onTap: () -> Void
+
+    @State private var isFetchingTrailer = false
 
     private var isNew: Bool {
         guard let year = movie.year else { return false }
@@ -115,6 +118,35 @@ struct MovieGridCard: View {
                             }
                         }
                     }
+
+                    // Trailer play button (bottom-right)
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Button {
+                                fetchAndPlayTrailer()
+                            } label: {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.6))
+                                        .frame(width: 28, height: 28)
+                                    if isFetchingTrailer {
+                                        ProgressView()
+                                            .scaleEffect(0.5)
+                                            .tint(GWColors.white)
+                                    } else {
+                                        Image(systemName: "play.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(GWColors.white)
+                                            .offset(x: 1)
+                                    }
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .padding(6)
+                        }
+                    }
                 }
                 .aspectRatio(2/3, contentMode: .fit)
                 .cornerRadius(GWRadius.md)
@@ -169,6 +201,33 @@ struct MovieGridCard: View {
                     .font(.system(size: 20))
                     .foregroundColor(GWColors.lightGray.opacity(0.5))
             )
+    }
+
+    // MARK: - Trailer Playback
+
+    private func fetchAndPlayTrailer() {
+        guard !isFetchingTrailer else { return }
+        guard let tmdbId = movie.tmdb_id else { return }
+        isFetchingTrailer = true
+        Task {
+            let key = await TrailerService.fetchTrailerKey(tmdbId: tmdbId)
+            await MainActor.run {
+                isFetchingTrailer = false
+                guard let key = key else { return }
+                let youtubeAppURL = URL(string: "youtube://\(key)")!
+                let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
+                if UIApplication.shared.canOpenURL(youtubeAppURL) {
+                    UIApplication.shared.open(youtubeAppURL)
+                } else {
+                    let safariVC = SFSafariViewController(url: youtubeWebURL)
+                    safariVC.preferredControlTintColor = UIColor(GWColors.gold)
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = windowScene.windows.first?.rootViewController {
+                        rootVC.present(safariVC, animated: true)
+                    }
+                }
+            }
+        }
     }
 
     private func platformColor(for name: String) -> Color {

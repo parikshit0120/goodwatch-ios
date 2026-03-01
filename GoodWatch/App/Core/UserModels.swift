@@ -136,6 +136,10 @@ enum InteractionAction: String, Codable {
     case already_seen_card
     case implicit_skip
     case replacement_shown
+    // Explore journey signals
+    case explore_view
+    case explore_watch_click
+    case explore_watchlist_add
 }
 
 struct InteractionContext: Codable {
