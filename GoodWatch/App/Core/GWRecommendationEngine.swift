@@ -1344,7 +1344,11 @@ final class GWRecommendationEngine {
     /// ranked priority order, with tonight's primary getting the highest bonus.
     /// Priority affects SCORING only — all selected languages pass validation.
     ///
-    /// Scoring (balanced for 0-1 engine scale):
+    /// When tonightPrimary is nil (no explicit session override — default on every
+    /// app launch per INV-L10), ALL selected languages receive an equal bonus (+0.06).
+    /// This prevents the first language from dominating all carousel picks.
+    ///
+    /// When tonightPrimary IS set (user explicitly chose a session language):
     ///   Tonight's primary language:          +0.12
     ///   #1 in ranked (not tonight primary):  +0.10
     ///   #2 in ranked:                        +0.07
@@ -1352,17 +1356,12 @@ final class GWRecommendationEngine {
     ///   #4+ in ranked:                       +0.02
     ///
     /// These values tip close races without overwhelming mood fit or quality.
-    /// Tonight Hindi (0.12) vs #3 English (0.04) = 0.08 gap = ~16% of tag range (0.50).
-    /// A perfect-mood English movie (0.75 + 0.04 = 0.79) still beats a mediocre
-    /// Hindi movie (0.40 + 0.12 = 0.52).
     private func computeLanguagePriorityBonus(movieLanguage: String, prioritizedLanguages: [String], tonightPrimary: String?) -> Double {
         // Only applies when user has 2+ languages (otherwise no priority distinction)
         guard prioritizedLanguages.count > 1 else { return 0.0 }
 
         let movieLang = movieLanguage.lowercased()
 
-        // Check if movie language matches tonight's primary (session override)
-        let resolvedTonight = (tonightPrimary ?? prioritizedLanguages.first ?? "").lowercased()
         let isLanguageMatch: (String, String) -> Bool = { movie, lang in
             let l = lang.lowercased()
             return movie.contains(l) ||
@@ -1374,6 +1373,19 @@ final class GWRecommendationEngine {
                    (l == "kannada" && movie == "kn") ||
                    (l == "punjabi" && movie == "pa")
         }
+
+        // When no explicit tonight primary (nil = default on every launch per INV-L10),
+        // give ALL selected languages equal bonus. No position-based advantage.
+        // This distributes picks across all selected languages evenly.
+        if tonightPrimary == nil {
+            if prioritizedLanguages.contains(where: { isLanguageMatch(movieLang, $0) }) {
+                return 0.06
+            }
+            return 0.0
+        }
+
+        // User explicitly chose a tonight primary — use ranked scoring (INV-L08)
+        let resolvedTonight = tonightPrimary!.lowercased()
 
         // Tonight's primary — strong but not dominant
         if isLanguageMatch(movieLang, resolvedTonight) {

@@ -1,5 +1,4 @@
 import SwiftUI
-import SafariServices
 
 // ============================================
 // MOVIE GRID CARD - 3-column grid card
@@ -9,8 +8,6 @@ struct MovieGridCard: View {
     let movie: Movie
     let isInWatchlist: Bool
     let onTap: () -> Void
-
-    @State private var isFetchingTrailer = false
 
     private var isNew: Bool {
         guard let year = movie.year else { return false }
@@ -34,77 +31,58 @@ struct MovieGridCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Poster with badges — ZStack wraps the clipped poster + unclipped overlay
-            ZStack(alignment: .bottomTrailing) {
-                // Inner poster with badges (clipped with corner radius)
-                ZStack(alignment: .topTrailing) {
-                    GWCachedImage(url: movie.posterURL(size: .w185)) {
-                        posterPlaceholder
-                    }
-                    .aspectRatio(2/3, contentMode: .fill)
-                    .clipped()
+            // Poster with badges
+            ZStack(alignment: .topTrailing) {
+                GWCachedImage(url: movie.posterURL(size: .w185)) {
+                    posterPlaceholder
+                }
+                .aspectRatio(2/3, contentMode: .fill)
+                .clipped()
 
-                    // Top-right: Heart button + Rating badge
-                    VStack(spacing: 4) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                WatchlistManager.shared.toggle(movie.id.uuidString)
-                            }
-                        } label: {
-                            Image(systemName: isInWatchlist ? "heart.fill" : "heart")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(isInWatchlist ? Color(hex: "FF4D6A") : GWColors.white)
-                                .shadow(color: .black.opacity(0.6), radius: 3)
+                // Top-right: Heart button + Rating badge
+                VStack(spacing: 4) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            WatchlistManager.shared.toggle(movie.id.uuidString)
                         }
-                        .buttonStyle(PlainButtonStyle())
+                    } label: {
+                        Image(systemName: isInWatchlist ? "heart.fill" : "heart")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(isInWatchlist ? Color(hex: "FF4D6A") : GWColors.white)
+                            .shadow(color: .black.opacity(0.6), radius: 3)
+                    }
+                    .buttonStyle(PlainButtonStyle())
 
-                        // GoodScore badge (0-100 scale)
-                        if let score = movie.goodScoreDisplay {
-                            Text("\(score)")
-                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                    // GoodScore badge (0-100 scale)
+                    if let score = movie.goodScoreDisplay {
+                        Text("\(score)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundColor(GWColors.black)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(GWColors.gold)
+                            .cornerRadius(GWRadius.sm)
+                    }
+                }
+                .padding(6)
+
+                // NEW badge (top-left) + runtime badge (bottom-left)
+                if isNew {
+                    VStack {
+                        HStack {
+                            Text("NEW")
+                                .font(.system(size: 8, weight: .heavy))
                                 .foregroundColor(GWColors.black)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 3)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
                                 .background(GWColors.gold)
                                 .cornerRadius(GWRadius.sm)
-                        }
-                    }
-                    .padding(6)
-
-                    // NEW badge
-                    if isNew {
-                        VStack {
-                            HStack {
-                                Text("NEW")
-                                    .font(.system(size: 8, weight: .heavy))
-                                    .foregroundColor(GWColors.black)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(GWColors.gold)
-                                    .cornerRadius(GWRadius.sm)
-                                    .padding(6)
-                                Spacer()
-                            }
+                                .padding(6)
                             Spacer()
-                            // Runtime badge
-                            if movie.runtimeMinutes > 0 {
-                                HStack {
-                                    Text(movie.runtimeDisplay)
-                                        .font(.system(size: 9, weight: .semibold))
-                                        .foregroundColor(GWColors.white)
-                                        .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
-                                        .background(Color.black.opacity(0.7))
-                                        .cornerRadius(GWRadius.sm)
-                                        .padding(6)
-                                    Spacer()
-                                }
-                            }
                         }
-                    } else if movie.runtimeMinutes > 0 {
+                        Spacer()
                         // Runtime badge (bottom-left)
-                        VStack {
-                            Spacer()
+                        if movie.runtimeMinutes > 0 {
                             HStack {
                                 Text(movie.runtimeDisplay)
                                     .font(.system(size: 9, weight: .semibold))
@@ -118,37 +96,27 @@ struct MovieGridCard: View {
                             }
                         }
                     }
-                }
-                .aspectRatio(2/3, contentMode: .fit)
-                .cornerRadius(GWRadius.md)
-                .clipped()
-
-                // Trailer play button — OUTSIDE .clipped() so it is never cut off
-                if movie.tmdb_id != nil {
-                    Button {
-                        fetchAndPlayTrailer()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(GWColors.gold)
-                                .frame(width: 36, height: 36)
-                                .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
-                            if isFetchingTrailer {
-                                ProgressView()
-                                    .scaleEffect(0.55)
-                                    .tint(GWColors.black)
-                            } else {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(GWColors.black)
-                                    .offset(x: 1)
-                            }
+                } else if movie.runtimeMinutes > 0 {
+                    // Runtime badge (bottom-left)
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Text(movie.runtimeDisplay)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(GWColors.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.black.opacity(0.7))
+                                .cornerRadius(GWRadius.sm)
+                                .padding(6)
+                            Spacer()
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .offset(x: -6, y: -6)
                 }
             }
+            .aspectRatio(2/3, contentMode: .fit)
+            .cornerRadius(GWRadius.md)
+            .clipped()
 
             // Title
             Text(movie.title)
@@ -199,33 +167,6 @@ struct MovieGridCard: View {
                     .font(.system(size: 20))
                     .foregroundColor(GWColors.lightGray.opacity(0.5))
             )
-    }
-
-    // MARK: - Trailer Playback
-
-    private func fetchAndPlayTrailer() {
-        guard !isFetchingTrailer else { return }
-        guard let tmdbId = movie.tmdb_id else { return }
-        isFetchingTrailer = true
-        Task {
-            let key = await TrailerService.fetchTrailerKey(tmdbId: tmdbId)
-            await MainActor.run {
-                isFetchingTrailer = false
-                guard let key = key else { return }
-                let youtubeAppURL = URL(string: "youtube://\(key)")!
-                let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
-                if UIApplication.shared.canOpenURL(youtubeAppURL) {
-                    UIApplication.shared.open(youtubeAppURL)
-                } else {
-                    let safariVC = SFSafariViewController(url: youtubeWebURL)
-                    safariVC.preferredControlTintColor = UIColor(GWColors.gold)
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController {
-                        rootVC.present(safariVC, animated: true)
-                    }
-                }
-            }
-        }
     }
 
     private func platformColor(for name: String) -> Color {

@@ -1,4 +1,5 @@
 import SwiftUI
+import SafariServices
 
 // ============================================
 // MOVIE DETAIL SHEET - Bottom sheet modal
@@ -10,6 +11,9 @@ struct MovieDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @ObservedObject private var watchlist = WatchlistManager.shared
+
+    @State private var isFetchingTrailer = false
+    @State private var showNoTrailerAlert = false
 
     private var isInWatchlist: Bool {
         watchlist.isInWatchlist(movie.id.uuidString)
@@ -46,6 +50,11 @@ struct MovieDetailSheet: View {
                         // Director and Cast
                         if movie.directorDisplay != nil || movie.castDisplay != nil {
                             creditsSection
+                        }
+
+                        // Watch Trailer button (only if movie has tmdb_id)
+                        if movie.tmdb_id != nil {
+                            trailerButton
                         }
 
                         // Watch On section
@@ -267,6 +276,60 @@ struct MovieDetailSheet: View {
                     Text(cast)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(GWColors.white)
+                }
+            }
+        }
+    }
+
+    // MARK: - Trailer Button
+
+    private var trailerButton: some View {
+        Button {
+            fetchAndPlayTrailer()
+        } label: {
+            HStack(spacing: 8) {
+                if isFetchingTrailer {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(GWColors.black)
+                } else {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 14))
+                }
+                Text("Watch Trailer")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(GWColors.black)
+            .frame(maxWidth: .infinity)
+            .frame(height: 46)
+            .background(LinearGradient.goldGradient)
+            .cornerRadius(GWRadius.md)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .disabled(isFetchingTrailer)
+        .alert("No trailer available", isPresented: $showNoTrailerAlert) {
+            Button("OK", role: .cancel) {}
+        }
+    }
+
+    private func fetchAndPlayTrailer() {
+        guard !isFetchingTrailer else { return }
+        guard let tmdbId = movie.tmdb_id else { return }
+        isFetchingTrailer = true
+        Task {
+            let key = await TrailerService.fetchTrailerKey(tmdbId: tmdbId)
+            await MainActor.run {
+                isFetchingTrailer = false
+                guard let key = key else {
+                    showNoTrailerAlert = true
+                    return
+                }
+                let youtubeAppURL = URL(string: "youtube://www.youtube.com/watch?v=\(key)")!
+                let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
+                if UIApplication.shared.canOpenURL(youtubeAppURL) {
+                    UIApplication.shared.open(youtubeAppURL)
+                } else {
+                    openURL(youtubeWebURL)
                 }
             }
         }

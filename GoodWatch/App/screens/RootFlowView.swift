@@ -573,7 +573,7 @@ struct RootFlowView: View {
                     handleCardRejection(gwMovie: gwMovie, reason: reason)
                 },
                 onStartOver: {
-                    returnToLanding()
+                    startOver()
                 },
                 onExplore: {
                     navigateTo(.explore)
@@ -604,7 +604,7 @@ struct RootFlowView: View {
                         handleAlreadySeen(movie: movie)
                     },
                     onStartOver: {
-                        returnToLanding()
+                        startOver()
                     },
                     onExplore: {
                         navigateTo(.explore)
@@ -633,7 +633,7 @@ struct RootFlowView: View {
                         handleAlreadySeen(movie: movie)
                     },
                     onStartOver: {
-                        returnToLanding()
+                        startOver()
                     },
                     onExplore: {
                         navigateTo(.explore)
@@ -849,15 +849,22 @@ struct RootFlowView: View {
         }
     }
 
-    /// Return to landing, resetting session state (clears onboarding memory)
+    /// Return to landing, preserving onboarding memory so user skips
+    /// OTT/language/duration on next "Pick for me" (within 30 days).
     private func returnToLanding() {
-        returnToLandingInternal(clearMemory: true)
+        returnToLandingInternal(clearMemory: false)
     }
 
     /// Return to landing after watching / feedback — preserves onboarding memory
     /// so user skips OTT/language/duration on next "Pick for me"
     private func returnToLandingPreservingMemory() {
         returnToLandingInternal(clearMemory: false)
+    }
+
+    /// Explicit "Start Over" — clears onboarding memory so user re-selects
+    /// OTT platforms, languages, and duration from scratch.
+    private func startOver() {
+        returnToLandingInternal(clearMemory: true)
     }
 
     private func returnToLandingInternal(clearMemory: Bool) {

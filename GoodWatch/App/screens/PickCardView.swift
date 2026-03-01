@@ -358,18 +358,13 @@ struct PickCardView: View {
 
     private func playTrailer() {
         guard let key = trailerKey else { return }
-        let youtubeAppURL = URL(string: "youtube://\(key)")!
+        let youtubeAppURL = URL(string: "youtube://www.youtube.com/watch?v=\(key)")!
         let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
 
         if UIApplication.shared.canOpenURL(youtubeAppURL) {
-            UIApplication.shared.open(youtubeAppURL)
+            openURL(youtubeAppURL)
         } else {
-            let safariVC = SFSafariViewController(url: youtubeWebURL)
-            safariVC.preferredControlTintColor = UIColor(GWColors.gold)
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                rootVC.present(safariVC, animated: true)
-            }
+            openURL(youtubeWebURL)
         }
     }
 }
