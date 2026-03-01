@@ -77,6 +77,9 @@ struct PlatformSelectorView: View {
 
                 Spacer().frame(height: 20)
 
+                // Extra spacing to push OTT logos down ~10%
+                Spacer().frame(height: 40)
+
                 // Platform Grid - Circular 3D Design
                 LazyVGrid(columns: platformColumns, spacing: 16) {
                     ForEach(OTTPlatform.allCases, id: \.self) { platform in
@@ -92,19 +95,22 @@ struct PlatformSelectorView: View {
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)
 
-                // Select All / Deselect All toggle (below logos)
-                HStack {
-                    Spacer()
-                    Button {
-                        toggleSelectAll()
-                    } label: {
-                        Text(ctx.otts.count == OTTPlatform.allCases.count ? "Deselect all" : "Select all")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(GWColors.gold)
-                    }
+                // Select All / Deselect All button (centered, outlined style)
+                Button {
+                    toggleSelectAll()
+                } label: {
+                    Text(ctx.otts.count == OTTPlatform.allCases.count ? "Deselect All" : "Select All")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(GWColors.gold)
+                        .frame(width: 140, height: 38)
+                        .background(Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: GWRadius.md)
+                                .stroke(GWColors.gold, lineWidth: 1.5)
+                        )
                 }
-                .padding(.horizontal, GWSpacing.screenPadding)
-                .padding(.top, 12)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 36)
 
                 Spacer()
 

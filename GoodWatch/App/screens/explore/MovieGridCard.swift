@@ -129,22 +129,23 @@ struct MovieGridCard: View {
                             } label: {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.black.opacity(0.6))
-                                        .frame(width: 28, height: 28)
+                                        .fill(GWColors.gold)
+                                        .frame(width: 34, height: 34)
+                                        .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
                                     if isFetchingTrailer {
                                         ProgressView()
-                                            .scaleEffect(0.5)
-                                            .tint(GWColors.white)
+                                            .scaleEffect(0.55)
+                                            .tint(GWColors.black)
                                     } else {
                                         Image(systemName: "play.fill")
-                                            .font(.system(size: 10))
-                                            .foregroundColor(GWColors.white)
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(GWColors.black)
                                             .offset(x: 1)
                                     }
                                 }
                             }
                             .buttonStyle(PlainButtonStyle())
-                            .padding(6)
+                            .padding(8)
                         }
                     }
                 }

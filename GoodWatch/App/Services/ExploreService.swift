@@ -559,6 +559,9 @@ final class ExploreService {
         queryItems.append(URLQueryItem(name: "poster_path", value: "not.is.null"))
         // Must have a non-zero rating (vote_average > 0)
         queryItems.append(URLQueryItem(name: "vote_average", value: "gt.0"))
+        // Minimum quality floor: only show movies with GoodScore >= 65 (6.5 on 0-10 scale)
+        // Uses composite_score if available, otherwise vote_average
+        queryItems.append(URLQueryItem(name: "or", value: "(composite_score.gte.6.5,and(composite_score.is.null,vote_average.gte.6.5))"))
         // Exclude unreleased / canceled / planned movies
         // status is either "Released", "Ended", or NULL (older movies without status)
         queryItems.append(URLQueryItem(name: "or", value: "(status.eq.Released,status.eq.Ended,status.is.null)"))
