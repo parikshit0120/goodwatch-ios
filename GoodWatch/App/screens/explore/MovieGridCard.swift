@@ -18,7 +18,7 @@ struct MovieGridCard: View {
         return year >= currentYear - 1
     }
 
-    /// Deduplicated platform display names (e.g. "Amazon Prime Video" and "Amazon Prime Video with Ads" both → "Prime Video")
+    /// Deduplicated platform display names (e.g. "Amazon Prime Video" and "Amazon Prime Video with Ads" both -> "Prime Video")
     private var uniquePlatformNames: [String] {
         var seen = Set<String>()
         var result: [String] = []
@@ -33,9 +33,10 @@ struct MovieGridCard: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 6) {
-                // Poster with badges
+        VStack(alignment: .leading, spacing: 6) {
+            // Poster with badges — ZStack wraps the clipped poster + unclipped overlay
+            ZStack(alignment: .bottomTrailing) {
+                // Inner poster with badges (clipped with corner radius)
                 ZStack(alignment: .topTrailing) {
                     GWCachedImage(url: movie.posterURL(size: .w185)) {
                         posterPlaceholder
@@ -43,9 +44,8 @@ struct MovieGridCard: View {
                     .aspectRatio(2/3, contentMode: .fill)
                     .clipped()
 
-                    // Top-right: Rating badge + Heart button stacked
+                    // Top-right: Heart button + Rating badge
                     VStack(spacing: 4) {
-                        // Heart button
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 WatchlistManager.shared.toggle(movie.id.uuidString)
@@ -118,79 +118,76 @@ struct MovieGridCard: View {
                             }
                         }
                     }
-
-                    // Trailer play button (bottom-right)
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Button {
-                                fetchAndPlayTrailer()
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .fill(GWColors.gold)
-                                        .frame(width: 34, height: 34)
-                                        .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
-                                    if isFetchingTrailer {
-                                        ProgressView()
-                                            .scaleEffect(0.55)
-                                            .tint(GWColors.black)
-                                    } else {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(GWColors.black)
-                                            .offset(x: 1)
-                                    }
-                                }
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .padding(8)
-                        }
-                    }
                 }
                 .aspectRatio(2/3, contentMode: .fit)
                 .cornerRadius(GWRadius.md)
                 .clipped()
 
-                // Title
-                Text(movie.title)
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundColor(GWColors.white)
-                    .lineLimit(1)
-
-                // Metadata
-                HStack(spacing: 4) {
-                    if !movie.yearString.isEmpty {
-                        Text(movie.yearString)
-                            .font(.system(size: 10))
-                            .foregroundColor(GWColors.lightGray)
-                    }
-                    if !movie.yearString.isEmpty && movie.original_language != nil {
-                        Text("·")
-                            .font(.system(size: 10))
-                            .foregroundColor(GWColors.lightGray)
-                    }
-                    if let lang = movie.original_language {
-                        Text(lang.uppercased())
-                            .font(.system(size: 10))
-                            .foregroundColor(GWColors.lightGray)
-                    }
-                }
-
-                // Platform dots (deduplicated by platform name)
-                if !uniquePlatformNames.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(uniquePlatformNames.prefix(4), id: \.self) { name in
+                // Trailer play button — OUTSIDE .clipped() so it is never cut off
+                if movie.tmdb_id != nil {
+                    Button {
+                        fetchAndPlayTrailer()
+                    } label: {
+                        ZStack {
                             Circle()
-                                .fill(platformColor(for: name))
-                                .frame(width: 8, height: 8)
+                                .fill(GWColors.gold)
+                                .frame(width: 36, height: 36)
+                                .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
+                            if isFetchingTrailer {
+                                ProgressView()
+                                    .scaleEffect(0.55)
+                                    .tint(GWColors.black)
+                            } else {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(GWColors.black)
+                                    .offset(x: 1)
+                            }
                         }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .offset(x: -6, y: -6)
+                }
+            }
+
+            // Title
+            Text(movie.title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(GWColors.white)
+                .lineLimit(1)
+
+            // Metadata
+            HStack(spacing: 4) {
+                if !movie.yearString.isEmpty {
+                    Text(movie.yearString)
+                        .font(.system(size: 10))
+                        .foregroundColor(GWColors.lightGray)
+                }
+                if !movie.yearString.isEmpty && movie.original_language != nil {
+                    Text(".")
+                        .font(.system(size: 10))
+                        .foregroundColor(GWColors.lightGray)
+                }
+                if let lang = movie.original_language {
+                    Text(lang.uppercased())
+                        .font(.system(size: 10))
+                        .foregroundColor(GWColors.lightGray)
+                }
+            }
+
+            // Platform dots (deduplicated by platform name)
+            if !uniquePlatformNames.isEmpty {
+                HStack(spacing: 4) {
+                    ForEach(uniquePlatformNames.prefix(4), id: \.self) { name in
+                        Circle()
+                            .fill(platformColor(for: name))
+                            .frame(width: 8, height: 8)
                     }
                 }
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
     }
 
     private var posterPlaceholder: some View {
