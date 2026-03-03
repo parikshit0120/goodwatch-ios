@@ -20,6 +20,7 @@ struct PickCarouselView: View {
     let rawMovies: [Movie]  // For looking up Movie from GWMovie
     let pickCount: Int
     let replacedPositions: Set<Int>
+    let totalReplacements: Int
     let userOTTs: [OTTPlatform]
     let userMood: String?
     let trailerKeys: [String: String]  // movie ID -> YouTube key (FIX 10)
@@ -28,9 +29,13 @@ struct PickCarouselView: View {
     let onStartOver: () -> Void
     let onExplore: (() -> Void)?
 
+    private let maxReplacements = 5
+
     @State private var currentIndex: Int = 0
     @State private var flippedIndex: Int? = nil  // Which card is showing rejection overlay
     @State private var dragOffset: CGFloat = 0
+
+    private var swapsExhausted: Bool { totalReplacements >= maxReplacements }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -121,8 +126,13 @@ struct PickCarouselView: View {
                 .padding(.top, 12)
             }
 
-            // Progress text (only when pickCount > 1)
-            if pickCount > 1 {
+            // Swap exhausted notice OR progress text
+            if swapsExhausted {
+                Text("No more swaps available")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(GWColors.lightGray.opacity(0.5))
+                    .padding(.top, 6)
+            } else if pickCount > 1 {
                 Text("Picks are narrowing as we learn the taste")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .foregroundColor(GWColors.lightGray.opacity(0.6))
@@ -162,7 +172,7 @@ struct PickCarouselView: View {
                     position: index + 1,
                     isTopPick: index == 0 && !replacedPositions.contains(index),
                     isReplacement: replacedPositions.contains(index),
-                    canReject: GWFeatureFlags.shared.isEnabled("card_rejection") && !replacedPositions.contains(index),
+                    canReject: GWFeatureFlags.shared.isEnabled("card_rejection") && !swapsExhausted,
                     userOTTs: userOTTs,
                     userMood: userMood,
                     trailerKey: trailerKeys[gwMovie.id],

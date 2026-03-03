@@ -69,6 +69,7 @@ struct RootFlowView: View {
     @State private var rawMoviePool: [Movie] = []        // Cached raw Movie pool for lookups
     @State private var pickCount: Int = 1                // How many picks to show (5/4/3/2/1)
     @State private var replacedPositions: Set<Int> = []  // Positions that got replacements
+    @State private var totalReplacements: Int = 0        // Session-wide replacement counter (hard cap: 5)
     @State private var currentProfile: GWUserProfileComplete? = nil  // Cached profile for replacements
 
     // International pick state (dubbed content — INV-L09)
@@ -563,6 +564,7 @@ struct RootFlowView: View {
                 rawMovies: rawMoviePool,
                 pickCount: pickCount,
                 replacedPositions: replacedPositions,
+                totalReplacements: totalReplacements,
                 userOTTs: userContext.otts,
                 userMood: userContext.intent.mood,
                 trailerKeys: carouselTrailerKeys,
@@ -901,6 +903,7 @@ struct RootFlowView: View {
         rawMoviePool = []
         pickCount = 1
         replacedPositions = []
+        totalReplacements = 0
         currentProfile = nil
         currentFallbackLevel = .none
         currentTrailerKey = nil
@@ -1331,6 +1334,7 @@ struct RootFlowView: View {
                             self.validMoviePool = gwMoviePool
                             self.pickCount = effectivePickCount
                             self.replacedPositions = []
+                            self.totalReplacements = 0
                             self.currentProfile = profile
                             self.internationalPick = resolvedIntlPick
                             self.trendBoostsByUUID = resolvedTrendBoosts
@@ -1461,6 +1465,7 @@ struct RootFlowView: View {
                             self.validMoviePool = gwMoviePool
                             self.pickCount = carouselPicks.count
                             self.replacedPositions = []
+                            self.totalReplacements = 0
                             self.currentProfile = profile
                             self.isLoadingRecommendation = false
                             self.sessionRecommendationCount += 1
@@ -2053,9 +2058,14 @@ struct RootFlowView: View {
         }
     }
 
+    private let maxReplacements = 5  // Hard cap: 5 replacements per carousel session
+
     private func handleCardRejection(gwMovie: GWMovie, reason: GWCardRejectionReason) {
         guard let userId = AuthGuard.shared.currentUserId else { return }
         guard let profile = currentProfile else { return }
+
+        // Hard cap check
+        guard totalReplacements < maxReplacements else { return }
 
         // Find position of rejected card
         guard let position = recommendedPicks.firstIndex(where: { $0.id == gwMovie.id }) else { return }
@@ -2095,7 +2105,8 @@ struct RootFlowView: View {
             "movie_title": gwMovie.title,
             "reason": reason.rawValue,
             "position": position + 1,
-            "mode": "multi_pick"
+            "mode": "multi_pick",
+            "replacement_number": totalReplacements + 1
         ])
 
         // Add to exclusions
@@ -2103,37 +2114,55 @@ struct RootFlowView: View {
             excludedMovieIds.insert(movieUUID)
         }
 
-        // Check if this position already had a replacement (can only replace once)
-        if replacedPositions.contains(position) {
-            // Already replaced once — just remove this card
-            var updatedPicks = recommendedPicks
-            updatedPicks.remove(at: position)
-            withAnimation(.easeInOut(duration: 0.3)) {
-                recommendedPicks = updatedPicks
-            }
-            return
-        }
-
-        // Find replacement
-        // Update profile exclusions for replacement search
+        // Find replacement with retry logic (up to 3 attempts)
         var updatedProfile = profile
         updatedProfile.notTonight.insert(gwMovie.id)
+        // Exclude ALL currently visible movies
         for pick in recommendedPicks {
             updatedProfile.notTonight.insert(pick.id)
         }
 
-        let replacement = engine.findReplacement(
-            from: validMoviePool,
-            profile: updatedProfile,
-            rejectedMovie: gwMovie,
-            reason: reason,
-            currentPicks: recommendedPicks
-        )
+        var replacement: GWMovie? = nil
+        var extraExclusions: Set<String> = []
+
+        for attempt in 1...3 {
+            let candidate = engine.findReplacement(
+                from: validMoviePool,
+                profile: updatedProfile,
+                rejectedMovie: gwMovie,
+                reason: reason,
+                currentPicks: recommendedPicks
+            )
+
+            if let candidate = candidate {
+                // Verify not a duplicate of any currently visible card
+                let currentIds = Set(recommendedPicks.map { $0.id })
+                if !currentIds.contains(candidate.id) && !extraExclusions.contains(candidate.id) {
+                    replacement = candidate
+                    break
+                } else {
+                    // Duplicate returned -- add to exclusions and retry
+                    extraExclusions.insert(candidate.id)
+                    updatedProfile.notTonight.insert(candidate.id)
+                    #if DEBUG
+                    print("[GW] Replacement attempt \(attempt): duplicate \(candidate.title), retrying")
+                    #endif
+                }
+            } else {
+                // No candidate at all -- pool exhausted
+                #if DEBUG
+                print("[GW] Replacement attempt \(attempt): no candidate found, pool exhausted")
+                #endif
+                break
+            }
+        }
 
         if let replacement = replacement {
+            // Replace in-place at the same index (card count stays constant)
             var updatedPicks = recommendedPicks
             updatedPicks[position] = replacement
             replacedPositions.insert(position)
+            totalReplacements += 1
 
             withAnimation(.easeInOut(duration: 0.3)) {
                 recommendedPicks = updatedPicks
@@ -2151,13 +2180,23 @@ struct RootFlowView: View {
 
             // Add replacement_shown interaction point
             GWInteractionPoints.shared.add(1)
+
+            #if DEBUG
+            print("[GW] Replacement \(totalReplacements)/\(maxReplacements): \(gwMovie.title) -> \(replacement.title)")
+            #endif
         } else {
-            // No replacement found — remove the card
+            // Pool truly exhausted after retries -- remove card (acceptable)
             var updatedPicks = recommendedPicks
             updatedPicks.remove(at: position)
+            totalReplacements += 1
+
             withAnimation(.easeInOut(duration: 0.3)) {
                 recommendedPicks = updatedPicks
             }
+
+            #if DEBUG
+            print("[GW] No replacement found after 3 retries for \(gwMovie.title). Card removed. Count: \(updatedPicks.count)")
+            #endif
         }
     }
 

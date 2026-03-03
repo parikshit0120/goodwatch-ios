@@ -752,3 +752,47 @@ SESSION: 2026-02-26 — UAT Engine v1.0
 - [PENDING] Trigger first UAT run via workflow_dispatch
 - [PENDING] Verify command center UAT tab renders correctly
 - [PENDING] Deploy command center update to Cloudflare Pages
+
+================================================================================
+SESSION: 2026-03-03 — Trailer Fix, Onboarding Persistence, Language Balance, Carousel Dedup
+================================================================================
+
+## Completed
+
+### FIX 1: Trailer Relocation + Deep Link Fix
+- [DONE] Removed ALL trailer code from MovieGridCard.swift (6 attempts on grid card all invisible due to parent clipping)
+- [DONE] Added "Watch Trailer" button to MovieDetailSheet.swift (full-width gold button, progress indicator, no-trailer alert)
+- [DONE] Fixed PickCardView.swift trailer deep link: youtube://KEY -> youtube://www.youtube.com/watch?v=KEY
+- [DONE] Switched from SFSafariViewController to @Environment(\.openURL) for reliability
+- Files: MovieGridCard.swift, MovieDetailSheet.swift, PickCardView.swift
+
+### FIX 2: Onboarding Repeating on Every Launch
+- [DONE] Root cause: returnToLanding() used clearMemory:true, wiping GWOnboardingMemory on every home navigation
+- [DONE] Changed returnToLanding() default to clearMemory:false (preserves OTT/language/duration selections)
+- [DONE] Created new startOver() function with clearMemory:true for explicit "Start Over" actions
+- [DONE] Updated 3 onStartOver callbacks to use startOver() instead of returnToLanding()
+- File: RootFlowView.swift
+
+### FIX 3: First Language Dominating Carousel 100%
+- [DONE] Root cause: tonightPrimary nil -> defaults to preferredLanguages[0] -> gets +0.12 bonus vs +0.07/+0.04
+- [DONE] When tonightPrimary is nil, all selected languages now get equal +0.06 bonus
+- [DONE] Ranked scoring (INV-L08) only applies when user explicitly sets a session language
+- File: GWRecommendationEngine.swift (computeLanguagePriorityBonus)
+
+### FIX 4: Carousel Replacement Deduplication + Count + Cap
+- [DONE] Bug A fix: Retry up to 3 times if replacement duplicates a visible card, with expanded exclusions
+- [DONE] Bug B fix: Replace in-place at same index (card count stays constant 5->5, 4->4)
+- [DONE] Only removes card when pool truly exhausted after 3 retries (acceptable edge case)
+- [DONE] Added totalReplacements counter with hard cap of 5 per carousel session
+- [DONE] X button disappears when 5 replacements used (canReject checks swapsExhausted)
+- [DONE] "No more swaps available" text shown when cap reached
+- [DONE] Removed old restriction: replacement cards CAN now be rejected (until cap hit)
+- [DONE] Counter resets on new carousel load and landing navigation
+- Files: RootFlowView.swift (handleCardRejection, state vars, resets), PickCarouselView.swift (totalReplacements param, swapsExhausted, UI text)
+
+## Test Results
+- 99/99 tests pass, 0 failures
+- Commit: pending (bf3da47 was previous session commit)
+
+## Blockers
+- None
