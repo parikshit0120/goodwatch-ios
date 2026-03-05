@@ -199,6 +199,9 @@ struct Movie: Identifiable, Codable {
     let dubbed_languages: [String]?  // ISO 639-1 codes for available dubs (e.g., ["hi", "en", "ta"])
     let dub_confidence: String?      // 'confirmed', 'likely', or 'unknown'
 
+    // Standup special flag (set in DB, used to exclude from recommendations)
+    let is_standup: Bool?
+
     // MARK: - Computed Properties
 
     /// Rating (prefers composite_score, then IMDb, then TMDB)
@@ -474,6 +477,7 @@ struct Movie: Identifiable, Codable {
         case director, cast_list
         case tmdb_id
         case dubbed_languages, dub_confidence
+        case is_standup
     }
 
     init(from decoder: Decoder) throws {
@@ -526,6 +530,7 @@ struct Movie: Identifiable, Codable {
         tmdb_id = try container.decodeIfPresent(Int.self, forKey: .tmdb_id)
         dubbed_languages = try container.decodeIfPresent([String].self, forKey: .dubbed_languages)
         dub_confidence = try container.decodeIfPresent(String.self, forKey: .dub_confidence)
+        is_standup = try container.decodeIfPresent(Bool.self, forKey: .is_standup)
         // genres may be a proper JSONB array OR a JSON string — handle both gracefully.
         if let directArray = try? container.decodeIfPresent([Genre].self, forKey: .genres) {
             genres = directArray
@@ -566,6 +571,7 @@ struct Movie: Identifiable, Codable {
         try container.encodeIfPresent(tmdb_id, forKey: .tmdb_id)
         try container.encodeIfPresent(dubbed_languages, forKey: .dubbed_languages)
         try container.encodeIfPresent(dub_confidence, forKey: .dub_confidence)
+        try container.encodeIfPresent(is_standup, forKey: .is_standup)
     }
 
     // Direct initializer for programmatic creation
@@ -595,7 +601,8 @@ struct Movie: Identifiable, Codable {
         cast_list: [String]? = nil,
         tmdb_id: Int? = nil,
         dubbed_languages: [String]? = nil,
-        dub_confidence: String? = nil
+        dub_confidence: String? = nil,
+        is_standup: Bool? = nil
     ) {
         self.id = id
         self.title = title
@@ -623,6 +630,7 @@ struct Movie: Identifiable, Codable {
         self.tmdb_id = tmdb_id
         self.dubbed_languages = dubbed_languages
         self.dub_confidence = dub_confidence
+        self.is_standup = is_standup
     }
 }
 
@@ -637,7 +645,7 @@ final class SupabaseService {
 
     /// Fetch movies from Supabase
     func fetchMovies(limit: Int = 1000) async throws -> [Movie] {
-        let urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&order=composite_score.desc.nullslast,imdb_rating.desc.nullslast"
+        let urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false&order=composite_score.desc.nullslast,imdb_rating.desc.nullslast"
         guard let url = URL(string: urlString) else { throw SupabaseServiceError.invalidURL }
 
         var request = URLRequest(url: url)
@@ -664,7 +672,7 @@ final class SupabaseService {
         acceptCount: Int,
         limit: Int = 500
     ) async throws -> [Movie] {
-        var urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)"
+        var urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false"
 
         // Add language filter at DB level (convert full names to ISO 639-1 codes)
         // This ensures we fetch movies in the user's preferred languages, not just top-rated globally

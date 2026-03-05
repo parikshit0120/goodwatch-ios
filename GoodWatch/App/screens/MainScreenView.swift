@@ -300,21 +300,8 @@ struct MainScreenView: View {
                             Spacer()
                         }
 
-                        // Play button — CENTER (FIX 10, only if trailer exists)
-                        if trailerKey != nil {
-                            Button(action: playTrailer) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.black.opacity(0.55))
-                                        .frame(width: 56, height: 56)
-                                    Image(systemName: "play.fill")
-                                        .font(.system(size: 24))
-                                        .foregroundColor(.white)
-                                        .offset(x: 2)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        // Play button HIDDEN: trailer playback not yet properly implemented.
+                        // Will re-enable once in-app trailer player is built.
                     }
                     .opacity(posterOpacity)
                     .scaleEffect(posterScale)

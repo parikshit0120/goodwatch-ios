@@ -1233,8 +1233,11 @@ struct RootFlowView: View {
                 print("[CAROUSEL] ========================")
                 #endif
 
-                // Filter out movies without poster before building the pool (prevents blank cards)
-                let moviesWithPoster = movies.filter { $0.poster_path != nil && !($0.poster_path ?? "").isEmpty }
+                // Filter out standup specials and movies without poster (prevents blank cards)
+                let moviesWithPoster = movies.filter {
+                    ($0.poster_path != nil && !($0.poster_path ?? "").isEmpty)
+                    && ($0.is_standup != true)  // DB flag safety net
+                }
 
                 // Cache the movie pool for replacement logic
                 let gwMoviePool = moviesWithPoster.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }

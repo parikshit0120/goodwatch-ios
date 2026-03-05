@@ -522,34 +522,13 @@ final class GWRecommendationEngine {
 
 
 
-        // Rule 4C: Exclude stand-up specials, concert films, behind-the-scenes
+        // Rule 4C: Exclude concert films, behind-the-scenes
+        // Standup exclusion is now handled at DB level (is_standup=false in Supabase query)
         let genreLower = movie.genres.map { $0.lowercased() }
         let titleLower = movie.title.lowercased()
-        let overviewLower = (movie.overview ?? "").lowercased()
-
-        // Check 1: Explicit genre/title keywords
-        let hasStandUpKeyword = genreLower.contains(where: { $0.contains("stand-up") || $0.contains("stand up") || $0.contains("comedy special") })
-            || titleLower.contains("stand-up") || titleLower.contains("stand up") || titleLower.contains("comedy special")
-
-        // Check 2: "Name: Title" pattern with comedy-only genres — standup specials on TMDB
-        // Examples: "Tom Segura: Disgraceful" [Comedy], "John Mulaney: The Comeback Kid" [Comedy, TV Movie]
-        // "Bill Burr: Paper Tiger" [Comedy, TV Movie], "Dave Chappelle: Sticks & Stones" [Comedy]
-        let hasColonTitle = movie.title.contains(": ") || movie.title.contains(":")
-        let standupGenres: Set<String> = ["comedy", "tv movie"]
-        let allGenresAreStandup = !genreLower.isEmpty && Set(genreLower).isSubset(of: standupGenres)
-        let isMovieType = movie.contentType?.lowercased() == "movie" || movie.contentType == nil
-        let looksLikeStandUp = hasColonTitle && allGenresAreStandup && isMovieType
-
-        // Check 3: Overview mentions standup/comedy special/comedian performing
-        let overviewStandUp = overviewLower.contains("stand-up") || overviewLower.contains("standup")
-            || overviewLower.contains("comedy special") || overviewLower.contains("comedy routine")
-            || overviewLower.contains("comedy show") || overviewLower.contains("one-man show")
-            || overviewLower.contains("one-woman show")
-
-        let isStandUp = hasStandUpKeyword || looksLikeStandUp || (hasColonTitle && overviewStandUp)
         let isConcert = genreLower.contains("concert") || titleLower.contains("concert film")
         let isBehindScenes = titleLower.contains("behind the scenes") || titleLower.contains("making of")
-        if isStandUp || isConcert || isBehindScenes {
+        if isConcert || isBehindScenes {
             return .invalid(.contentTypeMismatch(expected: "movie", actual: "excluded_content"))
         }
 
