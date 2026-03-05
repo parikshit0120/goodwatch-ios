@@ -119,6 +119,12 @@ struct RootFlowView: View {
             guard let encoded = try? JSONEncoder().encode(recommendedPicks) else { return }
             UserDefaults.standard.set(encoded, forKey: "gw_current_picks")
             UserDefaults.standard.set(pickCount, forKey: "gw_current_pick_count")
+            // Save the raw Movie objects for carousel display (only the ones matching picks)
+            let pickIds = Set(recommendedPicks.map { $0.id })
+            let matchingRaw = rawMoviePool.filter { pickIds.contains($0.id.uuidString) }
+            if let rawData = try? JSONEncoder().encode(matchingRaw) {
+                UserDefaults.standard.set(rawData, forKey: "gw_current_raw_movies")
+            }
         } else if let movie = currentMovie {
             guard let encoded = try? JSONEncoder().encode(movie) else { return }
             UserDefaults.standard.set(encoded, forKey: "gw_current_single_movie")
@@ -149,8 +155,17 @@ struct RootFlowView: View {
            !picks.isEmpty {
             self.recommendedPicks = picks
             self.pickCount = savedPickCount
+            // Restore raw Movie objects for carousel card display
+            if let rawData = UserDefaults.standard.data(forKey: "gw_current_raw_movies"),
+               let rawMovies = try? JSONDecoder().decode([Movie].self, from: rawData) {
+                self.rawMoviePool = rawMovies
+                // Set currentMovie from first pick for enjoy screen compatibility
+                if let firstRaw = rawMovies.first(where: { $0.id.uuidString == picks[0].id }) {
+                    self.currentMovie = firstRaw
+                    self.currentGoodScore = picks[0].composite_score > 0 ? Int(round(picks[0].composite_score)) : Int(round(picks[0].goodscore * 10))
+                }
+            }
             self.currentScreen = .mainScreen
-            // Set currentMovie for enjoy screen compatibility
             self.recommendationShownTime = Date()
             return true
         }
@@ -173,6 +188,7 @@ struct RootFlowView: View {
     private func clearSavedPicks() {
         UserDefaults.standard.removeObject(forKey: "gw_current_picks")
         UserDefaults.standard.removeObject(forKey: "gw_current_pick_count")
+        UserDefaults.standard.removeObject(forKey: "gw_current_raw_movies")
         UserDefaults.standard.removeObject(forKey: "gw_current_single_movie")
         UserDefaults.standard.removeObject(forKey: "gw_current_good_score")
         UserDefaults.standard.removeObject(forKey: "gw_current_screen")

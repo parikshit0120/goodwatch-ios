@@ -154,6 +154,7 @@ struct GoodWatchApp: App {
             // Clear saved picks so restorePicksIfNeeded doesn't skip to MainScreen
             UserDefaults.standard.removeObject(forKey: "gw_current_picks")
             UserDefaults.standard.removeObject(forKey: "gw_current_pick_count")
+            UserDefaults.standard.removeObject(forKey: "gw_current_raw_movies")
             UserDefaults.standard.removeObject(forKey: "gw_current_single_movie")
             UserDefaults.standard.removeObject(forKey: "gw_current_good_score")
             UserDefaults.standard.removeObject(forKey: "gw_current_screen")
