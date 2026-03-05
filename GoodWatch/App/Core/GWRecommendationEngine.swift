@@ -548,9 +548,10 @@ final class GWRecommendationEngine {
 
         // Rule 5B: TIERED HARD GATES (quality + recency) based on interaction_points
         // These are NON-NEGOTIABLE minimums applied BEFORE mood scoring/adaptive relaxation.
-        // Tier 1 (0-9 pts):  GoodScore >= 80, year >= 2010
-        // Tier 2 (10-49 pts): GoodScore >= 70, year >= 2000
-        // Tier 3 (50+ pts):  GoodScore >= 60, year >= 1990
+        // Tier 1 (0-9 pts):   GoodScore >= 80, year >= 2010
+        // Tier 2 (10-49 pts): GoodScore >= 70, year >= 2005
+        // Tier 3 (50-99 pts): GoodScore >= 65, year >= 2000
+        // Tier 4 (100+ pts):  GoodScore >= 60, year >= 1990
         let tieredScore: Double
         if movie.composite_score > 0 {
             tieredScore = movie.composite_score
@@ -572,16 +573,24 @@ final class GWRecommendationEngine {
             if tieredScore < 70 {
                 return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 70 (tier2, pts=\(pts))"))
             }
+            if movie.year > 0 && movie.year < 2005 {
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2005 (tier2, pts=\(pts))"))
+            }
+        } else if pts < 100 {
+            // Tier 3: Engaged users — wider catalog, year >= 2000
+            if tieredScore < 65 {
+                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 65 (tier3, pts=\(pts))"))
+            }
             if movie.year > 0 && movie.year < 2000 {
-                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2000 (tier2, pts=\(pts))"))
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2000 (tier3, pts=\(pts))"))
             }
         } else {
-            // Tier 3: Experienced users — broader catalog, year >= 1990
+            // Tier 4: Experienced users — broadest catalog, year >= 1990
             if tieredScore < 60 {
-                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 60 (tier3, pts=\(pts))"))
+                return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 60 (tier4, pts=\(pts))"))
             }
             if movie.year > 0 && movie.year < 1990 {
-                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 1990 (tier3, pts=\(pts))"))
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 1990 (tier4, pts=\(pts))"))
             }
         }
 
@@ -907,9 +916,11 @@ final class GWRecommendationEngine {
         if pts < 10 {
             tierLabel = "tier1 (score>=80, year>=2010)"
         } else if pts < 50 {
-            tierLabel = "tier2 (score>=70, year>=2000)"
+            tierLabel = "tier2 (score>=70, year>=2005)"
+        } else if pts < 100 {
+            tierLabel = "tier3 (score>=65, year>=2000)"
         } else {
-            tierLabel = "tier3 (score>=60, no year filter)"
+            tierLabel = "tier4 (score>=60, year>=1990)"
         }
         print("[ENGINE] Tiered gate: pts=\(pts) -> \(tierLabel)")
 
