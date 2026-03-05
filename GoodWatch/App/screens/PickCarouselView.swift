@@ -92,8 +92,8 @@ struct PickCarouselView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .gesture(
-                    DragGesture()
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 15)
                         .onChanged { value in
                             dragOffset = value.translation.width
                         }

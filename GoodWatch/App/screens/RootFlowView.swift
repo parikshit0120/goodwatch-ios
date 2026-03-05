@@ -113,74 +113,14 @@ struct RootFlowView: View {
 
     // MARK: - Recommendation Persistence
 
-    /// Save current picks to UserDefaults so they survive app backgrounding
+    /// Session persistence DISABLED: force quit always returns to landing.
+    /// Save/restore removed to prevent stale data and ensure fresh picks each session.
     private func saveCurrentPicks() {
-        if pickCount > 1 && !recommendedPicks.isEmpty {
-            guard let encoded = try? JSONEncoder().encode(recommendedPicks) else { return }
-            UserDefaults.standard.set(encoded, forKey: "gw_current_picks")
-            UserDefaults.standard.set(pickCount, forKey: "gw_current_pick_count")
-            // Save the raw Movie objects for carousel display (only the ones matching picks)
-            let pickIds = Set(recommendedPicks.map { $0.id })
-            let matchingRaw = rawMoviePool.filter { pickIds.contains($0.id.uuidString) }
-            if let rawData = try? JSONEncoder().encode(matchingRaw) {
-                UserDefaults.standard.set(rawData, forKey: "gw_current_raw_movies")
-            }
-        } else if let movie = currentMovie {
-            guard let encoded = try? JSONEncoder().encode(movie) else { return }
-            UserDefaults.standard.set(encoded, forKey: "gw_current_single_movie")
-            UserDefaults.standard.set(currentGoodScore, forKey: "gw_current_good_score")
-        }
-        UserDefaults.standard.set(currentScreen.rawValue, forKey: "gw_current_screen")
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "gw_picks_timestamp")
+        // No-op: session persistence disabled
     }
 
-    /// Restore picks from UserDefaults if within 2-hour window. Returns true if restored.
+    /// Session persistence DISABLED: always returns false.
     private func restorePicksIfNeeded() -> Bool {
-        let timestamp = UserDefaults.standard.double(forKey: "gw_picks_timestamp")
-        guard timestamp > 0 else { return false }
-        let age = Date().timeIntervalSince1970 - timestamp
-        guard age < 7200 else { // 2 hours max
-            clearSavedPicks()
-            return false
-        }
-
-        let savedScreen = UserDefaults.standard.integer(forKey: "gw_current_screen")
-        guard savedScreen == Screen.mainScreen.rawValue else { return false }
-
-        // Try multi-pick first
-        let savedPickCount = UserDefaults.standard.integer(forKey: "gw_current_pick_count")
-        if savedPickCount > 1,
-           let data = UserDefaults.standard.data(forKey: "gw_current_picks"),
-           let picks = try? JSONDecoder().decode([GWMovie].self, from: data),
-           !picks.isEmpty {
-            self.recommendedPicks = picks
-            self.pickCount = savedPickCount
-            // Restore raw Movie objects for carousel card display
-            if let rawData = UserDefaults.standard.data(forKey: "gw_current_raw_movies"),
-               let rawMovies = try? JSONDecoder().decode([Movie].self, from: rawData) {
-                self.rawMoviePool = rawMovies
-                // Set currentMovie from first pick for enjoy screen compatibility
-                if let firstRaw = rawMovies.first(where: { $0.id.uuidString == picks[0].id }) {
-                    self.currentMovie = firstRaw
-                    self.currentGoodScore = picks[0].composite_score > 0 ? Int(round(picks[0].composite_score)) : Int(round(picks[0].goodscore * 10))
-                }
-            }
-            self.currentScreen = .mainScreen
-            self.recommendationShownTime = Date()
-            return true
-        }
-
-        // Try single-pick
-        if let data = UserDefaults.standard.data(forKey: "gw_current_single_movie"),
-           let movie = try? JSONDecoder().decode(Movie.self, from: data) {
-            self.currentMovie = movie
-            self.currentGoodScore = UserDefaults.standard.integer(forKey: "gw_current_good_score")
-            self.pickCount = 1
-            self.currentScreen = .mainScreen
-            self.recommendationShownTime = Date()
-            return true
-        }
-
         return false
     }
 
@@ -1293,8 +1233,11 @@ struct RootFlowView: View {
                 print("[CAROUSEL] ========================")
                 #endif
 
+                // Filter out movies without poster before building the pool (prevents blank cards)
+                let moviesWithPoster = movies.filter { $0.poster_path != nil && !($0.poster_path ?? "").isEmpty }
+
                 // Cache the movie pool for replacement logic
-                let gwMoviePool = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
+                let gwMoviePool = moviesWithPoster.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
 
                 // Build UUID-keyed trend boost lookup and set on engine (INV-T01/T03)
                 let resolvedTrendBoosts = GWTrendBoostService.shared.buildUUIDLookup(

@@ -520,6 +520,8 @@ final class GWRecommendationEngine {
             ))
         }
 
+
+
         // Rule 4C: Exclude stand-up specials, concert films, behind-the-scenes
         let genreLower = movie.genres.map { $0.lowercased() }
         let titleLower = movie.title.lowercased()
@@ -529,12 +531,14 @@ final class GWRecommendationEngine {
         let hasStandUpKeyword = genreLower.contains(where: { $0.contains("stand-up") || $0.contains("stand up") || $0.contains("comedy special") })
             || titleLower.contains("stand-up") || titleLower.contains("stand up") || titleLower.contains("comedy special")
 
-        // Check 2: "Name: Title" pattern with single genre Comedy — standup specials on TMDB
-        // Examples: "Tom Segura: Disgraceful", "Neal Brennan: 3 Mics", "Dave Chappelle: Sticks & Stones"
+        // Check 2: "Name: Title" pattern with comedy-only genres — standup specials on TMDB
+        // Examples: "Tom Segura: Disgraceful" [Comedy], "John Mulaney: The Comeback Kid" [Comedy, TV Movie]
+        // "Bill Burr: Paper Tiger" [Comedy, TV Movie], "Dave Chappelle: Sticks & Stones" [Comedy]
         let hasColonTitle = movie.title.contains(": ") || movie.title.contains(":")
-        let isSingleComedy = genreLower.count == 1 && genreLower[0] == "comedy"
+        let standupGenres: Set<String> = ["comedy", "tv movie"]
+        let allGenresAreStandup = !genreLower.isEmpty && Set(genreLower).isSubset(of: standupGenres)
         let isMovieType = movie.contentType?.lowercased() == "movie" || movie.contentType == nil
-        let looksLikeStandUp = hasColonTitle && isSingleComedy && isMovieType
+        let looksLikeStandUp = hasColonTitle && allGenresAreStandup && isMovieType
 
         // Check 3: Overview mentions standup/comedy special/comedian performing
         let overviewStandUp = overviewLower.contains("stand-up") || overviewLower.contains("standup")
@@ -567,7 +571,7 @@ final class GWRecommendationEngine {
         // These are NON-NEGOTIABLE minimums applied BEFORE mood scoring/adaptive relaxation.
         // Tier 1 (0-9 pts):  GoodScore >= 80, year >= 2010
         // Tier 2 (10-49 pts): GoodScore >= 70, year >= 2000
-        // Tier 3 (50+ pts):  GoodScore >= 60, no year filter
+        // Tier 3 (50+ pts):  GoodScore >= 60, year >= 1990
         let tieredScore: Double
         if movie.composite_score > 0 {
             tieredScore = movie.composite_score
@@ -593,9 +597,12 @@ final class GWRecommendationEngine {
                 return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 2000 (tier2, pts=\(pts))"))
             }
         } else {
-            // Tier 3: Experienced users — broader catalog, no year filter
+            // Tier 3: Experienced users — broader catalog, year >= 1990
             if tieredScore < 60 {
                 return .invalid(.tieredGateFailed(reason: "score \(tieredScore) < 60 (tier3, pts=\(pts))"))
+            }
+            if movie.year > 0 && movie.year < 1990 {
+                return .invalid(.tieredGateFailed(reason: "year \(movie.year) < 1990 (tier3, pts=\(pts))"))
             }
         }
 
