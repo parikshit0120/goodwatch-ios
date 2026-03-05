@@ -2093,20 +2093,35 @@ struct RootFlowView: View {
             excludedMovieIds.insert(movieUUID)
         }
 
-        // Find replacement with retry logic (up to 3 attempts)
+        // Collect ALL currently visible movie IDs BEFORE any replacement logic
+        let visibleIds = Set(recommendedPicks.map { $0.id })
+
+        #if DEBUG
+        print("[CAROUSEL] Rejection: \(gwMovie.title) at position \(position)")
+        print("[CAROUSEL] Visible IDs (\(visibleIds.count)): \(recommendedPicks.map { $0.title })")
+        #endif
+
+        // Build exclusion profile: rejected movie + ALL visible cards
         var updatedProfile = profile
         updatedProfile.notTonight.insert(gwMovie.id)
-        // Exclude ALL currently visible movies
-        for pick in recommendedPicks {
-            updatedProfile.notTonight.insert(pick.id)
+        for vid in visibleIds {
+            updatedProfile.notTonight.insert(vid)
         }
 
+        // Pre-filter pool: remove ALL visible movies from the pool before engine sees it
+        let filteredPool = validMoviePool.filter { !visibleIds.contains($0.id) }
+
+        #if DEBUG
+        print("[CAROUSEL] Pool size: \(validMoviePool.count) -> filtered: \(filteredPool.count) (excluded \(visibleIds.count) visible)")
+        #endif
+
+        // Find replacement with retry logic (up to 3 attempts)
         var replacement: GWMovie? = nil
         var extraExclusions: Set<String> = []
 
         for attempt in 1...3 {
             let candidate = engine.findReplacement(
-                from: validMoviePool,
+                from: filteredPool,
                 profile: updatedProfile,
                 rejectedMovie: gwMovie,
                 reason: reason,
@@ -2114,35 +2129,36 @@ struct RootFlowView: View {
             )
 
             if let candidate = candidate {
-                // Verify not a duplicate of any currently visible card
-                let currentIds = Set(recommendedPicks.map { $0.id })
-                if !currentIds.contains(candidate.id) && !extraExclusions.contains(candidate.id) {
+                // Triple-check: not a duplicate of any visible card or previous failed attempt
+                if !visibleIds.contains(candidate.id) && !extraExclusions.contains(candidate.id) {
                     replacement = candidate
+                    #if DEBUG
+                    print("[CAROUSEL] Replacement found on attempt \(attempt): \(candidate.title)")
+                    #endif
                     break
                 } else {
-                    // Duplicate returned -- add to exclusions and retry
+                    // Duplicate returned despite pre-filtering -- add to exclusions and retry
                     extraExclusions.insert(candidate.id)
                     updatedProfile.notTonight.insert(candidate.id)
                     #if DEBUG
-                    print("[GW] Replacement attempt \(attempt): duplicate \(candidate.title), retrying")
+                    print("[CAROUSEL] BLOCKED DUPLICATE on attempt \(attempt): \(candidate.title), retrying")
                     #endif
                 }
             } else {
                 // No candidate at all -- pool exhausted
                 #if DEBUG
-                print("[GW] Replacement attempt \(attempt): no candidate found, pool exhausted")
+                print("[CAROUSEL] No candidate on attempt \(attempt), pool exhausted")
                 #endif
                 break
             }
         }
 
         if let replacement = replacement {
-            // HARD INVARIANT: final dedup check before insertion
-            let visibleIds = recommendedPicks.map { $0.id }
+            // HARD INVARIANT: final dedup check before insertion (belt-and-suspenders)
             if visibleIds.contains(replacement.id) {
-                // Duplicate of visible card — shrink carousel instead
+                // Should never reach here after pre-filtering, but safety net
                 #if DEBUG
-                print("[CAROUSEL] Replacement rejected: duplicate of visible card \(replacement.title)")
+                print("[CAROUSEL] FINAL CHECK BLOCKED DUPLICATE: \(replacement.title)")
                 #endif
                 var updatedPicks = recommendedPicks
                 updatedPicks.remove(at: position)
@@ -2177,10 +2193,10 @@ struct RootFlowView: View {
             GWInteractionPoints.shared.add(1)
 
             #if DEBUG
-            print("[GW] Replacement \(totalReplacements)/\(maxReplacements): \(gwMovie.title) -> \(replacement.title)")
+            print("[CAROUSEL] Replaced \(totalReplacements)/\(maxReplacements): \(gwMovie.title) -> \(replacement.title)")
             #endif
         } else {
-            // Pool truly exhausted after retries -- remove card (acceptable)
+            // Pool truly exhausted after retries -- remove card (4 cards is better than 5 with a duplicate)
             var updatedPicks = recommendedPicks
             updatedPicks.remove(at: position)
             totalReplacements += 1
@@ -2190,7 +2206,7 @@ struct RootFlowView: View {
             }
 
             #if DEBUG
-            print("[GW] No replacement found after 3 retries for \(gwMovie.title). Card removed. Count: \(updatedPicks.count)")
+            print("[CAROUSEL] No unique replacement for \(gwMovie.title) after 3 retries. Card removed. Count: \(updatedPicks.count)")
             #endif
         }
     }

@@ -1082,17 +1082,24 @@ final class GWProductInvariantTests: XCTestCase {
     func testInvariant_R12_PickCountTiers() {
         let points = GWInteractionPoints.shared
 
-        // Verify tier boundaries (updated v1.3: wider tiers for gradual progression)
+        // Verify tier boundaries: cards only reduce for mature users
+        // 0-99: 5 cards (fresh/exploring/building taste)
         XCTAssertEqual(points.pickCount(forInteractionPoints: 0), 5, "INV-R12: 0 points = 5 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 19), 5, "INV-R12: 19 points = 5 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 20), 4, "INV-R12: 20 points = 4 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 49), 4, "INV-R12: 49 points = 4 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 50), 3, "INV-R12: 50 points = 3 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 99), 3, "INV-R12: 99 points = 3 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 100), 2, "INV-R12: 100 points = 2 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 159), 2, "INV-R12: 159 points = 2 picks")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 160), 1, "INV-R12: 160 points = 1 pick")
-        XCTAssertEqual(points.pickCount(forInteractionPoints: 500), 1, "INV-R12: 500 points = 1 pick")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 9), 5, "INV-R12: 9 points = 5 picks")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 49), 5, "INV-R12: 49 points = 5 picks")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 99), 5, "INV-R12: 99 points = 5 picks")
+        // 100-199: 4 cards (confident picks)
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 100), 4, "INV-R12: 100 points = 4 picks")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 199), 4, "INV-R12: 199 points = 4 picks")
+        // 200-499: 3 cards (refined taste)
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 200), 3, "INV-R12: 200 points = 3 picks")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 499), 3, "INV-R12: 499 points = 3 picks")
+        // 500-999: 2 cards (very refined)
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 500), 2, "INV-R12: 500 points = 2 picks")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 999), 2, "INV-R12: 999 points = 2 picks")
+        // 1000+: 1 card (single best pick)
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 1000), 1, "INV-R12: 1000 points = 1 pick")
+        XCTAssertEqual(points.pickCount(forInteractionPoints: 5000), 1, "INV-R12: 5000 points = 1 pick")
     }
 
     func testInvariant_R12_PickCountMonotonicallyDecreasing() {
@@ -1100,7 +1107,7 @@ final class GWProductInvariantTests: XCTestCase {
 
         // As points increase, pick count should never increase
         var previousPickCount = 6 // Start higher than max
-        for p in stride(from: 0, through: 200, by: 1) {
+        for p in stride(from: 0, through: 1200, by: 1) {
             let current = points.pickCount(forInteractionPoints: p)
             XCTAssertLessThanOrEqual(current, previousPickCount,
                 "INV-R12 VIOLATED: Pick count increased from \(previousPickCount) to \(current) at \(p) points")

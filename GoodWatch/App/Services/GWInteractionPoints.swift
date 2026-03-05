@@ -4,7 +4,7 @@ import Foundation
 // INTERACTION POINTS SERVICE
 // ============================================
 // Tracks cumulative interaction points per user.
-// Points determine how many picks the user sees (5 -> 4 -> 3 -> 2 -> 1).
+// Points determine how many picks the user sees (5/4/3/2/1 based on interaction tiers).
 // Points are a one-way ratchet: they never decrease.
 //
 // Storage: UserDefaults (local) + Supabase user_profiles.interaction_points (remote).
@@ -85,12 +85,16 @@ final class GWInteractionPoints {
     // MARK: - Pick Count
 
     func pickCount(forInteractionPoints points: Int) -> Int {
+        // Progressive card count tied to interaction tiers.
+        // Cards only reduce for mature users who have earned refined taste.
         switch points {
-        case 0...19:    return 5   // ~3-4 sessions
-        case 20...49:   return 4   // ~5-8 sessions
-        case 50...99:   return 3   // ~9-15 sessions
-        case 100...159: return 2   // ~16-25 sessions
-        default:        return 1   // ~26+ sessions (earned mastery)
+        case 0...9:      return 5   // Fresh user, show variety
+        case 10...49:    return 5   // Still exploring
+        case 50...99:    return 5   // Building taste
+        case 100...199:  return 4   // Confident picks
+        case 200...499:  return 3   // Refined taste
+        case 500...999:  return 2   // Very refined
+        default:         return 1   // 1000+ pts: single best pick
         }
     }
 
