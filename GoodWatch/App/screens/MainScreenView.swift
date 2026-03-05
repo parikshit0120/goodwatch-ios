@@ -698,6 +698,9 @@ struct MainScreenView: View {
     // MARK: - OTT Deep Link Opener
 
     private func openOTT(_ provider: OTTProvider) {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "gw_screenshot_mode") { return }
+        #endif
         if let deepLink = provider.deepLinkURL {
             if UIApplication.shared.canOpenURL(deepLink) {
                 openURL(deepLink)
@@ -713,6 +716,9 @@ struct MainScreenView: View {
 
     private func playTrailer() {
         guard let key = trailerKey else { return }
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "gw_screenshot_mode") { return }
+        #endif
         let youtubeAppURL = URL(string: "youtube://\(key)")!
         let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
 

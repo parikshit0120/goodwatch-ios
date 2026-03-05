@@ -162,6 +162,9 @@ struct RecentPickRow: View {
     }
 
     private func openWatchLink(pick: RecentPicksService.RecentPick) {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "gw_screenshot_mode") { return }
+        #endif
         // Try deeplink first, then fall back to web URL
         if let deepLink = pick.deepLinkURL, let url = URL(string: deepLink) {
             UIApplication.shared.open(url) { success in

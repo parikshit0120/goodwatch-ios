@@ -140,6 +140,10 @@ struct GoodWatchApp: App {
             UserDefaults.standard.removeObject(forKey: "notification_permission_asked")
             // Clear cached user ID so auth screen appears
             UserDefaults.standard.removeObject(forKey: "gw_user_id")
+            // Clear recent picks so landing sheet doesn't block navigation (unless --keep-recent-picks)
+            if !args.contains("--keep-recent-picks") {
+                RecentPicksService.shared.clear()
+            }
             // Clear ALL interaction points and ratchet data for all users
             let allKeys = UserDefaults.standard.dictionaryRepresentation().keys
             for key in allKeys {
@@ -147,6 +151,13 @@ struct GoodWatchApp: App {
                     UserDefaults.standard.removeObject(forKey: key)
                 }
             }
+            // Clear saved picks so restorePicksIfNeeded doesn't skip to MainScreen
+            UserDefaults.standard.removeObject(forKey: "gw_current_picks")
+            UserDefaults.standard.removeObject(forKey: "gw_current_pick_count")
+            UserDefaults.standard.removeObject(forKey: "gw_current_single_movie")
+            UserDefaults.standard.removeObject(forKey: "gw_current_good_score")
+            UserDefaults.standard.removeObject(forKey: "gw_current_screen")
+            UserDefaults.standard.removeObject(forKey: "gw_picks_timestamp")
         }
 
         // --force-feature-flag <name>: Force a feature flag to enabled

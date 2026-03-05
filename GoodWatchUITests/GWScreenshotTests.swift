@@ -36,6 +36,21 @@ final class GWScreenshotTests: XCTestCase {
             atPath: screenshotDir,
             withIntermediateDirectories: true
         )
+
+        // Auto-dismiss system dialogs (notification permission, etc.)
+        addUIInterruptionMonitor(withDescription: "System Dialog") { alert in
+            let dontAllow = alert.buttons["Don\u{2019}t Allow"].firstMatch
+            if dontAllow.exists {
+                dontAllow.tap()
+                return true
+            }
+            let notNow = alert.buttons["Not Now"].firstMatch
+            if notNow.exists {
+                notNow.tap()
+                return true
+            }
+            return false
+        }
     }
 
     override func tearDownWithError() throws {
@@ -121,7 +136,6 @@ final class GWScreenshotTests: XCTestCase {
     /// Navigate from Landing to Auth screen
     private func goToAuth() {
         _ = tapElement("landing_pick_for_me", fallbackText: "Pick for me", timeout: 10)
-        // Wait for auth screen to fully appear
         _ = waitForScreen("auth_skip", fallbackText: "Continue without account", timeout: 8)
         sleep(1)
     }
@@ -145,18 +159,10 @@ final class GWScreenshotTests: XCTestCase {
         sleep(1)
     }
 
-    /// Navigate from Landing to Duration screen
-    private func goToDuration() {
+    /// Navigate from Platform to Language Priority screen
+    private func goToLanguagePriority() {
         goToPlatform()
-        // Select platforms + language
-        selectPlatformsAndLanguage()
-        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
-        _ = waitForScreen("duration_card_0", fallbackText: "How long do you want", timeout: 8)
-        sleep(1)
-    }
-
-    /// Select platforms (Select all) and English language on Platform screen
-    private func selectPlatformsAndLanguage() {
+        // Select platforms
         let selectAll = app.buttons["Select all"].firstMatch
         if selectAll.waitForExistence(timeout: 3) && selectAll.isHittable {
             selectAll.tap()
@@ -164,17 +170,24 @@ final class GWScreenshotTests: XCTestCase {
             _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
         }
         sleep(1)
+        _ = tapElement("platform_continue", fallbackText: "Continue", timeout: 3)
+        // Wait for Language Priority screen
+        _ = waitForScreen("language_lock", fallbackText: "What do you watch in?", timeout: 8)
+        sleep(1)
+    }
 
-        // English — LanguageChip is a Button
+    /// Navigate from Landing to Duration screen
+    private func goToDuration() {
+        goToLanguagePriority()
+        // Select English on Language Priority
         let englishBtn = app.buttons["English"].firstMatch
         if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
             englishBtn.tap()
-        } else {
-            let english = app.staticTexts["English"].firstMatch
-            if english.waitForExistence(timeout: 2) && english.isHittable {
-                english.tap()
-            }
         }
+        sleep(1)
+        // Tap Lock Priority to proceed to Duration
+        _ = tapElement("language_lock", fallbackText: "Lock Priority", timeout: 3)
+        _ = waitForScreen("duration_card_0", fallbackText: "How long", timeout: 8)
         sleep(1)
     }
 
@@ -216,14 +229,14 @@ final class GWScreenshotTests: XCTestCase {
         saveScreenshot("02_auth")
     }
 
-    /// 3. Mood selector screen (no selection — gray Continue)
+    /// 3. Mood selector screen (no selection -- gray Continue)
     func test03_MoodSelector() throws {
         app.launch()
         goToMood()
         saveScreenshot("03_mood_selector")
     }
 
-    /// 4. Mood selected state (Feel-good highlighted — gold Continue)
+    /// 4. Mood selected state (Feel-good highlighted -- gold Continue)
     func test04_MoodSelected() throws {
         app.launch()
         goToMood()
@@ -232,23 +245,58 @@ final class GWScreenshotTests: XCTestCase {
         saveScreenshot("04_mood_selected")
     }
 
-    /// 5. Platform selector with language chips
+    /// 5. Platform selector with OTT icons
     func test05_PlatformSelector() throws {
         app.launch()
         goToPlatform()
+        // Select Netflix to show gold highlight
+        _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
+        sleep(1)
         saveScreenshot("05_platform_selector")
     }
 
-    /// 6. Duration selector (3 options: 90min / 2-2.5hr / Series)
-    func test06_DurationSelector() throws {
+    /// 6. Language priority screen
+    func test06_LanguagePriority() throws {
         app.launch()
-        goToDuration()
-        saveScreenshot("06_duration_selector")
+        goToLanguagePriority()
+        // Select English + Hindi to show ranking
+        let englishBtn = app.buttons["English"].firstMatch
+        if englishBtn.waitForExistence(timeout: 3) && englishBtn.isHittable {
+            englishBtn.tap()
+        }
+        sleep(1)
+        let hindiBtn = app.buttons["Hindi"].firstMatch
+        if hindiBtn.waitForExistence(timeout: 3) && hindiBtn.isHittable {
+            hindiBtn.tap()
+        }
+        sleep(1)
+        saveScreenshot("06_language_priority")
     }
 
-    /// 7. Confidence moment / loading screen
-    func test07_ConfidenceMoment() throws {
-        // DON'T skip loading delay — we want to capture the animation
+    /// 7. Duration selector (3 options)
+    func test07_DurationSelector() throws {
+        app.launch()
+        goToDuration()
+        saveScreenshot("07_duration_selector")
+    }
+
+    /// 8. Duration selected state
+    func test08_DurationSelected() throws {
+        app.launch()
+        goToDuration()
+        if !tapElement("duration_card_1", timeout: 5) {
+            let fullMovie = app.buttons["2-2.5 hours"].firstMatch
+            if fullMovie.waitForExistence(timeout: 3) && fullMovie.isHittable {
+                fullMovie.tap()
+            }
+        }
+        sleep(1)
+        saveScreenshot("08_duration_selected")
+    }
+
+    /// 9. Confidence moment / loading screen
+    func test09_ConfidenceMoment() throws {
+        // DON'T skip loading delay -- we want to capture the animation
         app.launchArguments = [
             "--screenshot-mode",
             "--reset-onboarding",
@@ -259,22 +307,20 @@ final class GWScreenshotTests: XCTestCase {
 
         navigateThroughOnboarding()
 
-        // ConfidenceMoment should appear — capture immediately
+        // ConfidenceMoment should appear -- capture immediately
         let confidence = app.otherElements["confidence_moment_screen"].firstMatch
         if confidence.waitForExistence(timeout: 5) {
-            // Capture during animation (don't wait too long or it will transition)
-            saveScreenshot("07_confidence_moment")
+            saveScreenshot("09_confidence_moment")
         } else {
-            // Might have already transitioned — capture whatever is showing
-            saveScreenshot("07_confidence_moment")
+            saveScreenshot("09_confidence_moment")
         }
     }
 
-    /// 8. Main recommendation screen — single pick with GoodScore
-    func test08_MainScreen_SinglePick() throws {
+    /// 10. Main recommendation screen -- single pick with GoodScore
+    func test10_MainScreen_SinglePick() throws {
+        // openOTT is suppressed in screenshot-mode, so Netflix won't open
         app.launchArguments = [
             "--screenshot-mode",
-            "--skip-loading-delay",
             "--reset-onboarding",
             "--interaction-points", "200",   // 160+ = single pick
             "--force-feature-flag", "progressive_picks"
@@ -283,22 +329,31 @@ final class GWScreenshotTests: XCTestCase {
 
         navigateThroughOnboarding()
 
-        // Wait for recommendation to load (poster + GoodScore)
-        let watchNow = app.buttons["main_watch_now"].firstMatch
-        if watchNow.waitForExistence(timeout: 15) {
-            sleep(3)  // Let poster fully render
-            saveScreenshot("08_main_single_pick")
+        // Wait for main screen elements to appear
+        let notTonight = app.buttons["main_not_tonight"].firstMatch
+        if notTonight.waitForExistence(timeout: 30) {
+            // Tap app to dismiss any system dialogs (notification permission)
+            app.tap()
+            sleep(2)
+            saveScreenshot("10_main_single_pick")
         } else {
-            sleep(5)
-            saveScreenshot("08_main_single_pick")
+            // Fallback: try watching for the watch_now button
+            let watchNow = app.buttons["main_watch_now"].firstMatch
+            if watchNow.waitForExistence(timeout: 10) {
+                app.tap()
+                sleep(2)
+            } else {
+                sleep(5)
+            }
+            saveScreenshot("10_main_single_pick")
         }
     }
 
-    /// 9. Carousel — multiple picks (progressive picks flow)
-    func test09_MainScreen_Carousel() throws {
+    /// 11. Carousel -- multiple picks (progressive picks flow)
+    func test11_MainScreen_Carousel() throws {
+        // openOTT is suppressed in screenshot-mode, so Netflix won't open
         app.launchArguments = [
             "--screenshot-mode",
-            "--skip-loading-delay",
             "--reset-onboarding",
             "--interaction-points", "0",     // 0-19 = 5 picks carousel
             "--force-feature-flag", "progressive_picks"
@@ -307,51 +362,23 @@ final class GWScreenshotTests: XCTestCase {
 
         navigateThroughOnboarding()
 
-        // Wait for carousel to load — look for paging dots or the carousel itself
-        // Give it extra time for multiple movie fetches
-        sleep(10)
-        saveScreenshot("09_main_carousel")
-    }
-
-    /// 10. Platform selector with selections made (Netflix + Hindi shown)
-    func test10_PlatformSelected() throws {
-        app.launch()
-        goToPlatform()
-
-        // Make selections to show the "selected" state
-        _ = tapElement("platform_netflix", fallbackText: "Netflix", timeout: 3)
-        sleep(1)
-
-        // Select Hindi language to show a different language selected
-        let hindi = app.buttons["Hindi"].firstMatch
-        if hindi.waitForExistence(timeout: 3) && hindi.isHittable {
-            hindi.tap()
+        // Wait for carousel -- look for not_tonight or paging dots
+        let notTonight = app.buttons["main_not_tonight"].firstMatch
+        if notTonight.waitForExistence(timeout: 30) {
+            app.tap()
+            sleep(2)
+            saveScreenshot("11_main_carousel")
+        } else {
+            sleep(10)
+            saveScreenshot("11_main_carousel")
         }
-        sleep(1)
-        saveScreenshot("10_platform_selected")
     }
 
-    /// 11. Duration selector with selection (2-2.5 hours highlighted)
-    func test11_DurationSelected() throws {
-        app.launch()
-        goToDuration()
-
-        // Select "2-2.5 hours" to show gold border + gold Continue
-        if !tapElement("duration_card_1", timeout: 5) {
-            let fullMovie = app.buttons["2-2.5 hours"].firstMatch
-            if fullMovie.waitForExistence(timeout: 3) && fullMovie.isHittable {
-                fullMovie.tap()
-            }
-        }
-        sleep(1)
-        saveScreenshot("11_duration_selected")
-    }
-
-    /// 12. GoodScore close-up — capture just the recommendation with score visible
+    /// 12. GoodScore close-up -- scroll down to show the GoodScore badge prominently
     func test12_GoodScoreCloseUp() throws {
+        // openOTT is suppressed in screenshot-mode
         app.launchArguments = [
             "--screenshot-mode",
-            "--skip-loading-delay",
             "--reset-onboarding",
             "--interaction-points", "200",
             "--force-feature-flag", "progressive_picks"
@@ -360,14 +387,14 @@ final class GWScreenshotTests: XCTestCase {
 
         navigateThroughOnboarding()
 
-        // Wait for recommendation with GoodScore
+        // Wait for main screen
         let watchNow = app.buttons["main_watch_now"].firstMatch
-        if watchNow.waitForExistence(timeout: 15) {
-            sleep(4)  // Let everything render including GoodScore animation
-            saveScreenshot("12_goodscore")
+        if watchNow.waitForExistence(timeout: 30) {
+            app.tap()
+            sleep(2)
         } else {
-            sleep(5)
-            saveScreenshot("12_goodscore")
+            sleep(10)
         }
+        saveScreenshot("12_goodscore")
     }
 }

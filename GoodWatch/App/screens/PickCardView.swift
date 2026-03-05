@@ -343,6 +343,9 @@ struct PickCardView: View {
     // MARK: - OTT Opener (FIX 5: uses universal links for Prime Video)
 
     private func openOTT(_ provider: OTTProvider) {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "gw_screenshot_mode") { return }
+        #endif
         if let deepLink = provider.deepLinkURL {
             if UIApplication.shared.canOpenURL(deepLink) {
                 openURL(deepLink)
@@ -358,6 +361,9 @@ struct PickCardView: View {
 
     private func playTrailer() {
         guard let key = trailerKey else { return }
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "gw_screenshot_mode") { return }
+        #endif
         let youtubeAppURL = URL(string: "youtube://www.youtube.com/watch?v=\(key)")!
         let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(key)")!
 

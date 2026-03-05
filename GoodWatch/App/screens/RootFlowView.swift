@@ -1030,7 +1030,12 @@ struct RootFlowView: View {
         // Request notification permission AFTER user sees their first recommendation.
         // 3-second delay lets the user absorb the result before the system prompt appears.
         // If already asked or declined, this is a no-op. Gated by push_notifications flag.
-        if GWFeatureFlags.shared.isEnabled("push_notifications") {
+        #if DEBUG
+        let isScreenshotMode = UserDefaults.standard.bool(forKey: "gw_screenshot_mode")
+        #else
+        let isScreenshotMode = false
+        #endif
+        if !isScreenshotMode && GWFeatureFlags.shared.isEnabled("push_notifications") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 GWNotificationService.shared.requestPermissionIfNeeded()
             }
