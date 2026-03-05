@@ -2163,6 +2163,22 @@ struct RootFlowView: View {
         }
 
         if let replacement = replacement {
+            // HARD INVARIANT: final dedup check before insertion
+            let visibleIds = recommendedPicks.map { $0.id }
+            if visibleIds.contains(replacement.id) {
+                // Duplicate of visible card — shrink carousel instead
+                #if DEBUG
+                print("[CAROUSEL] Replacement rejected: duplicate of visible card \(replacement.title)")
+                #endif
+                var updatedPicks = recommendedPicks
+                updatedPicks.remove(at: position)
+                totalReplacements += 1
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    recommendedPicks = updatedPicks
+                }
+                return
+            }
+
             // Replace in-place at the same index (card count stays constant)
             var updatedPicks = recommendedPicks
             updatedPicks[position] = replacement
