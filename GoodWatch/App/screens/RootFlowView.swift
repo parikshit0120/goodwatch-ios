@@ -1317,12 +1317,39 @@ struct RootFlowView: View {
                         #endif
                     }
 
+                    // If recommendMultiple + fallback returned empty, use recommendWithFallback
+                    // to get at least one pick, then fill remaining carousel slots
+                    if picks.isEmpty {
+                        #if DEBUG
+                        print("[CAROUSEL] recommendMultiple returned empty, using recommendWithFallback to seed carousel")
+                        #endif
+                        let (fallbackOutput, _, _) = engine.recommendWithFallback(
+                            fromRawMovies: movies,
+                            profile: profile,
+                            contentFilter: contentFilter
+                        )
+                        if let seedMovie = fallbackOutput.movie {
+                            picks = [seedMovie]
+                            // Fill remaining slots from scored pool (relaxed: skip isValidMovie for fill,
+                            // but still filter basic language/platform/poster/standup)
+                            let seedIds = Set(picks.map { $0.id })
+                            let fillPool = gwMoviePool
+                                .filter { !seedIds.contains($0.id) }
+                                .sorted { engine.computeScore(movie: $0, profile: profile) > engine.computeScore(movie: $1, profile: profile) }
+                            let needed = effectivePickCount - picks.count
+                            picks.append(contentsOf: fillPool.prefix(needed))
+                            #if DEBUG
+                            print("[CAROUSEL] Seeded carousel: \(picks.count) picks (1 from fallback + \(picks.count - 1) from pool)")
+                            #endif
+                        }
+                    }
+
                     if !picks.isEmpty {
                         await MainActor.run {
                             self.recommendedPicks = picks
                             self.rawMoviePool = movies
                             self.validMoviePool = gwMoviePool
-                            self.pickCount = effectivePickCount
+                            self.pickCount = picks.count  // Use actual count, not effectivePickCount
                             self.replacedPositions = []
                             self.totalReplacements = 0
                             self.currentProfile = profile
@@ -1341,14 +1368,14 @@ struct RootFlowView: View {
 
                             // Track metrics
                             MetricsService.shared.track(.pickShown, properties: [
-                                "pick_count": effectivePickCount,
+                                "pick_count": picks.count,
                                 "picks_returned": picks.count,
                                 "recommendation_number": self.sessionRecommendationCount,
                                 "mode": "multi_pick"
                             ])
 
                             MetricsService.shared.track(.recommendationShown, properties: [
-                                "pick_count": effectivePickCount,
+                                "pick_count": picks.count,
                                 "mode": "multi_pick"
                             ])
 
@@ -1402,7 +1429,7 @@ struct RootFlowView: View {
                         }
                         return
                     }
-                    // If multi-pick returned empty, fall through to single pick
+                    // If STILL empty (no movies at all), fall through to single pick
                 }
 
                 // Use canonical engine with production fallback
