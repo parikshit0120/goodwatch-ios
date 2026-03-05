@@ -311,9 +311,10 @@ struct RootFlowView: View {
             }
         }
         .onAppear {
-            if !restorePicksIfNeeded() {
-                resumeFromSavedState()
-            }
+            // Session restore DISABLED: force quit always returns to landing screen.
+            // Old picks are cleared on launch to prevent stale data.
+            clearSavedPicks()
+            resumeFromSavedState()
             checkForPendingFeedback()
             // Auto-show Recent Picks sheet on landing if picks exist
             if currentScreen == .landing && !RecentPicksService.shared.getPicks().isEmpty {
@@ -1025,8 +1026,8 @@ struct RootFlowView: View {
         guard confidenceMinTimeElapsed, recommendationReady, currentScreen == .confidenceMoment else { return }
         navigateTo(.mainScreen)
 
-        // Persist picks so they survive app backgrounding
-        saveCurrentPicks()
+        // Session restore DISABLED: no longer saving picks on transition.
+        // Force quit always returns to landing screen.
 
         // Record recent picks for Landing screen history (with OTT deeplink data)
         if pickCount > 1 {

@@ -523,8 +523,26 @@ final class GWRecommendationEngine {
         // Rule 4C: Exclude stand-up specials, concert films, behind-the-scenes
         let genreLower = movie.genres.map { $0.lowercased() }
         let titleLower = movie.title.lowercased()
-        let isStandUp = genreLower.contains(where: { $0.contains("stand-up") || $0.contains("stand up") || $0.contains("comedy special") })
+        let overviewLower = (movie.overview ?? "").lowercased()
+
+        // Check 1: Explicit genre/title keywords
+        let hasStandUpKeyword = genreLower.contains(where: { $0.contains("stand-up") || $0.contains("stand up") || $0.contains("comedy special") })
             || titleLower.contains("stand-up") || titleLower.contains("stand up") || titleLower.contains("comedy special")
+
+        // Check 2: "Name: Title" pattern with single genre Comedy — standup specials on TMDB
+        // Examples: "Tom Segura: Disgraceful", "Neal Brennan: 3 Mics", "Dave Chappelle: Sticks & Stones"
+        let hasColonTitle = movie.title.contains(": ") || movie.title.contains(":")
+        let isSingleComedy = genreLower.count == 1 && genreLower[0] == "comedy"
+        let isMovieType = movie.contentType?.lowercased() == "movie" || movie.contentType == nil
+        let looksLikeStandUp = hasColonTitle && isSingleComedy && isMovieType
+
+        // Check 3: Overview mentions standup/comedy special/comedian performing
+        let overviewStandUp = overviewLower.contains("stand-up") || overviewLower.contains("standup")
+            || overviewLower.contains("comedy special") || overviewLower.contains("comedy routine")
+            || overviewLower.contains("comedy show") || overviewLower.contains("one-man show")
+            || overviewLower.contains("one-woman show")
+
+        let isStandUp = hasStandUpKeyword || looksLikeStandUp || (hasColonTitle && overviewStandUp)
         let isConcert = genreLower.contains("concert") || titleLower.contains("concert film")
         let isBehindScenes = titleLower.contains("behind the scenes") || titleLower.contains("making of")
         if isStandUp || isConcert || isBehindScenes {
@@ -1696,6 +1714,7 @@ final class GWRecommendationEngine {
 
         var selected: [GWMovie] = []
         var selectedGenres: Set<String> = []
+        var selectedArtistKeys: Set<String> = []
 
         for _ in 0..<count {
             guard !scoredMovies.isEmpty else { break }
@@ -1711,18 +1730,57 @@ final class GWRecommendationEngine {
             // Sort by adjusted score
             let sorted = adjusted.sorted { $0.1 > $1.1 }
 
-            // Weighted random from top-10
+            // Weighted random from top-10, with artist/franchise dedup
+            // Artist key = title prefix before ":" (e.g., "Tom Segura" from "Tom Segura: Disgraceful")
+            // This prevents two specials/sequels from the same person/franchise in one carousel
             let topN = Array(sorted.prefix(10))
-            guard let picked = weightedRandomPick(from: topN) else { break }
+            var picked: GWMovie? = nil
 
-            selected.append(picked)
-            selectedGenres.formUnion(picked.genres.map { $0.lowercased() })
+            // Try candidates in score order, skip if artist already selected
+            for candidate in topN {
+                let artistKey = Self.extractArtistKey(from: candidate.0.title)
+                if let key = artistKey, selectedArtistKeys.contains(key) {
+                    continue // Same artist/franchise already in carousel
+                }
+                picked = candidate.0
+                break
+            }
+
+            // Fallback: if all top-10 are same-artist dupes, use weighted random anyway
+            if picked == nil {
+                picked = weightedRandomPick(from: topN)
+            }
+
+            guard let finalPick = picked else { break }
+
+            selected.append(finalPick)
+            selectedGenres.formUnion(finalPick.genres.map { $0.lowercased() })
+
+            // Track artist key for dedup
+            if let artistKey = Self.extractArtistKey(from: finalPick.title) {
+                selectedArtistKeys.insert(artistKey)
+            }
 
             // Remove picked from pool
-            scoredMovies.removeAll { $0.0.id == picked.id }
+            scoredMovies.removeAll { $0.0.id == finalPick.id }
         }
 
         return selected
+    }
+
+    /// Extract artist/franchise key from title for dedup.
+    /// "Tom Segura: Disgraceful" -> "tom segura"
+    /// "The Godfather" -> nil (no colon, not a series/franchise pattern)
+    /// Only returns a key if title contains ": " (Person/Franchise: Subtitle pattern).
+    static func extractArtistKey(from title: String) -> String? {
+        guard let colonRange = title.range(of: ": ") ?? title.range(of: ":") else {
+            return nil
+        }
+        let prefix = String(title[title.startIndex..<colonRange.lowerBound])
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased()
+        guard !prefix.isEmpty && prefix.count >= 3 else { return nil }
+        return prefix
     }
 
     /// Builds a cascade of progressively relaxed profiles for multi-pick fallback.
