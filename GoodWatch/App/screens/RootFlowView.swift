@@ -863,10 +863,11 @@ struct RootFlowView: View {
         returnToLandingInternal(clearMemory: false)
     }
 
-    /// Explicit "Start Over" — clears onboarding memory so user re-selects
-    /// OTT platforms, languages, and duration from scratch.
+    /// "Start Over" — returns to landing for a fresh mood pick.
+    /// Preserves onboarding memory (OTT/language/duration) so the user
+    /// only re-picks mood, never re-enters platforms/languages.
     private func startOver() {
-        returnToLandingInternal(clearMemory: true)
+        returnToLandingInternal(clearMemory: false)
     }
 
     private func returnToLandingInternal(clearMemory: Bool) {
@@ -892,7 +893,7 @@ struct RootFlowView: View {
         // Clear persisted picks
         clearSavedPicks()
 
-        // Only clear onboarding memory on explicit "Start Over" / Home button
+        // Only clear onboarding memory on debug --reset-onboarding
         if clearMemory {
             GWOnboardingMemory.shared.clear()
         }

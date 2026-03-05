@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 // ============================================
 // ONBOARDING MEMORY SERVICE
@@ -7,9 +8,10 @@ import Foundation
 // Users returning within 30 days skip Platform/Language/Duration steps
 // and only re-answer the Mood question.
 //
-// Storage: UserDefaults (keyed per user).
+// Storage: UserDefaults (primary) + Keychain (backup).
+// Keychain backup survives UserDefaults wipes (but NOT reinstalls
+// since we use kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly).
 // TTL: 30 days from last save.
-// "Start Over" clears memory immediately.
 // ============================================
 
 final class GWOnboardingMemory {
@@ -17,6 +19,8 @@ final class GWOnboardingMemory {
     private init() {}
 
     private let storageKey = "gw_onboarding_memory"
+    private let keychainKey = "gw_onboarding_memory_backup"
+    private let keychainService = "com.goodwatch.onboarding"
     private let ttlDays: Int = 30
 
     // MARK: - Data Model
@@ -33,6 +37,7 @@ final class GWOnboardingMemory {
     // MARK: - Save
 
     /// Save current onboarding selections. Called when onboarding completes (step 6).
+    /// Writes to both UserDefaults (primary) and Keychain (backup).
     func save(otts: [OTTPlatform], languages: [Language], minDuration: Int, maxDuration: Int, requiresSeries: Bool) {
         let selections = SavedSelections(
             otts: otts,
@@ -42,9 +47,13 @@ final class GWOnboardingMemory {
             requiresSeries: requiresSeries,
             savedAt: Date()
         )
-        if let data = try? JSONEncoder().encode(selections) {
-            UserDefaults.standard.set(data, forKey: storageKey)
-        }
+        guard let data = try? JSONEncoder().encode(selections) else { return }
+
+        // Primary: UserDefaults
+        UserDefaults.standard.set(data, forKey: storageKey)
+
+        // Backup: Keychain
+        saveToKeychain(data: data)
 
         #if DEBUG
         print("[OnboardingMemory] Saved: \(otts.count) OTTs, \(languages.count) languages, \(minDuration)-\(maxDuration)m, series=\(requiresSeries)")
@@ -54,13 +63,50 @@ final class GWOnboardingMemory {
     // MARK: - Load
 
     /// Load saved selections if within TTL. Returns nil if expired or not found.
+    /// Tries UserDefaults first, falls back to Keychain backup.
     func load() -> SavedSelections? {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let selections = try? JSONDecoder().decode(SavedSelections.self, from: data) else {
-            return nil
+        // Try UserDefaults first
+        if let data = UserDefaults.standard.data(forKey: storageKey),
+           let selections = try? JSONDecoder().decode(SavedSelections.self, from: data) {
+            return validateTTL(selections)
         }
 
-        // Check TTL
+        // Fallback: Keychain backup
+        if let data = loadFromKeychain(),
+           let selections = try? JSONDecoder().decode(SavedSelections.self, from: data) {
+            #if DEBUG
+            print("[OnboardingMemory] Restored from Keychain backup")
+            #endif
+            // Re-populate UserDefaults from Keychain backup
+            UserDefaults.standard.set(data, forKey: storageKey)
+            return validateTTL(selections)
+        }
+
+        return nil
+    }
+
+    // MARK: - Check
+
+    /// Returns true if valid (non-expired) saved selections exist.
+    var hasSavedSelections: Bool {
+        return load() != nil
+    }
+
+    // MARK: - Clear
+
+    /// Clear all saved selections. Only called on --reset-onboarding (debug).
+    func clear() {
+        UserDefaults.standard.removeObject(forKey: storageKey)
+        deleteFromKeychain()
+
+        #if DEBUG
+        print("[OnboardingMemory] Cleared")
+        #endif
+    }
+
+    // MARK: - Private
+
+    private func validateTTL(_ selections: SavedSelections) -> SavedSelections? {
         let daysSinceSave = Calendar.current.dateComponents([.day], from: selections.savedAt, to: Date()).day ?? 999
         if daysSinceSave > ttlDays {
             #if DEBUG
@@ -77,21 +123,48 @@ final class GWOnboardingMemory {
         return selections
     }
 
-    // MARK: - Check
+    // MARK: - Keychain Operations
 
-    /// Returns true if valid (non-expired) saved selections exist.
-    var hasSavedSelections: Bool {
-        return load() != nil
+    private func saveToKeychain(data: Data) {
+        // Delete existing first
+        deleteFromKeychain()
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainKey,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+
+        SecItemAdd(query as CFDictionary, nil)
     }
 
-    // MARK: - Clear
+    private func loadFromKeychain() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
 
-    /// Clear all saved selections. Called on "Start Over".
-    func clear() {
-        UserDefaults.standard.removeObject(forKey: storageKey)
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        #if DEBUG
-        print("[OnboardingMemory] Cleared")
-        #endif
+        guard status == errSecSuccess, let data = result as? Data else {
+            return nil
+        }
+        return data
+    }
+
+    private func deleteFromKeychain() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainKey
+        ]
+
+        SecItemDelete(query as CFDictionary)
     }
 }
