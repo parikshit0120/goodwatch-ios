@@ -1288,12 +1288,23 @@ struct RootFlowView: View {
                     #endif
 
                     // Fallback: if multi-pick returned fewer than requested,
-                    // fill from top-scored movies in the pool so carousel always shows
+                    // fill from top-scored VALID movies so carousel always shows
                     if picks.count < effectivePickCount {
                         let existingIds = Set(picks.map { $0.id })
-                        var fallbackPool = gwMoviePool.filter { !existingIds.contains($0.id) }
+                        // Fallback pool must pass isValidMovie (tiered gates, year floor, etc.)
+                        var fallbackPool = gwMoviePool.filter { movie in
+                            guard !existingIds.contains(movie.id) else { return false }
+                            if case .valid = engine.isValidMovie(movie, profile: profile) { return true }
+                            return false
+                        }
                         if fallbackPool.count + picks.count < effectivePickCount {
-                            fallbackPool = movies.map { GWMovie(from: $0) }.filter { !existingIds.contains($0.id) }
+                            // Wider pool but still validated
+                            let widerPool = movies.map { GWMovie(from: $0) }.filter { movie in
+                                guard !existingIds.contains(movie.id) else { return false }
+                                if case .valid = engine.isValidMovie(movie, profile: profile) { return true }
+                                return false
+                            }
+                            fallbackPool = widerPool
                         }
                         let scored = fallbackPool.sorted {
                             engine.computeScore(movie: $0, profile: profile) >
@@ -1302,7 +1313,7 @@ struct RootFlowView: View {
                         let needed = effectivePickCount - picks.count
                         picks.append(contentsOf: scored.prefix(needed))
                         #if DEBUG
-                        print("[CAROUSEL] Fallback filled: \(picks.count) total picks")
+                        print("[CAROUSEL] Fallback filled: \(picks.count) total picks (all validated)")
                         #endif
                     }
 
