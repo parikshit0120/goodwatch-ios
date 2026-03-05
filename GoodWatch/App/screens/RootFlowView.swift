@@ -496,6 +496,16 @@ struct RootFlowView: View {
                 ctx: $userContext,
                 onNext: {
                     MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "duration_selector", "step_number": 4])
+                    // Save onboarding memory NOW — before fetchRecommendation.
+                    // This ensures selections persist even if recommendation fails
+                    // or the user force-quits during the loading screen.
+                    GWOnboardingMemory.shared.save(
+                        otts: userContext.otts,
+                        languages: userContext.languages,
+                        minDuration: userContext.minDuration,
+                        maxDuration: userContext.maxDuration,
+                        requiresSeries: userContext.requiresSeries
+                    )
                     // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
                     navigateTo(.confidenceMoment)
                     fetchRecommendation()
