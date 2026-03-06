@@ -403,7 +403,12 @@ final class GWRecommendationEngine {
     // ============================================
 
     /// Validate a single movie against user profile
-    func isValidMovie(_ movie: GWMovie, profile: GWUserProfileComplete) -> GWMovieValidationResult {
+    func isValidMovie(_ movie: GWMovie, profile: GWUserProfileComplete, excluding: Set<String> = []) -> GWMovieValidationResult {
+        // Rule 0: Explicit exclusion (carousel dedup, rejection handler)
+        if excluding.contains(movie.id) {
+            return .invalid(.alreadyInteracted(id: movie.id, reason: "excluding_set"))
+        }
+
         // Rule 0: Movie must be available
         if !movie.available {
             return .invalid(.movieUnavailable)
@@ -900,7 +905,7 @@ final class GWRecommendationEngine {
     // ============================================
 
     /// Core recommendation: returns exactly one movie or nil with stop condition
-    func recommend(from movies: [GWMovie], profile: GWUserProfileComplete) -> GWRecommendationOutput {
+    func recommend(from movies: [GWMovie], profile: GWUserProfileComplete, excluding: Set<String> = []) -> GWRecommendationOutput {
         if movies.isEmpty {
             return GWRecommendationOutput(movie: nil, stopCondition: .emptyCatalog)
         }
@@ -940,7 +945,7 @@ final class GWRecommendationEngine {
         let hasDimensionalGate = (profile.moodMapping?.version ?? 0) > 0
         var validMovies: [GWMovie] = []
         for movie in movies {
-            if case .valid = isValidMovie(movie, profile: profile) {
+            if case .valid = isValidMovie(movie, profile: profile, excluding: excluding) {
                 // Additional quality gate filter (INV-R06)
                 if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
                     validMovies.append(movie)
@@ -1662,13 +1667,17 @@ final class GWRecommendationEngine {
     func recommendMultiple(
         from movies: [GWMovie],
         profile: GWUserProfileComplete,
-        count: Int
+        count: Int,
+        excluding: Set<String> = []
     ) -> [GWMovie] {
         guard count > 0 else { return [] }
 
+        // Accumulate used IDs: start with caller's excluding set
+        var usedIds = excluding
+
         // Single pick: use standard pipeline
         if count == 1 {
-            let output = recommend(from: movies, profile: profile)
+            let output = recommend(from: movies, profile: profile, excluding: usedIds)
             if let movie = output.movie { return [movie] }
             return []
         }
@@ -1688,7 +1697,7 @@ final class GWRecommendationEngine {
         for candidate in profiles {
             validMovies = []
             for movie in movies {
-                if case .valid = isValidMovie(movie, profile: candidate) {
+                if case .valid = isValidMovie(movie, profile: candidate, excluding: usedIds) {
                     // Adaptive quality gate (INV-R06)
                     if normalizedRating(movie) >= adaptiveGate.minRating && movie.voteCount >= adaptiveGate.minVotes {
                         validMovies.append(movie)
@@ -1728,8 +1737,6 @@ final class GWRecommendationEngine {
             let sorted = adjusted.sorted { $0.1 > $1.1 }
 
             // Weighted random from top-10, with artist/franchise dedup
-            // Artist key = title prefix before ":" (e.g., "Tom Segura" from "Tom Segura: Disgraceful")
-            // This prevents two specials/sequels from the same person/franchise in one carousel
             let topN = Array(sorted.prefix(10))
             var picked: GWMovie? = nil
 
@@ -1737,7 +1744,7 @@ final class GWRecommendationEngine {
             for candidate in topN {
                 let artistKey = Self.extractArtistKey(from: candidate.0.title)
                 if let key = artistKey, selectedArtistKeys.contains(key) {
-                    continue // Same artist/franchise already in carousel
+                    continue
                 }
                 picked = candidate.0
                 break
@@ -1751,6 +1758,7 @@ final class GWRecommendationEngine {
             guard let finalPick = picked else { break }
 
             selected.append(finalPick)
+            usedIds.insert(finalPick.id)  // Accumulate for next iteration
             selectedGenres.formUnion(finalPick.genres.map { $0.lowercased() })
 
             // Track artist key for dedup
@@ -1828,10 +1836,11 @@ final class GWRecommendationEngine {
         fromRawMovies movies: [Movie],
         profile: GWUserProfileComplete,
         contentFilter: GWNewUserContentFilter,
-        count: Int
+        count: Int,
+        excluding: Set<String> = []
     ) -> [GWMovie] {
         let gwMovies = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
-        return recommendMultiple(from: gwMovies, profile: profile, count: count)
+        return recommendMultiple(from: gwMovies, profile: profile, count: count, excluding: excluding)
     }
 
     /// Find a replacement for a rejected card.
@@ -1842,16 +1851,20 @@ final class GWRecommendationEngine {
         profile: GWUserProfileComplete,
         rejectedMovie: GWMovie,
         reason: GWCardRejectionReason,
-        currentPicks: [GWMovie]
+        currentPicks: [GWMovie],
+        excluding: Set<String> = []
     ) -> GWMovie? {
         let rejectedTags = Set(rejectedMovie.tags)
         let rejectedGenres = Set(rejectedMovie.genres.map { $0.lowercased() })
         let currentIds = Set(currentPicks.map { $0.id })
 
-        // Filter valid movies not already in current picks
+        // Merge currentIds + excluding for comprehensive dedup
+        let allExcluded = currentIds.union(excluding)
+
+        // Filter valid movies not already in current picks or excluding set
         let validMovies = movies.filter { movie in
-            guard !currentIds.contains(movie.id) else { return false }
-            if case .valid = isValidMovie(movie, profile: profile) { return true }
+            guard !allExcluded.contains(movie.id) else { return false }
+            if case .valid = isValidMovie(movie, profile: profile, excluding: allExcluded) { return true }
             return false
         }
 

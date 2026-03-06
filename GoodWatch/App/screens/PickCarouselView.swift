@@ -37,6 +37,11 @@ struct PickCarouselView: View {
 
     private var swapsExhausted: Bool { totalReplacements >= maxReplacements }
 
+    /// Precomputed O(1) lookup: movie UUID -> Movie (avoids O(n) .first(where:) per card)
+    private var movieLookup: [String: Movie] {
+        Dictionary(rawMovies.map { ($0.id.uuidString, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -89,22 +94,22 @@ struct PickCarouselView: View {
                             .opacity(opacity)
                             .offset(x: offset + dragOffset * (index == currentIndex ? 1.0 : 0.6))
                             .zIndex(index == currentIndex ? 1 : 0)
+                            .transition(.identity)  // Prevent re-render on swipe
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 15)
+                .drawingGroup()  // Flatten to single Metal layer for smoother swipe
+                .gesture(
+                    DragGesture(minimumDistance: 20)
                         .onChanged { value in
                             dragOffset = value.translation.width
                         }
                         .onEnded { value in
                             let threshold: CGFloat = cardWidth * 0.25
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                                 if value.translation.width < -threshold {
-                                    // Swipe left -> next card
                                     currentIndex = (currentIndex + 1) % picks.count
                                 } else if value.translation.width > threshold {
-                                    // Swipe right -> previous card
                                     currentIndex = (currentIndex - 1 + picks.count) % picks.count
                                 }
                                 dragOffset = 0
@@ -148,7 +153,7 @@ struct PickCarouselView: View {
     @ViewBuilder
     private func cardContent(at index: Int) -> some View {
         let gwMovie = picks[index]
-        let movie = rawMovies.first(where: { $0.id.uuidString == gwMovie.id })
+        let movie = movieLookup[gwMovie.id]
 
         if let movie = movie {
             if flippedIndex == index {

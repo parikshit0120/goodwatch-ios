@@ -279,10 +279,8 @@ struct PickCardView: View {
             RoundedRectangle(cornerRadius: GWDesignTokens.pickCardCornerRadius)
                 .stroke(GWColors.surfaceBorder, lineWidth: 1)
         )
-        .scaleEffect(cardAppeared ? 1.0 : 0.95)
-        .opacity(cardAppeared ? 1.0 : 0)
         .onAppear {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if !cardAppeared {
                 cardAppeared = true
             }
         }

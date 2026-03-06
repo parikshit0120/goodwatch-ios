@@ -2155,7 +2155,7 @@ struct RootFlowView: View {
 
         // Find replacement with retry logic (up to 3 attempts)
         var replacement: GWMovie? = nil
-        var extraExclusions: Set<String> = []
+        var extraExclusions: Set<String> = visibleIds  // Start with all visible IDs
 
         for attempt in 1...3 {
             let candidate = engine.findReplacement(
@@ -2163,7 +2163,8 @@ struct RootFlowView: View {
                 profile: updatedProfile,
                 rejectedMovie: gwMovie,
                 reason: reason,
-                currentPicks: recommendedPicks
+                currentPicks: recommendedPicks,
+                excluding: extraExclusions
             )
 
             if let candidate = candidate {

@@ -73,17 +73,18 @@ extension GWRecommendationEngine {
     /// 3. Relax runtime by +15 min max
     func recommendWithFallback(
         from movies: [GWMovie],
-        profile: GWUserProfileComplete
+        profile: GWUserProfileComplete,
+        excluding: Set<String> = []
     ) -> (output: GWRecommendationOutput, fallbackLevel: GWFallbackLevel, fallbackLog: GWFallbackLog?) {
 
         // Count candidates that pass validation at each level for logging
         let originalValidCount = movies.filter { movie in
-            if case .valid = isValidMovie(movie, profile: profile) { return true }
+            if case .valid = isValidMovie(movie, profile: profile, excluding: excluding) { return true }
             return false
         }.count
 
         // Step 1: Try with original profile
-        let originalResult = recommend(from: movies, profile: profile)
+        let originalResult = recommend(from: movies, profile: profile, excluding: excluding)
         if originalResult.movie != nil {
             return (originalResult, .none, nil)
         }
@@ -98,7 +99,7 @@ extension GWRecommendationEngine {
         }
         relaxedProfile.intentTags = expandToGenreFamily(profile.intentTags)
 
-        let level1Result = recommend(from: movies, profile: relaxedProfile)
+        let level1Result = recommend(from: movies, profile: relaxedProfile, excluding: excluding)
         if level1Result.movie != nil {
             let log = createFallbackLog(
                 level: .relaxedTags,
@@ -113,14 +114,14 @@ extension GWRecommendationEngine {
             return (level1Result, .relaxedTags, log)
         }
 
-        // Step 3: Fallback Level 2 - Relax runtime by +15 min + bump to tier3 (no year filter, score>=60)
+        // Step 3: Fallback Level 2 - Relax runtime by +15 min (keep original tier, year gates intact)
         relaxedProfile.runtimeWindow = GWRuntimeWindow(
             min: max(30, profile.runtimeWindow.min - 15),
             max: min(240, profile.runtimeWindow.max + 15)
         )
-        relaxedProfile.interactionPoints = max(relaxedProfile.interactionPoints, 50)  // Force tier3
+        // NOTE: interactionPoints NOT bumped — preserves original tier's year gate
 
-        let level2Result = recommend(from: movies, profile: relaxedProfile)
+        let level2Result = recommend(from: movies, profile: relaxedProfile, excluding: excluding)
         if level2Result.movie != nil {
             let log = createFallbackLog(
                 level: .relaxedRuntime,
@@ -138,7 +139,7 @@ extension GWRecommendationEngine {
         // Step 3B: Fallback Level 3 - Quality relaxation
         // Keep language + platform + availability + interaction-history FIXED
         // Remove: goodscore threshold, mood/tag filter, quality gate
-        let level3Result = recommendQualityRelaxed(from: movies, profile: relaxedProfile)
+        let level3Result = recommendQualityRelaxed(from: movies, profile: relaxedProfile, excluding: excluding)
         if level3Result.movie != nil {
             let log = createFallbackLog(
                 level: .relaxedQuality,
@@ -172,10 +173,11 @@ extension GWRecommendationEngine {
     func recommendWithFallback(
         fromRawMovies movies: [Movie],
         profile: GWUserProfileComplete,
-        contentFilter: GWNewUserContentFilter
+        contentFilter: GWNewUserContentFilter,
+        excluding: Set<String> = []
     ) -> (output: GWRecommendationOutput, fallbackLevel: GWFallbackLevel, fallbackLog: GWFallbackLog?) {
         let gwMovies = movies.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
-        return recommendWithFallback(from: gwMovies, profile: profile)
+        return recommendWithFallback(from: gwMovies, profile: profile, excluding: excluding)
     }
 
     // ============================================
@@ -187,12 +189,13 @@ extension GWRecommendationEngine {
     /// Sorts by goodscore descending, picks from top-10 via weighted random.
     private func recommendQualityRelaxed(
         from movies: [GWMovie],
-        profile: GWUserProfileComplete
+        profile: GWUserProfileComplete,
+        excluding: Set<String> = []
     ) -> GWRecommendationOutput {
         var candidates: [GWMovie] = []
 
         for movie in movies {
-            let result = isValidMovie(movie, profile: profile)
+            let result = isValidMovie(movie, profile: profile, excluding: excluding)
             switch result {
             case .valid:
                 candidates.append(movie)
@@ -205,8 +208,12 @@ extension GWRecommendationEngine {
                 case .contentTypeMismatch:
                     continue
                 // Soft gates -- allow through at Level 3
+                // BUT: enforce absolute year >= 1990 floor even at Level 3
                 case .goodscoreBelowThreshold, .noMatchingTags, .qualityGateFailed,
                      .runtimeOutOfWindow, .recencyGateFailed, .tieredGateFailed:
+                    if movie.year > 0 && movie.year < 1990 {
+                        continue  // Year 1990 floor is NON-NEGOTIABLE across all fallback levels
+                    }
                     candidates.append(movie)
                 }
             }

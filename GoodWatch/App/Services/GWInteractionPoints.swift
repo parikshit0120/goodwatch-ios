@@ -84,18 +84,21 @@ final class GWInteractionPoints {
 
     // MARK: - Pick Count
 
-    func pickCount(forInteractionPoints points: Int) -> Int {
-        // Progressive card count tied to interaction tiers.
-        // Cards only reduce for mature users who have earned refined taste.
+    /// Canonical card count for a given interaction point total.
+    /// Static so it can be called without an instance (e.g. from tests).
+    /// INV-R12: 0-99 -> 5, 100-199 -> 4, 200-499 -> 3, 500-999 -> 2, 1000+ -> 1
+    static func carouselCardCount(for points: Int) -> Int {
         switch points {
-        case 0...9:      return 5   // Fresh user, show variety
-        case 10...49:    return 5   // Still exploring
-        case 50...99:    return 5   // Building taste
-        case 100...199:  return 4   // Confident picks
-        case 200...499:  return 3   // Refined taste
-        case 500...999:  return 2   // Very refined
+        case 0..<100:    return 5   // Fresh / exploring / building taste
+        case 100..<200:  return 4   // Confident picks
+        case 200..<500:  return 3   // Refined taste
+        case 500..<1000: return 2   // Very refined
         default:         return 1   // 1000+ pts: single best pick
         }
+    }
+
+    func pickCount(forInteractionPoints points: Int) -> Int {
+        return Self.carouselCardCount(for: points)
     }
 
     /// Returns the effective pick count for the current user.
@@ -105,13 +108,13 @@ final class GWInteractionPoints {
         // If debug interaction points override is set, use it directly (even without userId)
         let debugPoints = UserDefaults.standard.integer(forKey: "gw_debug_interaction_points")
         if debugPoints > 0 {
-            return pickCount(forInteractionPoints: debugPoints)
+            return Self.carouselCardCount(for: debugPoints)
         }
         #endif
 
         guard let userId = currentUserId else { return 5 }
         let points = currentPoints
-        let currentTier = pickCount(forInteractionPoints: points)
+        let currentTier = Self.carouselCardCount(for: points)
 
         // Check max tier reached (ratchet)
         let tierKey = "\(tierKeyPrefix)\(userId)"
