@@ -59,14 +59,21 @@ jobs:
 
     steps:
       - name: Send failure notification
+        env:
+          ZEPTO_API_KEY: ${{ secrets.ZEPTO_API_KEY }}
         run: |
           echo "OTT Sync failed at $(date)"
           echo "Run ID: ${{ github.run_id }}"
           echo "Check: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          # Add Slack/email notification here if needed
-          # curl -X POST -H 'Content-type: application/json' \
-          #   --data '{"text":"OTT Sync failed! Check GitHub Actions."}' \
-          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+          curl -s -X POST https://api.zeptomail.in/v1.1/email \
+            -H "Authorization: $ZEPTO_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "from": {"address": "hello@goodwatch.movie"},
+              "to": [{"email_address": {"address": "hello@goodwatch.movie"}}],
+              "subject": "GoodWatch OTT Sync Failed",
+              "textbody": "OTT Sync workflow failed. Review GitHub Actions: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
 
   validate:
     needs: sync
@@ -91,3 +98,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: node scripts/validate-sync.mjs
+
+      - name: Ping Healthchecks.io
+        if: always()
+        run: curl -fsS --retry 3 "${{ secrets.HC_PING_URL_OTT_SYNC }}" > /dev/null

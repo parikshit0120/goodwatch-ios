@@ -84,5 +84,20 @@ jobs:
 
       - name: Notify on critical failures
         if: failure()
+        env:
+          ZEPTO_API_KEY: ${{ secrets.ZEPTO_API_KEY }}
         run: |
           echo "::error::Audit detected critical failures. Check goodwatch.movie/command-center/audit"
+          curl -s -X POST https://api.zeptomail.in/v1.1/email \
+            -H "Authorization: $ZEPTO_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "from": {"address": "hello@goodwatch.movie"},
+              "to": [{"email_address": {"address": "hello@goodwatch.movie"}}],
+              "subject": "GoodWatch Nightly Audit Failed",
+              "textbody": "One or more nightly audit checks failed. Review GitHub Actions: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
+
+      - name: Ping Healthchecks.io
+        if: always()
+        run: curl -fsS --retry 3 "${{ secrets.HC_PING_URL_NIGHTLY }}" > /dev/null

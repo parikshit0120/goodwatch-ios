@@ -1,0 +1,106 @@
+name: 1000-Persona QA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  persona-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run 1000-Persona QA
+        id: qa
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        working-directory: tests/persona_qa
+        run: |
+          node run_qa.js > qa_output.txt 2>&1 || true
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+          # Extract verdict
+          if grep -q "OVERALL VERDICT: GO" QA_REPORT.md; then
+            echo "verdict=GO" >> $GITHUB_OUTPUT
+          else
+            echo "verdict=NO-GO" >> $GITHUB_OUTPUT
+          fi
+
+          # Extract pass rate
+          PASS_RATE=$(grep "Overall pass rate" QA_REPORT.md | grep -oP '[\d.]+%' || echo "unknown")
+          echo "pass_rate=$PASS_RATE" >> $GITHUB_OUTPUT
+
+          cat qa_output.txt
+
+      - name: Upload QA Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-qa-report
+          path: tests/persona_qa/QA_REPORT.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('tests/persona_qa/QA_REPORT.md', 'utf8');
+
+            // Extract summary section (first ~30 lines)
+            const lines = report.split('\n');
+            const summaryEnd = lines.findIndex((l, i) => i > 5 && l.startsWith('## Critical'));
+            const summary = lines.slice(0, summaryEnd > 0 ? summaryEnd : 30).join('\n');
+
+            const verdict = '${{ steps.qa.outputs.verdict }}';
+            const icon = verdict === 'GO' ? ':white_check_mark:' : ':x:';
+
+            const body = `## ${icon} 1000-Persona QA: **${verdict}**\n\n${summary}\n\n<details>\n<summary>Full Report</summary>\n\n${report}\n\n</details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body,
+            });
+
+      - name: Send failure email via ZeptoMail
+        if: steps.qa.outputs.verdict == 'NO-GO'
+        env:
+          ZEPTO_API_KEY: ${{ secrets.ZEPTO_API_KEY }}
+          ZEPTO_FROM: ${{ secrets.ZEPTO_FROM }}
+          ZEPTO_TO: ${{ secrets.ZEPTO_TO }}
+        run: |
+          # Only send if secrets are configured
+          if [ -z "$ZEPTO_API_KEY" ] || [ -z "$ZEPTO_FROM" ] || [ -z "$ZEPTO_TO" ]; then
+            echo "ZeptoMail secrets not configured, skipping email"
+            exit 0
+          fi
+
+          REPORT=$(cat tests/persona_qa/QA_REPORT.md | head -100)
+
+          curl -s -X POST "https://api.zeptomail.in/v1.1/email" \
+            -H "Authorization: Zoho-enczapikey $ZEPTO_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": {\"address\": \"$ZEPTO_FROM\"},
+              \"to\": [{\"email_address\": {\"address\": \"$ZEPTO_TO\"}}],
+              \"subject\": \"[GoodWatch QA] CRITICAL Invariant Failure - NO-GO\",
+              \"textbody\": \"1000-Persona QA failed with NO-GO verdict.\n\nPass Rate: ${{ steps.qa.outputs.pass_rate }}\n\nReport Summary:\n${REPORT}\n\nFull report attached as GitHub Actions artifact.\n\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+            }" || echo "Email send failed (non-critical)"
+
+      - name: Fail if NO-GO
+        if: steps.qa.outputs.verdict == 'NO-GO'
+        run: |
+          echo "QA verdict: NO-GO. See report for details."
+          exit 1
