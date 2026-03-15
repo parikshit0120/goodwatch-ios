@@ -17,6 +17,7 @@ struct MainScreenView: View {
     let trendTag: String?  // Trend relevance tag (INV-T01/T02/T03). Nil = no active trend boost.
     let trailerKey: String?  // YouTube video key for trailer (FIX 10). Nil = no trailer available.
     let isTopPick: Bool  // Level 0 strict match, no fallback (FIX 6).
+    let effortMetadata: GWEffortMetadata?  // Task 5: effort communication layer. Nil = hide strip.
 
     #if DEBUG
     let debugInfo: DebugRecommendationInfo?
@@ -36,7 +37,8 @@ struct MainScreenView: View {
         internationalPick: GWMovie? = nil,
         trendTag: String? = nil,
         trailerKey: String? = nil,
-        isTopPick: Bool = false
+        isTopPick: Bool = false,
+        effortMetadata: GWEffortMetadata? = nil
     ) {
         self.movie = movie
         self.goodScore = goodScore
@@ -51,6 +53,7 @@ struct MainScreenView: View {
         self.trendTag = trendTag
         self.trailerKey = trailerKey
         self.isTopPick = isTopPick
+        self.effortMetadata = effortMetadata
         #if DEBUG
         self.debugInfo = nil
         #endif
@@ -72,6 +75,7 @@ struct MainScreenView: View {
         trendTag: String? = nil,
         trailerKey: String? = nil,
         isTopPick: Bool = false,
+        effortMetadata: GWEffortMetadata? = nil,
         debugInfo: DebugRecommendationInfo?
     ) {
         self.movie = movie
@@ -87,6 +91,7 @@ struct MainScreenView: View {
         self.trendTag = trendTag
         self.trailerKey = trailerKey
         self.isTopPick = isTopPick
+        self.effortMetadata = effortMetadata
         self.debugInfo = debugInfo
     }
     #endif
@@ -352,6 +357,22 @@ struct MainScreenView: View {
                         .opacity(titleOpacity)
                     }
 
+                    // Task 5: Effort communication strip
+                    if let effort = effortMetadata {
+                        VStack(spacing: 4) {
+                            Text(effort.matchReasonShort)
+                                .font(GWTypography.small(weight: .medium))
+                                .foregroundColor(GWColors.gold.opacity(0.8))
+                                .italic()
+
+                            Text(effort.effortStripText)
+                                .font(GWTypography.tiny())
+                                .foregroundColor(GWColors.lightGray.opacity(0.7))
+                        }
+                        .padding(.top, 8)
+                        .opacity(titleOpacity)
+                    }
+
                     // CAUSAL "WHY THIS" COPY
                     // Connects recommendation to user's stated mood preference
                     if let whyThis = whyThisCopy {
@@ -451,6 +472,7 @@ struct MainScreenView: View {
                             }
                             .padding(.horizontal, GWSpacing.screenPadding)
                             .accessibilityIdentifier("main_watch_now")
+                            .accessibilityLabel("Watch on")
                             .opacity(buttonOpacity)
                             .offset(y: buttonOffset)
                         }
@@ -488,6 +510,7 @@ struct MainScreenView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(GWColors.lightGray)
                                 .accessibilityIdentifier("main_not_tonight")
+                                .accessibilityLabel("Not tonight")
 
                                 Rectangle()
                                     .fill(GWColors.lightGray.opacity(0.3))
@@ -499,6 +522,7 @@ struct MainScreenView: View {
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(GWColors.lightGray)
                                 .accessibilityIdentifier("main_already_seen")
+                                .accessibilityLabel("Already seen")
                             }
                         }
                         .padding(.horizontal, GWSpacing.screenPadding)

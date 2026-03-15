@@ -47,7 +47,7 @@ final class RecentPicksService {
     /// Record a movie as a recent pick. Called when recommendation is displayed.
     func addPick(id: String, title: String, posterPath: String?, goodScore: Int,
                  platformDisplayName: String? = nil, deepLinkURL: String? = nil, webURL: String? = nil) {
-        var picks = getPicks()
+        var picks = getRawPicks()
         picks.removeAll { $0.id == id }
         let pick = RecentPick(
             id: id, title: title, posterPath: posterPath, goodScore: goodScore,
@@ -63,7 +63,18 @@ final class RecentPicksService {
     // MARK: - Get Picks
 
     /// Returns recent picks, most recent first.
+    /// Fix 2: Filters out movies that have been rejected/seen (suppressed).
     func getPicks() -> [RecentPick] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let picks = try? JSONDecoder().decode([RecentPick].self, from: data) else { return [] }
+        return picks.filter { pick in
+            guard let uuid = UUID(uuidString: pick.id) else { return true }
+            return !GWSuppressionManager.shared.isSuppressed(movieId: uuid)
+        }
+    }
+
+    /// Returns ALL stored picks without suppression filtering (for internal storage operations).
+    private func getRawPicks() -> [RecentPick] {
         guard let data = UserDefaults.standard.data(forKey: key),
               let picks = try? JSONDecoder().decode([RecentPick].self, from: data) else { return [] }
         return picks

@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseCrashlytics
+import PostHog
 
 // ============================================
 // ROOT FLOW VIEW - Navigation Controller
@@ -60,6 +61,10 @@ struct RootFlowView: View {
     // Rejection sheet
     @State private var showRejectionSheet: Bool = false
 
+    // Rejection → next movie loading states (Fix: black screen after rejection)
+    @State private var isLoadingNextMovie: Bool = false
+    @State private var showNoMoreMatches: Bool = false
+
     // Session tracking
     @State private var sessionRecommendationCount: Int = 0
 
@@ -105,6 +110,20 @@ struct RootFlowView: View {
     @State private var showRecentPicksSheet: Bool = false
     @State private var showRecentPicksBubble: Bool = false
 
+    // Suppression pool exhausted popup (Task 1d)
+    @State private var showSuppressionExhaustedPopup: Bool = false
+
+    // Rating banner state (Task 6)
+    @State private var showRatingBanner: Bool = false
+    @State private var pendingRatingForBanner: PendingRating? = nil
+
+    // Fix 1: Final Gate — session-scoped shown tracking
+    @State private var sessionShownIds: Set<UUID> = []
+    @State private var sessionReplacementCount: Int = 0
+
+    // Fix 3: Replacement limit banner
+    @State private var showReplacementLimitMessage: Bool = false
+
     // Update checker
     @StateObject private var updateChecker = GWUpdateChecker.shared
 
@@ -122,6 +141,28 @@ struct RootFlowView: View {
     /// Session persistence DISABLED: always returns false.
     private func restorePicksIfNeeded() -> Bool {
         return false
+    }
+
+    // Fix 1: Final Gate — gates ALL display-time currentMovie assignments
+    // Checks sessionShownIds and suppression before allowing display.
+    // If movie is blocked, pulls next valid from fallbackPool or sets nil.
+    private func assignCurrentMovie(_ movie: Movie, fallbackPool: [Movie]) {
+        isLoadingNextMovie = false
+        showNoMoreMatches = false
+
+        if sessionShownIds.contains(movie.id) || GWSuppressionManager.shared.isSuppressed(movieId: movie.id) {
+            if let alt = fallbackPool.first(where: { !sessionShownIds.contains($0.id) && !GWSuppressionManager.shared.isSuppressed(movieId: $0.id) }) {
+                currentMovie = alt
+                sessionShownIds.insert(alt.id)
+            } else {
+                // No fallback — show no-more-matches state, NOT black screen
+                currentMovie = nil
+                showNoMoreMatches = true
+            }
+        } else {
+            currentMovie = movie
+            sessionShownIds.insert(movie.id)
+        }
     }
 
     /// Clear saved picks from UserDefaults
@@ -176,6 +217,29 @@ struct RootFlowView: View {
                 Spacer()
             }
             .animation(.easeInOut(duration: 0.3), value: updateChecker.updateAvailable)
+
+            // Fix 3: Replacement limit banner (auto-dismiss after 3s)
+            if showReplacementLimitMessage {
+                VStack {
+                    Spacer()
+                    Text("You've explored enough for now. Try a new mood or platform.")
+                        .font(GWTypography.body())
+                        .foregroundColor(GWColors.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(GWColors.darkGray.opacity(0.95))
+                        .cornerRadius(GWRadius.md)
+                        .padding(.bottom, 100)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeOut(duration: 0.3), value: showReplacementLimitMessage)
+                .zIndex(90)
+                .onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation { showReplacementLimitMessage = false }
+                    }
+                }
+            }
 
             // UGC Review prompt overlay (shown on enjoy screen after delay)
             if showReviewPrompt {
@@ -235,6 +299,64 @@ struct RootFlowView: View {
                 }
             }
 
+            // Task 1d: Suppression pool exhausted popup
+            if showSuppressionExhaustedPopup {
+                Color.black.opacity(0.6)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showSuppressionExhaustedPopup = false
+                        }
+                    }
+
+                VStack(spacing: 20) {
+                    Text("You've seen the best of the bunch")
+                        .font(GWTypography.headline())
+                        .foregroundColor(GWColors.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Most movies matching your taste have already been shown. We can revisit some or you can come back later for fresh picks.")
+                        .font(GWTypography.body())
+                        .foregroundColor(GWColors.lightGray)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        guard let userId = AuthGuard.shared.currentUserId else { return }
+                        GWSuppressionManager.shared.temporarilyLiftSuppression(for: userId.uuidString)
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showSuppressionExhaustedPopup = false
+                        }
+                        // Re-fetch with suppression lifted
+                        Task { await fetchRecommendation() }
+                    } label: {
+                        Text("Show me anyway")
+                            .font(GWTypography.button())
+                            .foregroundColor(GWColors.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(GWColors.gold)
+                            .cornerRadius(GWRadius.md)
+                    }
+
+                    Button {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showSuppressionExhaustedPopup = false
+                        }
+                    } label: {
+                        Text("Not now")
+                            .font(GWTypography.body())
+                            .foregroundColor(GWColors.lightGray)
+                    }
+                }
+                .padding(24)
+                .background(GWColors.darkGray)
+                .cornerRadius(GWRadius.lg)
+                .padding(.horizontal, 32)
+                .transition(.scale.combined(with: .opacity))
+                .animation(.easeOut(duration: 0.3), value: showSuppressionExhaustedPopup)
+                .zIndex(110)
+            }
+
             // Recent Picks floating bubble (bottom-right, shows after sheet dismiss)
             // FIX 1: Only show on landing screen, hidden during onboarding/recommendation
             if showRecentPicksBubble && !showRecentPicksSheet && currentScreen == .landing {
@@ -249,6 +371,38 @@ struct RootFlowView: View {
                     .zIndex(80)
                 }
             }
+
+            // Task 6: Rating banner — "How was it?" shown on landing for unrated movies
+            if showRatingBanner, let pending = pendingRatingForBanner, currentScreen == .landing {
+                VStack {
+                    Spacer()
+                    GWRatingBannerView(
+                        pending: pending,
+                        onRate: { thumbsUp in
+                            // Task 7: Record rating for session summary
+                            GWJourneyTracker.shared.recordRating()
+                            guard let userId = AuthGuard.shared.currentUserId else { return }
+                            Task {
+                                await GWRatingService.shared.rateMovie(
+                                    movieId: pending.movieId,
+                                    thumbsUp: thumbsUp,
+                                    userId: userId.uuidString
+                                )
+                            }
+                        },
+                        onDismiss: {
+                            withAnimation(.easeOut(duration: 0.25)) {
+                                showRatingBanner = false
+                                pendingRatingForBanner = nil
+                            }
+                        }
+                    )
+                    .padding(.bottom, 16)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeOut(duration: 0.3), value: showRatingBanner)
+                .zIndex(85)
+            }
         }
         .onAppear {
             // Session restore DISABLED: force quit always returns to landing screen.
@@ -261,6 +415,15 @@ struct RootFlowView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     withAnimation(.easeOut(duration: 0.3)) {
                         showRecentPicksSheet = true
+                    }
+                }
+            }
+            // Task 6: Check for pending rating banner
+            if let pending = GWRatingService.shared.getPendingForBanner() {
+                pendingRatingForBanner = pending
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        showRatingBanner = true
                     }
                 }
             }
@@ -329,6 +492,8 @@ struct RootFlowView: View {
         case .landing:
             LandingView(
                 onContinue: {
+                    // Task 7: Track onboarding started
+                    GWJourneyTracker.shared.trackOnboardingStarted()
                     // Skip auth if user is already signed in (via Explore or previous session)
                     if UserService.shared.isAuthenticated || UserService.shared.cachedUserId != nil {
                         navigateTo(.moodSelector)
@@ -377,6 +542,8 @@ struct RootFlowView: View {
                 ctx: $userContext,
                 onNext: {
                     MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "mood_selector", "step_number": 1])
+                    // Task 7: Track mood selection in PostHog
+                    GWJourneyTracker.shared.trackMoodSelected(mood: userContext.mood.rawValue)
 
                     // If onboarding memory exists (within 30 days), skip to recommendations
                     #if DEBUG
@@ -403,6 +570,12 @@ struct RootFlowView: View {
                         }
                         GWKeychainManager.shared.storeOnboardingStep(4)
                         userContext.saveToDefaults()
+                        // Task 7: Track onboarding completed (skipped steps via memory)
+                        GWJourneyTracker.shared.trackOnboardingCompleted(
+                            mood: userContext.mood.rawValue,
+                            platforms: userContext.otts.map { $0.rawValue },
+                            skippedSteps: true
+                        )
                         navigateTo(.confidenceMoment)
                         fetchRecommendation()
                     } else {
@@ -423,6 +596,8 @@ struct RootFlowView: View {
                 ctx: $userContext,
                 onNext: {
                     MetricsService.shared.track(.onboardingStepCompleted, properties: ["step": "platform_selector", "step_number": 2])
+                    // Task 7: Track platform selection in PostHog
+                    GWJourneyTracker.shared.trackPlatformSelected(platforms: userContext.otts.map { $0.rawValue })
                     navigateTo(.languagePriority)
                 },
                 onBack: {
@@ -462,6 +637,12 @@ struct RootFlowView: View {
                         minDuration: userContext.minDuration,
                         maxDuration: userContext.maxDuration,
                         requiresSeries: userContext.requiresSeries
+                    )
+                    // Task 7: Track onboarding completed (full flow)
+                    GWJourneyTracker.shared.trackOnboardingCompleted(
+                        mood: userContext.mood.rawValue,
+                        platforms: userContext.otts.map { $0.rawValue },
+                        skippedSteps: false
                     )
                     // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
                     navigateTo(.confidenceMoment)
@@ -616,13 +797,24 @@ struct RootFlowView: View {
             }
         } else if let error = recommendationError {
             noRecommendationView(message: error)
+        } else if showNoMoreMatches {
+            // No more matches after rejection — show actionable state, NOT black screen
+            noRecommendationView(message: "You've seen everything for this mood. Try a different mood or platform.")
+        } else if isLoadingNextMovie {
+            // Loading next movie after rejection — show spinner, NOT black screen
+            ZStack {
+                GWColors.black.ignoresSafeArea()
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.5)
+            }
         } else {
             // Still loading - show confidence moment style loading with safety timeout
             ConfidenceMomentView(onComplete: {})
                 .onAppear {
                     // Safety timeout: if still loading after 15 seconds, show error
                     DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
-                        if currentScreen == .mainScreen && currentMovie == nil && recommendationError == nil && recommendedPicks.isEmpty {
+                        if currentScreen == .mainScreen && currentMovie == nil && recommendationError == nil && recommendedPicks.isEmpty && !showNoMoreMatches {
                             recommendationError = "Taking too long to find a match. Please try again."
                             isLoadingRecommendation = false
                         }
@@ -1240,7 +1432,46 @@ struct RootFlowView: View {
                 }
 
                 // Cache the movie pool for replacement logic
-                let gwMoviePool = moviesWithPoster.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
+                // Apply content filter + suppression filter (Task 1c)
+                let gwMoviePool = moviesWithPoster
+                    .map { GWMovie(from: $0) }
+                    .filter { !contentFilter.shouldExclude(movie: $0) }
+                    .filter { !GWSuppressionManager.shared.isSuppressed(movieId: UUID(uuidString: $0.id) ?? UUID()) }
+
+                // Task 1d: Check if pool is running low after suppression
+                if gwMoviePool.count < 5 && !GWSuppressionManager.shared.suppressionLifted {
+                    await MainActor.run {
+                        showSuppressionExhaustedPopup = true
+                    }
+                    PostHogSDK.shared.capture("suppression_pool_exhausted", properties: [
+                        "user_id": userId.uuidString
+                    ])
+                }
+
+                // Task 3: Cold start pool override for new users
+                // When isNewUser is true, build/use a curated high-quality pool
+                let effectivePool: [GWMovie]
+                if GWSubscriptionManager.shared.isNewUser {
+                    if !GWColdStartService.shared.hasValidPool {
+                        GWColdStartService.shared.buildPool(
+                            from: movies,
+                            platforms: userContext.otts.map { $0.rawValue },
+                            languages: userContext.languages.map { $0.rawValue },
+                            mood: userContext.mood.rawValue,
+                            minDuration: userContext.minDuration,
+                            maxDuration: userContext.maxDuration
+                        )
+                    }
+                    let coldPool = GWColdStartService.shared.cachedPool
+                        .filter { !GWSuppressionManager.shared.isSuppressed(movieId: UUID(uuidString: $0.id) ?? UUID()) }
+                    // Use cold start pool if it has movies, otherwise fall through to general pool
+                    effectivePool = coldPool.isEmpty ? gwMoviePool : coldPool
+                    #if DEBUG
+                    print("[ColdStart] Using cold start pool: \(effectivePool.count) movies (general pool: \(gwMoviePool.count))")
+                    #endif
+                } else {
+                    effectivePool = gwMoviePool
+                }
 
                 // Build UUID-keyed trend boost lookup and set on engine (INV-T01/T03)
                 let resolvedTrendBoosts = GWTrendBoostService.shared.buildUUIDLookup(
@@ -1254,7 +1485,7 @@ struct RootFlowView: View {
                 let allMoviesForIntl = try await intlMovieTask.value
                 let allGwForIntl = allMoviesForIntl.map { GWMovie(from: $0) }.filter { !contentFilter.shouldExclude(movie: $0) }
                 // Compute main pool top score for ceiling calculation
-                let mainPoolScores = gwMoviePool.map { engine.computeScore(movie: $0, profile: profile) }
+                let mainPoolScores = effectivePool.map { engine.computeScore(movie: $0, profile: profile) }
                 let mainPoolTopScore = mainPoolScores.max() ?? 0.0
                 let intlOutput = engine.recommendInternationalPick(
                     from: allGwForIntl,
@@ -1275,7 +1506,7 @@ struct RootFlowView: View {
                 // Use multi-pick when pickCount > 1
                 if effectivePickCount > 1 {
                     var picks = engine.recommendMultiple(
-                        from: gwMoviePool,
+                        from: effectivePool,
                         profile: profile,
                         count: effectivePickCount
                     )
@@ -1292,7 +1523,7 @@ struct RootFlowView: View {
                     if picks.count < effectivePickCount {
                         let existingIds = Set(picks.map { $0.id })
                         // Fallback pool must pass isValidMovie (tiered gates, year floor, etc.)
-                        var fallbackPool = gwMoviePool.filter { movie in
+                        var fallbackPool = effectivePool.filter { movie in
                             guard !existingIds.contains(movie.id) else { return false }
                             if case .valid = engine.isValidMovie(movie, profile: profile) { return true }
                             return false
@@ -1333,7 +1564,7 @@ struct RootFlowView: View {
                             // Fill remaining slots from scored pool (relaxed: skip isValidMovie for fill,
                             // but still filter basic language/platform/poster/standup)
                             let seedIds = Set(picks.map { $0.id })
-                            let fillPool = gwMoviePool
+                            let fillPool = effectivePool
                                 .filter { !seedIds.contains($0.id) }
                                 .sorted { engine.computeScore(movie: $0, profile: profile) > engine.computeScore(movie: $1, profile: profile) }
                             let needed = effectivePickCount - picks.count
@@ -1348,7 +1579,7 @@ struct RootFlowView: View {
                         await MainActor.run {
                             self.recommendedPicks = picks
                             self.rawMoviePool = movies
-                            self.validMoviePool = gwMoviePool
+                            self.validMoviePool = effectivePool
                             self.pickCount = picks.count  // Use actual count, not effectivePickCount
                             self.replacedPositions = []
                             self.totalReplacements = 0
@@ -1362,7 +1593,7 @@ struct RootFlowView: View {
 
                             // Set currentMovie to first pick for enjoy screen compatibility
                             if let firstRaw = movies.first(where: { $0.id.uuidString == picks[0].id }) {
-                                self.currentMovie = firstRaw
+                                self.assignCurrentMovie(firstRaw, fallbackPool: movies)
                                 self.currentGoodScore = picks[0].composite_score > 0 ? Int(round(picks[0].composite_score)) : Int(round(picks[0].goodscore * 10))
                             }
 
@@ -1479,7 +1710,7 @@ struct RootFlowView: View {
                         await MainActor.run {
                             self.recommendedPicks = carouselPicks
                             self.rawMoviePool = movies
-                            self.validMoviePool = gwMoviePool
+                            self.validMoviePool = effectivePool
                             self.pickCount = carouselPicks.count
                             self.replacedPositions = []
                             self.totalReplacements = 0
@@ -1488,7 +1719,7 @@ struct RootFlowView: View {
                             self.sessionRecommendationCount += 1
                             self.recommendationShownTime = Date()
                             if let firstRaw = movies.first(where: { $0.id.uuidString == carouselPicks[0].id }) {
-                                self.currentMovie = firstRaw
+                                self.assignCurrentMovie(firstRaw, fallbackPool: movies)
                                 self.currentGoodScore = carouselPicks[0].composite_score > 0 ? Int(round(carouselPicks[0].composite_score)) : Int(round(carouselPicks[0].goodscore * 10))
                             }
                             GWKeychainManager.shared.storeOnboardingStep(6)
@@ -1509,7 +1740,7 @@ struct RootFlowView: View {
                         print("[SCREENSHOT] Single-pick fallback: \(pick.title)")
                         await MainActor.run {
                             if let rawMovie = movies.first(where: { $0.id.uuidString == pick.id }) {
-                                self.currentMovie = rawMovie
+                                self.assignCurrentMovie(rawMovie, fallbackPool: movies)
                                 self.currentGoodScore = pick.composite_score > 0 ? Int(round(pick.composite_score)) : Int(round(pick.goodscore * 10))
                             }
                             self.sessionRecommendationCount += 1
@@ -1528,7 +1759,7 @@ struct RootFlowView: View {
                 await MainActor.run {
                     if let gwMovie = output.movie,
                        let movie = movies.first(where: { $0.id.uuidString == gwMovie.id }) {
-                        self.currentMovie = movie
+                        self.assignCurrentMovie(movie, fallbackPool: movies)
                         self.currentGoodScore = gwMovie.composite_score > 0 ? Int(round(gwMovie.composite_score)) : Int(round(gwMovie.goodscore * 10))
                         self.sessionRecommendationCount += 1
                         self.isLoadingRecommendation = false
@@ -1710,7 +1941,7 @@ struct RootFlowView: View {
                 await MainActor.run {
                     if let gwMovie = output.movie,
                        let movie = movies.first(where: { $0.id.uuidString == gwMovie.id }) {
-                        self.currentMovie = movie
+                        self.assignCurrentMovie(movie, fallbackPool: movies)
                         self.currentGoodScore = gwMovie.composite_score > 0 ? Int(round(gwMovie.composite_score)) : Int(round(gwMovie.goodscore * 10))
                         self.sessionRecommendationCount += 1
                         self.isLoadingRecommendation = false
@@ -1757,6 +1988,12 @@ struct RootFlowView: View {
     private func handleWatchNow(movie: Movie, provider: OTTProvider) {
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
+        // Fix 1d: Mark as shown in session gate
+        sessionShownIds.insert(movie.id)
+
+        // Task 7: Record accept for session summary
+        GWJourneyTracker.shared.recordAccept()
+
         // Add interaction points for single-pick watch_now
         GWInteractionPoints.shared.add(3)
 
@@ -1789,6 +2026,9 @@ struct RootFlowView: View {
 
         // Record interaction
         Task {
+            // Task 1c: Mark as watched in suppression cache (sync first, then Supabase)
+            await GWSuppressionManager.shared.markWatched(movieId: movie.id, userId: userId.uuidString)
+
             // Record watch_now with platform bias tracking
             try? await InteractionService.shared.recordAcceptanceWithBias(
                 userId: userId,
@@ -1801,6 +2041,15 @@ struct RootFlowView: View {
                 movieId: movie.id.uuidString,
                 movieTitle: movie.title,
                 userId: userId.uuidString
+            )
+
+            // Task 6a: Add to pending ratings for "How was it?" banner on next session
+            let gwMovieForRating = GWMovie(from: movie)
+            GWRatingService.shared.addPendingRating(
+                movieId: movie.id.uuidString,
+                movieTitle: movie.title,
+                posterPath: movie.poster_path,
+                movieTags: gwMovieForRating.tags
             )
 
             // Update tag weights (positive signal)
@@ -1820,7 +2069,15 @@ struct RootFlowView: View {
     }
 
     private func handleAlreadySeen(movie: Movie) {
+        // Fix 1d: Mark as shown in session gate
+        sessionShownIds.insert(movie.id)
+
         let rejectedId = movie.id
+
+        // Set loading state BEFORE async fetch — prevents black screen
+        isLoadingNextMovie = true
+        showNoMoreMatches = false
+        currentMovie = nil  // clear card immediately — shows loading spinner
 
         // Add interaction points for already_seen
         GWInteractionPoints.shared.add(1)
@@ -1841,6 +2098,9 @@ struct RootFlowView: View {
         // Record interaction (if authenticated)
         if let userId = AuthGuard.shared.currentUserId {
             Task {
+                // Task 1c: Mark as rejected in suppression cache
+                await GWSuppressionManager.shared.markRejected(movieId: movie.id, userId: userId.uuidString)
+
                 try? await InteractionService.shared.recordAlreadySeen(
                     userId: userId,
                     movieId: movie.id
@@ -1856,7 +2116,18 @@ struct RootFlowView: View {
         guard let movie = currentMovie else { return }
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
+        // Fix 1d: Mark as shown in session gate
+        sessionShownIds.insert(movie.id)
+
         let rejectedId = movie.id
+
+        // Set loading state BEFORE async fetch — prevents black screen
+        isLoadingNextMovie = true
+        showNoMoreMatches = false
+        currentMovie = nil  // clear card immediately — shows loading spinner
+
+        // Task 7: Record reject for session summary
+        GWJourneyTracker.shared.recordReject()
 
         // Add interaction points for not_tonight
         GWInteractionPoints.shared.add(2)
@@ -1895,6 +2166,9 @@ struct RootFlowView: View {
         // BUG FIX: Pass the MOVIE's platforms, not all user platforms
         // Previously this corrupted platform bias by penalizing unrelated platforms
         Task {
+            // Task 1c: Mark as rejected in suppression cache
+            await GWSuppressionManager.shared.markRejected(movieId: movie.id, userId: userId.uuidString)
+
             try? await InteractionService.shared.recordRejectionWithLearning(
                 userId: userId,
                 movieId: movie.id,
@@ -1921,7 +2195,20 @@ struct RootFlowView: View {
         guard let movie = currentMovie else { return }
         guard let userId = AuthGuard.shared.currentUserId else { return }
 
+        // Fix 1d: Mark as shown in session gate
+        sessionShownIds.insert(movie.id)
+
         let rejectedId = movie.id
+
+        // Fix 3: Replacement count with maturity threshold
+        let interactionCount = GWSubscriptionManager.shared.cachedInteractionCount
+        let isMature = interactionCount >= 80
+        let maxSessionReplacements = isMature ? Int.max : 5
+        if sessionReplacementCount > 0 && sessionReplacementCount >= maxSessionReplacements {
+            showReplacementLimitMessage = true
+            return
+        }
+        sessionReplacementCount += 1
 
         // Add interaction points for show_me_another
         GWInteractionPoints.shared.add(1)
@@ -1952,6 +2239,9 @@ struct RootFlowView: View {
 
         // Record as not_tonight with no specific reason
         Task {
+            // Task 1c: Mark as rejected in suppression cache
+            await GWSuppressionManager.shared.markRejected(movieId: movie.id, userId: userId.uuidString)
+
             try? await InteractionService.shared.recordNotTonight(
                 userId: userId,
                 movieId: movie.id,
@@ -1982,6 +2272,9 @@ struct RootFlowView: View {
 
     private func handleMultiPickWatchNow(movie: Movie, provider: OTTProvider) {
         guard let userId = AuthGuard.shared.currentUserId else { return }
+
+        // Fix 1d: Mark as shown in session gate
+        sessionShownIds.insert(movie.id)
 
         // Record decision timing
         if let shownTime = recommendationShownTime {
@@ -2272,7 +2565,7 @@ struct RootFlowView: View {
                 await MainActor.run {
                     if let movie = nextMovie {
                         let gwMovie = GWMovie(from: movie)
-                        self.currentMovie = movie
+                        self.assignCurrentMovie(movie, fallbackPool: [])
                         self.currentGoodScore = gwMovie.composite_score > 0 ? Int(round(gwMovie.composite_score)) : Int(round(gwMovie.goodscore * 10))
                         self.sessionRecommendationCount += 1
                         self.isLoadingRecommendation = false
@@ -2295,6 +2588,8 @@ struct RootFlowView: View {
                     } else {
                         self.currentMovie = nil
                         self.isLoadingRecommendation = false
+                        self.isLoadingNextMovie = false
+                        self.showNoMoreMatches = true
                         self.recommendationError = "No more matches for your current preferences. Try changing your mood or platforms."
                     }
                 }
@@ -2302,6 +2597,8 @@ struct RootFlowView: View {
                 Crashlytics.crashlytics().record(error: error)
                 await MainActor.run {
                     self.isLoadingRecommendation = false
+                    self.isLoadingNextMovie = false
+                    self.showNoMoreMatches = true
                     self.recommendationError = "Something went wrong. Please try again."
                 }
             }
