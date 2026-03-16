@@ -568,7 +568,7 @@ struct RootFlowView: View {
                             try? await UserService.shared.updatePlatforms(platformStrings)
                             try? await UserService.shared.updateLanguages(languageStrings)
                         }
-                        GWKeychainManager.shared.storeOnboardingStep(4)
+                        GWKeychainManager.shared.storeOnboardingStep(6)
                         userContext.saveToDefaults()
                         // Task 7: Track onboarding completed (skipped steps via memory)
                         GWJourneyTracker.shared.trackOnboardingCompleted(
@@ -644,6 +644,9 @@ struct RootFlowView: View {
                         platforms: userContext.otts.map { $0.rawValue },
                         skippedSteps: false
                     )
+                    // Mark onboarding complete at preference selection, not recommendation fetch.
+                    // Prevents onboarding loop if fetch fails or user kills app during loading.
+                    GWKeychainManager.shared.storeOnboardingStep(6)
                     // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
                     navigateTo(.confidenceMoment)
                     fetchRecommendation()
