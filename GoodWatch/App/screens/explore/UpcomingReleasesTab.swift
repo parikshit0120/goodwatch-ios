@@ -216,11 +216,14 @@ struct UpcomingReleasesTab: View {
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.items, id: \.id) { item in
-                        UpcomingListCard(item: item, enrichedMovie: viewModel.enrichedMovies[item.tmdb_id]) {
-                            if let movie = viewModel.enrichedMovies[item.tmdb_id] {
+                        let enriched = viewModel.enrichedMovies[item.tmdb_id]
+                        UpcomingListCard(item: item, enrichedMovie: enriched) {
+                            if let movie = enriched {
                                 viewModel.selectedMovie = movie
                             }
                         }
+                        .disabled(enriched == nil)
+                        .opacity(enriched != nil ? 1.0 : 0.55)
                     }
                 }
                 .padding(.horizontal, 16)
