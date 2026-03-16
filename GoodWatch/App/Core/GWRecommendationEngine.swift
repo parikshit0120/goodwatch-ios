@@ -882,6 +882,14 @@ final class GWRecommendationEngine {
     /// Used to count the candidate pool for the adaptive quality gate.
     /// Does NOT check goodscore, tags, runtime, or content type — those are session-specific.
     private func passesBasicFilters(_ movie: GWMovie, profile: GWUserProfileComplete) -> Bool {
+        // Absolute year floor: NON-NEGOTIABLE across ALL fallback levels.
+        // Belt-and-suspenders guard — tiered gates also enforce year floors, but this
+        // explicit check ensures year >= 1990 can never be bypassed regardless of how
+        // tiered gate failures are classified or relaxed in fallback paths.
+        if movie.year > 0 && movie.year < 1990 {
+            return false
+        }
+
         let result = isValidMovie(movie, profile: profile)
         switch result {
         case .valid:
@@ -1916,6 +1924,8 @@ final class GWRecommendationEngine {
         // Filter valid movies not already in current picks or excluding set
         let validMovies = movies.filter { movie in
             guard !allExcluded.contains(movie.id) else { return false }
+            // Absolute year floor — NON-NEGOTIABLE
+            if movie.year > 0 && movie.year < 1990 { return false }
             if case .valid = isValidMovie(movie, profile: profile, excluding: allExcluded) { return true }
             return false
         }
