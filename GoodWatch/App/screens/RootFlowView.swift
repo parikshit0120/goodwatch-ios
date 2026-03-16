@@ -2498,23 +2498,20 @@ struct RootFlowView: View {
                 #if DEBUG
                 print("[CAROUSEL] FINAL CHECK BLOCKED DUPLICATE: \(replacement.title)")
                 #endif
-                var updatedPicks = recommendedPicks
-                updatedPicks.remove(at: position)
                 totalReplacements += 1
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    recommendedPicks = updatedPicks
+                    recommendedPicks.remove(at: position)
                 }
                 return
             }
 
             // Replace in-place at the same index (card count stays constant)
-            var updatedPicks = recommendedPicks
-            updatedPicks[position] = replacement
+            // Incremental mutation: only the replaced card re-renders (identity by movie ID)
             replacedPositions.insert(position)
             totalReplacements += 1
 
             withAnimation(.easeInOut(duration: 0.3)) {
-                recommendedPicks = updatedPicks
+                recommendedPicks[position] = replacement
             }
 
             // Record replacement shown
@@ -2535,16 +2532,14 @@ struct RootFlowView: View {
             #endif
         } else {
             // Pool truly exhausted after retries -- remove card (4 cards is better than 5 with a duplicate)
-            var updatedPicks = recommendedPicks
-            updatedPicks.remove(at: position)
             totalReplacements += 1
 
             withAnimation(.easeInOut(duration: 0.3)) {
-                recommendedPicks = updatedPicks
+                recommendedPicks.remove(at: position)
             }
 
             #if DEBUG
-            print("[CAROUSEL] No unique replacement for \(gwMovie.title) after 3 retries. Card removed. Count: \(updatedPicks.count)")
+            print("[CAROUSEL] No unique replacement for \(gwMovie.title) after 3 retries. Card removed. Count: \(recommendedPicks.count)")
             #endif
         }
     }
