@@ -1015,7 +1015,9 @@ final class GWRecommendationEngine {
     // SECTION 7: Not Tonight Logic
     // ============================================
 
-    /// Recommend after a not_tonight rejection — avoids similar tags
+    /// Recommend after a not_tonight rejection — avoids similar tags.
+    /// Uses progressive fallback: full validation → bypass mood gate → basic filters.
+    /// Always respects language (INV-R03), platform (INV-R02), interaction history (INV-R04).
     func recommendAfterNotTonight(
         from movies: [GWMovie],
         profile: GWUserProfileComplete,
@@ -1033,11 +1035,61 @@ final class GWRecommendationEngine {
             minRating: 6.0, minVotes: 200, wasRelaxed: false, reason: "default_fallback"
         )
 
-        let validMovies = movies.filter { movie in
+        let relaxedGate = AdaptiveQualityGate(
+            minRating: max(gate.minRating - 0.5, 6.0),
+            minVotes: max(gate.minVotes / 2, 100),
+            wasRelaxed: true,
+            reason: "replacement_relaxed"
+        )
+
+        let floorGate = AdaptiveQualityGate(
+            minRating: 6.0,
+            minVotes: 100,
+            wasRelaxed: true,
+            reason: "replacement_floor"
+        )
+
+        // Level 1: Full isValidMovie + current adaptive gate (same as original)
+        var validMovies = movies.filter { movie in
             if case .valid = isValidMovie(movie, profile: updatedProfile) {
                 return normalizedRating(movie) >= gate.minRating && movie.voteCount >= gate.minVotes
             }
             return false
+        }
+
+        // Level 2: Full isValidMovie + relaxed gate
+        if validMovies.isEmpty {
+            validMovies = movies.filter { movie in
+                if case .valid = isValidMovie(movie, profile: updatedProfile) {
+                    return normalizedRating(movie) >= relaxedGate.minRating && movie.voteCount >= relaxedGate.minVotes
+                }
+                return false
+            }
+        }
+
+        // Level 3: Bypass mood/dimensional gate (like recommend() Level 2 fallback) + relaxed gate
+        // This handles cases where the mood filter is too strict after rejection
+        if validMovies.isEmpty {
+            var tagOnlyProfile = updatedProfile
+            tagOnlyProfile.moodMapping = nil  // Bypass dimensional gate, use tag intersection only
+            validMovies = movies.filter { movie in
+                if case .valid = isValidMovie(movie, profile: tagOnlyProfile) {
+                    return normalizedRating(movie) >= relaxedGate.minRating && movie.voteCount >= relaxedGate.minVotes
+                }
+                return false
+            }
+        }
+
+        // Level 4: Basic filters only (language + platform + interaction history + tiered gates)
+        // Skips GoodScore threshold, mood/tag matching, and runtime checks
+        // Still respects INV-R02 (platform), INV-R03 (language), INV-R04 (interaction history)
+        if validMovies.isEmpty {
+            validMovies = movies.filter { movie in
+                if passesBasicFilters(movie, profile: updatedProfile) {
+                    return normalizedRating(movie) >= floorGate.minRating && movie.voteCount >= floorGate.minVotes
+                }
+                return false
+            }
         }
 
         if validMovies.isEmpty {
