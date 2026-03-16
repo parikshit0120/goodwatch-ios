@@ -11,6 +11,15 @@ packages:
   GoogleSignIn-iOS:
     url: https://github.com/google/GoogleSignIn-iOS
     from: "7.0.0"
+  posthog-ios:
+    url: https://github.com/PostHog/posthog-ios
+    from: "3.0.0"
+  purchases-ios:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: "4.0.0"
+  OneSignal-XCFramework:
+    url: https://github.com/OneSignal/OneSignal-XCFramework
+    from: "5.0.0"
 
 targets:
   GoodWatch:
@@ -25,8 +34,18 @@ targets:
         product: FirebaseMessaging
       - package: firebase-ios-sdk
         product: FirebaseCrashlytics
+      - package: firebase-ios-sdk
+        product: FirebaseRemoteConfig
       - package: GoogleSignIn-iOS
         product: GoogleSignIn
+      - package: posthog-ios
+        product: PostHog
+      - package: purchases-ios
+        product: RevenueCat
+      - package: purchases-ios
+        product: RevenueCatUI
+      - package: OneSignal-XCFramework
+        product: OneSignalFramework
     entitlements:
       path: GoodWatch/GoodWatch.entitlements
       properties:
