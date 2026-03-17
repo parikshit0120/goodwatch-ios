@@ -1,0 +1,71 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 08 - Suppression Test (Not Tonight x2)"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- tapOn:
+    id: "landing_pick_for_me"
+- waitForAnimationToEnd
+- tapOn:
+    id: "auth_skip"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_continue"
+- waitForAnimationToEnd
+# Select ALL platforms for maximum candidate pool
+- tapOn: "Select All"
+- waitForAnimationToEnd
+- tapOn:
+    id: "platform_continue"
+- waitForAnimationToEnd
+- tapOn: "English"
+- waitForAnimationToEnd
+- tapOn:
+    id: "language_lock"
+- waitForAnimationToEnd
+- tapOn:
+    id: "duration_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "duration_continue"
+- waitForAnimationToEnd
+# First recommendation
+- extendedWaitUntil:
+    visible: "GOODSCORE"
+    timeout: 20000
+- takeScreenshot: flow_08_pick1
+# Reject #1
+- tapOn:
+    id: "main_not_tonight"
+- extendedWaitUntil:
+    visible: "Just show me another"
+    timeout: 8000
+- takeScreenshot: flow_08_rejection1
+- tapOn: "Just show me another"
+# Second recommendation
+- extendedWaitUntil:
+    visible: "GOODSCORE"
+    timeout: 30000
+- takeScreenshot: flow_08_pick2
+# Reject #2
+- tapOn:
+    id: "main_not_tonight"
+- extendedWaitUntil:
+    visible: "Just show me another"
+    timeout: 8000
+- takeScreenshot: flow_08_rejection2
+- tapOn: "Just show me another"
+# Third recommendation — suppression confirmed working
+- extendedWaitUntil:
+    visible: "GOODSCORE"
+    timeout: 30000
+- takeScreenshot: flow_08_pick3
