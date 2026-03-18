@@ -31,6 +31,9 @@ final class ExploreService {
 
         var queryItems = [URLQueryItem(name: "select", value: "*")]
 
+        // Year floor: pre-1990 movies excluded from all Explore paths
+        queryItems.append(URLQueryItem(name: "year", value: "gte.1990"))
+
         // Data quality: exclude unreleased, zero-rating, no-poster movies
         appendQualityFilters(to: &queryItems)
 
@@ -108,10 +111,7 @@ final class ExploreService {
                     yearConditions.append("and(year.gte.2000,year.lte.2009)")
                 case "90s":
                     yearConditions.append("and(year.gte.1990,year.lte.1999)")
-                case "80s":
-                    yearConditions.append("and(year.gte.1980,year.lte.1989)")
-                case "Classic":
-                    yearConditions.append("year.lt.1980")
+                // "80s" and "Classic" removed — pre-1990 movies excluded from all paths
                 default:
                     break
                 }
@@ -171,6 +171,7 @@ final class ExploreService {
         var queryItems = [
             URLQueryItem(name: "select", value: "*"),
             URLQueryItem(name: "release_date", value: "gte.\(cutoff)"),
+            URLQueryItem(name: "year", value: "gte.1990"),
             URLQueryItem(name: "order", value: orderBy),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
@@ -237,6 +238,7 @@ final class ExploreService {
         var queryItems = [
             URLQueryItem(name: "select", value: "*"),
             URLQueryItem(name: "ott_providers", value: "cs.\(platformPattern)"),
+            URLQueryItem(name: "year", value: "gte.1990"),
             URLQueryItem(name: "order", value: orderBy),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
@@ -387,6 +389,7 @@ final class ExploreService {
         }
         var queryItems = [
             URLQueryItem(name: "select", value: "*"),
+            URLQueryItem(name: "year", value: "gte.1990"),
             URLQueryItem(name: "order", value: orderBy),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]

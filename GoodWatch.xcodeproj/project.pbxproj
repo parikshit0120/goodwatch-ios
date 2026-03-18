@@ -73,6 +73,7 @@
 		7919C00907DA95DA1C5CF6FC /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EC66AFB5F09B72445B5596 /* SupabaseConfig.swift */; };
 		7CCCED3C1D85173B7413F119 /* RejectionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */; };
 		7FA596640A2E608B06C4C74C /* PickCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4407D158C0A98E29854C91B8 /* PickCarouselView.swift */; };
+		800304C7A4C19000906FF146 /* GWPre1990Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DD5586AC86473BDA01E958B /* GWPre1990Tests.swift */; };
 		81EA1A223E35732B005DF2F4 /* GWEmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD7D59B1F741D7400230BF2 /* GWEmailService.swift */; };
 		86DC1924D15872BB95DA498A /* WatchlistManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 750A5A708A8482F7A66F300D /* WatchlistManager.swift */; };
 		871A06AD86EC1B95D365ED20 /* platforms.ts in Resources */ = {isa = PBXBuildFile; fileRef = D687D143389986CBD5CB8867 /* platforms.ts */; };
@@ -239,6 +240,7 @@
 		82A539EFD028BA3B6530331D /* EntryScreen.ts */ = {isa = PBXFileReference; path = EntryScreen.ts; sourceTree = "<group>"; };
 		83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWUpdateChecker.swift; sourceTree = "<group>"; };
 		87BAD4A30B832689D018002F /* UserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserService.swift; sourceTree = "<group>"; };
+		8DD5586AC86473BDA01E958B /* GWPre1990Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWPre1990Tests.swift; sourceTree = "<group>"; };
 		8F56FE09101049E0EE121D59 /* ClientMovieFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMovieFilter.swift; sourceTree = "<group>"; };
 		90D8953AFED2CEB1C478827C /* SuppressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppressionTests.swift; sourceTree = "<group>"; };
 		9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWWatchFeedbackView.swift; sourceTree = "<group>"; };
@@ -413,6 +415,7 @@
 				B8EBB57DED471B58E60BE134 /* GWBugFixTests.swift */,
 				13E5109D77CD2D073D32BD9A /* GWInvariantTests.swift */,
 				3D9CAF4DA0B10BE76FA67C99 /* GWOnboardingTests.swift */,
+				8DD5586AC86473BDA01E958B /* GWPre1990Tests.swift */,
 				6E19311EE4ABA22790595809 /* GWProductInvariantTests.swift */,
 				BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */,
 			);
@@ -867,6 +870,7 @@
 				D259923B0DBDD8A632E38BAA /* GWBugFixTests.swift in Sources */,
 				58481B14EE7BBFC15B898491 /* GWInvariantTests.swift in Sources */,
 				4B66E90DBA10FA1A8265B726 /* GWOnboardingTests.swift in Sources */,
+				800304C7A4C19000906FF146 /* GWPre1990Tests.swift in Sources */,
 				15E71713B548B5B974725194 /* GWProductInvariantTests.swift in Sources */,
 				5554DA2BF0352914D1927C79 /* GWRecommendationEngineTests.swift in Sources */,
 			);

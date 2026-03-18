@@ -328,8 +328,7 @@ class UpcomingReleasesViewModel: ObservableObject {
                     case "2010s": if year >= 2010 && year <= 2019 { return true }
                     case "2000s": if year >= 2000 && year <= 2009 { return true }
                     case "90s": if year >= 1990 && year <= 1999 { return true }
-                    case "80s": if year >= 1980 && year <= 1989 { return true }
-                    case "Classic": if year < 1980 { return true }
+                    // "80s" and "Classic" removed — pre-1990 excluded
                     default: break
                     }
                 }

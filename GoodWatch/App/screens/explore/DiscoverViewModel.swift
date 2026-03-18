@@ -78,7 +78,7 @@ class DiscoverViewModel: ObservableObject {
     ]
 
     static let decadeOptions = [
-        "2020s", "2010s", "2000s", "90s", "80s", "Classic"
+        "2020s", "2010s", "2000s", "90s"
     ]
 
     // MARK: - Computed Properties

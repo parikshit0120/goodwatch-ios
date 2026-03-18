@@ -1176,7 +1176,8 @@ struct RootFlowView: View {
                     posterPath: pick.poster_url, goodScore: score,
                     platformDisplayName: provider?.displayName,
                     deepLinkURL: provider?.deepLinkURL?.absoluteString,
-                    webURL: provider?.webURL?.absoluteString
+                    webURL: provider?.webURL?.absoluteString,
+                    year: pick.year
                 )
             }
         } else if let movie = currentMovie {
@@ -1186,7 +1187,8 @@ struct RootFlowView: View {
                 posterPath: movie.poster_path, goodScore: currentGoodScore,
                 platformDisplayName: provider?.displayName,
                 deepLinkURL: provider?.deepLinkURL?.absoluteString,
-                webURL: provider?.webURL?.absoluteString
+                webURL: provider?.webURL?.absoluteString,
+                year: movie.year
             )
         }
 

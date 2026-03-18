@@ -1004,6 +1004,16 @@ final class GWRecommendationEngine {
         // This prevents deterministic repetition while still favoring quality
         let topN = Array(sorted.prefix(10))
         let picked = weightedRandomPick(from: topN)
+
+        // Post-chain year guard: belt-and-suspenders — reject pre-1990 even if
+        // tiered gates and passesBasicFilters somehow let one through.
+        if let movie = picked, movie.year > 0 && movie.year < 1990 {
+            if let fallback = topN.first(where: { $0.0.year == 0 || $0.0.year >= 1990 }) {
+                return GWRecommendationOutput(movie: fallback.0, stopCondition: nil)
+            }
+            return GWRecommendationOutput(movie: nil, stopCondition: .noCandidatePassesValidity)
+        }
+
         return GWRecommendationOutput(movie: picked, stopCondition: nil)
     }
 
@@ -1122,6 +1132,15 @@ final class GWRecommendationEngine {
         // Weighted random sampling — same as recommend() to avoid repetition
         let topN = Array(sorted.prefix(10))
         let picked = weightedRandomPick(from: topN)
+
+        // Post-chain year guard
+        if let movie = picked, movie.year > 0 && movie.year < 1990 {
+            if let fallback = topN.first(where: { $0.0.year == 0 || $0.0.year >= 1990 }) {
+                return GWRecommendationOutput(movie: fallback.0, stopCondition: nil)
+            }
+            return GWRecommendationOutput(movie: nil, stopCondition: .noCandidatePassesValidity)
+        }
+
         return GWRecommendationOutput(movie: picked, stopCondition: nil)
     }
 
@@ -1259,6 +1278,15 @@ final class GWRecommendationEngine {
         let sorted = scored.sorted { $0.1 > $1.1 }
         let topN = Array(sorted.prefix(10))
         let picked = weightedRandomPick(from: topN)
+
+        // Post-chain year guard
+        if let movie = picked, movie.year > 0 && movie.year < 1990 {
+            if let fallback = topN.first(where: { $0.0.year == 0 || $0.0.year >= 1990 }) {
+                return GWRecommendationOutput(movie: fallback.0, stopCondition: nil)
+            }
+            return GWRecommendationOutput(movie: nil, stopCondition: .noCandidatePassesValidity)
+        }
+
         return GWRecommendationOutput(movie: picked, stopCondition: nil)
     }
 
@@ -1817,6 +1845,9 @@ final class GWRecommendationEngine {
 
             guard let finalPick = picked else { break }
 
+            // Post-chain year guard
+            if finalPick.year > 0 && finalPick.year < 1990 { continue }
+
             selected.append(finalPick)
             usedIds.insert(finalPick.id)  // Accumulate for next iteration
             selectedGenres.formUnion(finalPick.genres.map { $0.lowercased() })
@@ -1963,7 +1994,14 @@ final class GWRecommendationEngine {
 
         let sorted = scored.sorted { $0.1 > $1.1 }
         let topN = Array(sorted.prefix(10))
-        return weightedRandomPick(from: topN)
+        let picked = weightedRandomPick(from: topN)
+
+        // Post-chain year guard
+        if let movie = picked, movie.year > 0 && movie.year < 1990 {
+            return topN.first(where: { $0.0.year == 0 || $0.0.year >= 1990 })?.0
+        }
+
+        return picked
     }
 
     func checkCatalogAvailability(
