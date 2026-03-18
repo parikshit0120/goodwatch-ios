@@ -61,6 +61,13 @@ final class GWKeychainManager {
         UserDefaults.standard.set(step, forKey: onboardingStepKey)
     }
 
+    /// Mark onboarding as complete (step 6). Call at the moment the LAST
+    /// preference step is confirmed, BEFORE navigation or recommendation fetch.
+    /// Testable entry point — both View code and unit tests call this.
+    func completeOnboarding() {
+        UserDefaults.standard.set(6, forKey: onboardingStepKey)
+    }
+
     /// Get last completed onboarding step for resume (UserDefaults — clears on reinstall)
     func getOnboardingStep() -> Int {
         return UserDefaults.standard.integer(forKey: onboardingStepKey)

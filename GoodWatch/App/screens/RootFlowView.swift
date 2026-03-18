@@ -568,7 +568,7 @@ struct RootFlowView: View {
                             try? await UserService.shared.updatePlatforms(platformStrings)
                             try? await UserService.shared.updateLanguages(languageStrings)
                         }
-                        GWKeychainManager.shared.storeOnboardingStep(6)
+                        GWKeychainManager.shared.completeOnboarding()
                         userContext.saveToDefaults()
                         // Task 7: Track onboarding completed (skipped steps via memory)
                         GWJourneyTracker.shared.trackOnboardingCompleted(
@@ -646,7 +646,7 @@ struct RootFlowView: View {
                     )
                     // Mark onboarding complete at preference selection, not recommendation fetch.
                     // Prevents onboarding loop if fetch fails or user kills app during loading.
-                    GWKeychainManager.shared.storeOnboardingStep(6)
+                    GWKeychainManager.shared.completeOnboarding()
                     // v1.3: Skip EmotionalHook, go directly to ConfidenceMoment
                     navigateTo(.confidenceMoment)
                     fetchRecommendation()
@@ -804,9 +804,9 @@ struct RootFlowView: View {
             // No more matches after rejection — show actionable state, NOT black screen
             noRecommendationView(message: "You've seen everything for this mood. Try a different mood or platform.")
         } else if isLoadingNextMovie {
-            // Loading next movie after rejection — show spinner, NOT black screen
+            // Pattern B: Loading next movie — systemBackground, never pure black
             ZStack {
-                GWColors.black.ignoresSafeArea()
+                Color(.systemBackground).ignoresSafeArea()
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(1.5)
@@ -1642,7 +1642,7 @@ struct RootFlowView: View {
                                 }
                             }
 
-                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            GWKeychainManager.shared.completeOnboarding()
                             // FIX 1: Save onboarding memory for 30-day skip
                             GWOnboardingMemory.shared.save(
                                 otts: self.userContext.otts,
@@ -1725,7 +1725,7 @@ struct RootFlowView: View {
                                 self.assignCurrentMovie(firstRaw, fallbackPool: movies)
                                 self.currentGoodScore = carouselPicks[0].composite_score > 0 ? Int(round(carouselPicks[0].composite_score)) : Int(round(carouselPicks[0].goodscore * 10))
                             }
-                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            GWKeychainManager.shared.completeOnboarding()
                             self.recommendationReady = true
                             self.tryTransitionToMainScreen()
                         }
@@ -1750,7 +1750,7 @@ struct RootFlowView: View {
                             self.isLoadingRecommendation = false
                             self.recommendationShownTime = Date()
                             self.pickCount = 1
-                            GWKeychainManager.shared.storeOnboardingStep(6)
+                            GWKeychainManager.shared.completeOnboarding()
                             self.recommendationReady = true
                             self.tryTransitionToMainScreen()
                         }
@@ -1805,7 +1805,7 @@ struct RootFlowView: View {
                         }
 
                         // Mark onboarding as complete
-                        GWKeychainManager.shared.storeOnboardingStep(6)
+                        GWKeychainManager.shared.completeOnboarding()
                         // FIX 1: Save onboarding memory for 30-day skip
                         GWOnboardingMemory.shared.save(
                             otts: self.userContext.otts,
@@ -2077,10 +2077,10 @@ struct RootFlowView: View {
 
         let rejectedId = movie.id
 
-        // Set loading state BEFORE async fetch — prevents black screen
+        // Pattern A: Keep old movie visible during async fetch — no blank frame.
+        // currentMovie stays non-nil until assignCurrentMovie replaces it atomically.
         isLoadingNextMovie = true
         showNoMoreMatches = false
-        currentMovie = nil  // clear card immediately — shows loading spinner
 
         // Add interaction points for already_seen
         GWInteractionPoints.shared.add(1)
@@ -2124,10 +2124,10 @@ struct RootFlowView: View {
 
         let rejectedId = movie.id
 
-        // Set loading state BEFORE async fetch — prevents black screen
+        // Pattern A: Keep old movie visible during async fetch — no blank frame.
+        // currentMovie stays non-nil until fetchNextRecommendation replaces it atomically.
         isLoadingNextMovie = true
         showNoMoreMatches = false
-        currentMovie = nil  // clear card immediately — shows loading spinner
 
         // Task 7: Record reject for session summary
         GWJourneyTracker.shared.recordReject()

@@ -83,12 +83,13 @@ struct PickCarouselView: View {
                 let spacing: CGFloat = 8
 
                 ZStack {
-                    ForEach(Array(picks.enumerated()), id: \.element.id) { index, _ in
+                    ForEach(Array(picks.enumerated()), id: \.element.id) { index, gwMovie in
                         let offset = cardOffset(for: index, cardWidth: cardWidth, spacing: spacing)
                         let scale = cardScale(for: index)
                         let opacity = cardOpacity(for: index)
 
                         cardContent(at: index)
+                            .id(gwMovie.id)  // Stable identity per movie — prevents full re-render on swipe
                             .frame(width: cardWidth)
                             .scaleEffect(scale)
                             .opacity(opacity)

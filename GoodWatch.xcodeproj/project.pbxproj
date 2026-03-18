@@ -46,6 +46,7 @@
 		43FB48E1BAE9DA76AEFCBBE2 /* stateMachine.ts in Resources */ = {isa = PBXBuildFile; fileRef = 95899A7C8C8DB8391962ADB4 /* stateMachine.ts */; };
 		45108D121C9BDE19F9B71D2A /* GWFeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AD03F1399D0B384628DCD1 /* GWFeatureFlags.swift */; };
 		4589BABF1B29AB68CF7103A2 /* EdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95879F14EF5D56E986A4657C /* EdgeCaseTests.swift */; };
+		4B66E90DBA10FA1A8265B726 /* GWOnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D9CAF4DA0B10BE76FA67C99 /* GWOnboardingTests.swift */; };
 		4D4A607E6F8C37E568CFDCBA /* GWProductionSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE34CEBB2236E731ED446866 /* GWProductionSafety.swift */; };
 		4EDABE021A0FB067232856BF /* PickCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C5AC8621EDF913B84D3D975 /* PickCardView.swift */; };
 		50A7A3A06765E716FAAA9859 /* GWUpdateBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74C96369B569536ED504A91E /* GWUpdateBanner.swift */; };
@@ -114,6 +115,7 @@
 		CFA34DDA22B85F8B8E9DB320 /* RejectedHardScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = C21A6780AABF63D38E2F49E0 /* RejectedHardScreen.ts */; };
 		D1F97F0E09C049B638E160A0 /* RootFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32557794E40998ABC4DA3F1F /* RootFlowView.swift */; };
 		D2524E398084DEC392CF39C5 /* normalization.ts in Resources */ = {isa = PBXBuildFile; fileRef = E2F7B83190F86F50945DA103 /* normalization.ts */; };
+		D259923B0DBDD8A632E38BAA /* GWBugFixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8EBB57DED471B58E60BE134 /* GWBugFixTests.swift */; };
 		D4B0BF3046A1D56F06AFA073 /* GWTestBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6394D4B6C1C289E7515A72 /* GWTestBase.swift */; };
 		D4DD4B140A94EF5395763120 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3D18F53786AB723744FAAB /* AuthView.swift */; };
 		D4FD557739D08C06248F9E70 /* GWNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC91814AC413AF9D407A984C /* GWNotificationService.swift */; };
@@ -191,6 +193,7 @@
 		3B344E8034126B89D91AA298 /* GWImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWImageCache.swift; sourceTree = "<group>"; };
 		3D8FB06502ACEBAE47DB28F0 /* PostWatchFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostWatchFeedbackView.swift; sourceTree = "<group>"; };
 		3D92D511EBCBAE7713E9A813 /* RejectionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RejectionOverlayView.swift; sourceTree = "<group>"; };
+		3D9CAF4DA0B10BE76FA67C99 /* GWOnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWOnboardingTests.swift; sourceTree = "<group>"; };
 		3F3D18F53786AB723744FAAB /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		4031A5701BDDF50C3D4451E3 /* WatchlistTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistTab.swift; sourceTree = "<group>"; };
 		41CCBA6A2D09135C5F477E05 /* TrailerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailerService.swift; sourceTree = "<group>"; };
@@ -265,6 +268,7 @@
 		B3B01060D20863AE7EA49248 /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		B418401C12F6C367E9A0F3DC /* GWRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWRecommendationEngine.swift; sourceTree = "<group>"; };
 		B6F1EAD399D0E425F4AC5461 /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
+		B8EBB57DED471B58E60BE134 /* GWBugFixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWBugFixTests.swift; sourceTree = "<group>"; };
 		B9C0145371D7D1977F5474B3 /* MovieDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailSheet.swift; sourceTree = "<group>"; };
 		BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWRecommendationEngineTests.swift; sourceTree = "<group>"; };
 		BE34CEBB2236E731ED446866 /* GWProductionSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWProductionSafety.swift; sourceTree = "<group>"; };
@@ -406,7 +410,9 @@
 		6923DD271C1043A268FEA236 /* GoodWatchTests */ = {
 			isa = PBXGroup;
 			children = (
+				B8EBB57DED471B58E60BE134 /* GWBugFixTests.swift */,
 				13E5109D77CD2D073D32BD9A /* GWInvariantTests.swift */,
+				3D9CAF4DA0B10BE76FA67C99 /* GWOnboardingTests.swift */,
 				6E19311EE4ABA22790595809 /* GWProductInvariantTests.swift */,
 				BB9B536C650AEFFBCF215C04 /* GWRecommendationEngineTests.swift */,
 			);
@@ -858,7 +864,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D259923B0DBDD8A632E38BAA /* GWBugFixTests.swift in Sources */,
 				58481B14EE7BBFC15B898491 /* GWInvariantTests.swift in Sources */,
+				4B66E90DBA10FA1A8265B726 /* GWOnboardingTests.swift in Sources */,
 				15E71713B548B5B974725194 /* GWProductInvariantTests.swift in Sources */,
 				5554DA2BF0352914D1927C79 /* GWRecommendationEngineTests.swift in Sources */,
 			);
@@ -1082,14 +1090,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -1103,14 +1111,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
