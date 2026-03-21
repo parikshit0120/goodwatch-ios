@@ -1,0 +1,17 @@
+{
+  "name": "goodwatch",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "sync:ott": "node scripts/sync-indian-ott.mjs",
+    "sync:validate": "node scripts/validate-sync.mjs",
+    "sync:all": "npm run sync:ott && npm run sync:validate"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "react-native-svg": "^15.15.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0"
+  }
+}
