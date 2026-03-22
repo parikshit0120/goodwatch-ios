@@ -25,12 +25,12 @@ jobs:
 
     steps:
       - name: Checkout iOS repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: goodwatch-ios
 
       - name: Checkout web repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository_owner }}/goodwatch-web
           path: goodwatch-web
