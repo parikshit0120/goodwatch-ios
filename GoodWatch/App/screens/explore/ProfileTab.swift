@@ -11,6 +11,11 @@ struct ProfileTab: View {
     @ObservedObject private var watchlist = WatchlistManager.shared
     @State private var cachedTagWeights: [String: Double] = [:]
 
+    // Delete Account state
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    @State private var deleteError: String? = nil
+
     var onSignOut: (() -> Void)?
 
     // Taste profile derived from cached tag weights
@@ -365,6 +370,50 @@ struct ProfileTab: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
                 }
+
+                Divider().background(GWColors.surfaceBorder)
+
+                // Delete Account (Apple App Store requirement 5.1.1(v))
+                Button {
+                    showDeleteConfirmation = true
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 15))
+                            .foregroundColor(.red)
+                            .frame(width: 24)
+
+                        Text("Delete Account")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.red)
+
+                        Spacer()
+
+                        if isDeleting {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                }
+                .disabled(isDeleting)
+                .alert("Delete Account?", isPresented: $showDeleteConfirmation) {
+                    Button("Delete My Account", role: .destructive) {
+                        handleDeleteAccount()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This will permanently delete your account and all associated data including your watchlist, preferences, and watch history. This action cannot be undone.")
+                }
+                .alert("Deletion Failed", isPresented: Binding(
+                    get: { deleteError != nil },
+                    set: { if !$0 { deleteError = nil } }
+                )) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(deleteError ?? "Something went wrong. Please try again.")
+                }
             }
             .background(GWColors.darkGray)
             .cornerRadius(14)
@@ -463,6 +512,28 @@ struct ProfileTab: View {
         // Weights typically range from 0.5 to 2.0
         let normalized = (weight - 0.5) / 1.5 // maps 0.5-2.0 → 0-1
         return CGFloat(max(0.05, min(1.0, normalized)))
+    }
+
+    private func handleDeleteAccount() {
+        isDeleting = true
+        Task {
+            do {
+                try await UserService.shared.deleteAccount()
+                await MainActor.run {
+                    isDeleting = false
+                    // Clear cached user data (same as sign out)
+                    UserDefaults.standard.removeObject(forKey: "gw_user_id")
+                    UserDefaults.standard.removeObject(forKey: "gw_user_display_name")
+                    WatchlistManager.shared.clearForSignOut()
+                    onSignOut?()
+                }
+            } catch {
+                await MainActor.run {
+                    isDeleting = false
+                    deleteError = "Could not delete account. Please try again."
+                }
+            }
+        }
     }
 
     private func handleSignOut() {

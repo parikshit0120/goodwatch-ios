@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoodWatch — Visual Comparison: Before vs After</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --black: #0A0A0A;
+    --surface: #1C1C1E;
+    --surface-light: #2C2C2E;
+    --gold: #D4AF37;
+    --gold-dark: #C9A227;
+    --white: #FFFFFF;
+    --light-gray: #8E8E93;
+    --mid-gray: #48484A;
+    --phone-w: 320px;
+    --phone-h: 692px;
+    --phone-radius: 40px;
+  }
+
+  body {
+    background: #111;
+    color: var(--white);
+    font-family: 'Inter', -apple-system, sans-serif;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--gold), #F5D76E);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--light-gray);
+    font-size: 14px;
+    margin-bottom: 48px;
+  }
+
+  /* Section */
+  .comparison-section {
+    max-width: 800px;
+    margin: 0 auto 64px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 4px;
+  }
+
+  .section-desc {
+    font-size: 13px;
+    color: var(--light-gray);
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+
+  .section-desc .change {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  /* Phone frames side by side */
+  .phone-row {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .phone-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .phone-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--light-gray);
+  }
+
+  .phone-label.after {
+    color: var(--gold);
+  }
+
+  /* Phone frame */
+  .phone {
+    width: var(--phone-w);
+    height: var(--phone-h);
+    background: var(--black);
+    border-radius: var(--phone-radius);
+    border: 3px solid #333;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  .phone.after-phone {
+    border-color: var(--gold);
+    box-shadow: 0 20px 60px rgba(212,175,55,0.15);
+  }
+
+  /* Notch */
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: #000;
+    border-radius: 0 0 16px 16px;
+    z-index: 10;
+  }
+
+  /* Screen content */
+  .screen {
+    width: 100%;
+    height: 100%;
+    padding: 48px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ===== SHARED ELEMENTS ===== */
+
+  .logo-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--black);
+    margin: 0 auto 12px;
+  }
+
+  .logo-text {
+    text-align: center;
+    font-size: 24px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--gold), #F5D76E);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .tagline {
+    text-align: center;
+    color: var(--light-gray);
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  .gold-btn {
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+    border: none;
+    border-radius: 14px;
+    color: var(--black);
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .outline-btn {
+    width: 100%;
+    height: 50px;
+    background: transparent;
+    border: 1.5px solid var(--mid-gray);
+    border-radius: 14px;
+    color: var(--white);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .skip-text {
+    text-align: center;
+    color: var(--light-gray);
+    font-size: 13px;
+    margin-top: 12px;
+  }
+
+  .spacer { flex: 1; }
+  .spacer-sm { height: 16px; }
+  .spacer-md { height: 24px; }
+
+  /* Mood card */
+  .mood-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    border: 1.5px solid transparent;
+  }
+
+  .mood-card.selected {
+    border-color: var(--gold);
+    background: rgba(212,175,55,0.08);
+  }
+
+  .mood-label { font-weight: 600; font-size: 14px; color: var(--white); }
+  .mood-sub { font-size: 11px; color: var(--light-gray); margin-top: 2px; }
+
+  /* ===== BACKDROP LAYER ===== */
+
+  .backdrop-layer {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 0;
+  }
+
+  .backdrop-layer img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(12px) brightness(0.5);
+    transform: scale(1.1);
+  }
+
+  .backdrop-gradient {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(10,10,10,0.3) 0%,
+      rgba(10,10,10,0.2) 30%,
+      rgba(10,10,10,0.6) 70%,
+      rgba(10,10,10,0.95) 100%
+    );
+  }
+
+  .screen-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  /* ===== LANDING: POSTER GRID ===== */
+
+  .poster-grid-bg {
+    position: absolute;
+    top: -20px; left: -20px; right: -20px; bottom: -20px;
+    z-index: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    transform: rotate(-8deg) scale(1.2);
+    opacity: 0.55;
+    filter: none;
+  }
+
+  .poster-grid-bg img {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+
+  .poster-grid-gradient {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(10,10,10,0.1) 0%,
+      rgba(10,10,10,0.25) 35%,
+      rgba(10,10,10,0.7) 65%,
+      rgba(10,10,10,0.95) 85%,
+      rgba(10,10,10,1) 100%
+    );
+    z-index: 0;
+  }
+
+  /* ===== MOOD: IMAGE STRIP ===== */
+
+  .mood-card-after {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 10px;
+    border: 1.5px solid transparent;
+    overflow: hidden;
+    height: 72px;
+  }
+
+  .mood-card-after.selected {
+    border-color: var(--gold);
+  }
+
+  .mood-thumb {
+    width: 56px;
+    height: 72px;
+    object-fit: cover;
+    flex-shrink: 0;
+    opacity: 0.9;
+  }
+
+  .mood-card-text {
+    padding: 10px 14px;
+    flex: 1;
+  }
+
+  /* ===== EMOTIONAL HOOK: BLURRED PREVIEW ===== */
+
+  .hook-rings {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto;
+  }
+
+  .ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 2px solid;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .ring-1 { width: 80px; height: 80px; border-color: var(--gold); opacity: 0.8; }
+  .ring-2 { width: 110px; height: 110px; border-color: var(--gold); opacity: 0.4; }
+  .ring-3 { width: 140px; height: 140px; border-color: var(--gold); opacity: 0.2; }
+
+  .ring-dot {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+    background: var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 20px var(--gold);
+  }
+
+  /* Blurred poster preview */
+  .poster-preview-container {
+    position: relative;
+    width: 180px;
+    height: 250px;
+    margin: 0 auto;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 0 50px rgba(212,175,55,0.3);
+  }
+
+  .poster-preview-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: blur(10px) brightness(0.8);
+    transform: scale(1.15);
+  }
+
+  .poster-preview-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10,10,10,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .poster-preview-overlay span {
+    font-size: 28px;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  /* ===== FEEDBACK: WITH POSTER ===== */
+
+  .feedback-poster {
+    width: 100px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin: 0 auto 12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+
+  .feedback-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--surface);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin: 0 auto 12px;
+  }
+
+  .heading-sm {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--white);
+  }
+
+  .heading-lg {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  .body-text {
+    text-align: center;
+    font-size: 13px;
+    color: var(--light-gray);
+    line-height: 1.5;
+  }
+
+  .feedback-option {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--white);
+  }
+
+  /* ===== ENJOY SCREEN ===== */
+
+  .enjoy-poster {
+    width: 140px;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 14px;
+    margin: 0 auto 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+
+  /* ===== SECTION SEPARATOR ===== */
+  .separator {
+    max-width: 800px;
+    margin: 0 auto 64px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--mid-gray), transparent);
+  }
+
+  /* Nav */
+  .nav-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--light-gray);
+    margin-bottom: 16px;
+  }
+
+  .back-arrow {
+    color: var(--light-gray);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+</style>
+</head>
+<body>
+
+<h1>GoodWatch Visual Upgrade</h1>
+<p class="subtitle">Before → After comparison for each screen. Real TMDB movie posters.</p>
+
+<!-- ============================== -->
+<!-- 1. LANDING SCREEN              -->
+<!-- ============================== -->
+<div class="comparison-section">
+  <div class="section-title">1. Landing Screen</div>
+  <p class="section-desc">
+    Currently: plain black background with logo.<br>
+    <span class="change">Proposed: Tilted poster collage grid behind the logo with heavy vignette. Instant "movie app" feeling.</span>
+  </p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="phone-label">Before</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="spacer"></div>
+          <div class="logo-icon">GW</div>
+          <div class="logo-text">GoodWatch</div>
+          <p class="tagline">One movie. No scrolling.</p>
+          <div class="spacer"></div>
+          <button class="gold-btn">Get started</button>
+          <div style="height:40px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="phone-label after">After</span>
+      <div class="phone after-phone">
+        <div class="screen" style="padding:0;">
+          <!-- Poster grid background -->
+          <div class="poster-grid-bg">
+            <img src="https://image.tmdb.org/t/p/w200/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/d5NXSklXo0qyIYkgV94XAgMIckC.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/7WsyChQLEftFiDhRDpZFHSLrkNU.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/aKuFiU82s5ISJpGZp7YkIR3UMvN.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/sv1xJUazXeYqALzczSZ3O6nkH75.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/hZkgoQYus5dXo3H8T7Uef6DNknx.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/62HCnUTziyWcpDaBO2i1DX17ljH.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/6CoRTJTmijhBLJTUNoVSUNxZMEI.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/3bhkrj58Vtu7enYsRolD1fZdja1.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/ngl2FKBlU4fhbdsrtdom9LVLBXw.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/t6HIqrRAclMCA60NsSmeqe9RmNV.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/vZloFAK7NmvMGKE7BEiEeBpMOat.jpg" alt="">
+            <img src="https://image.tmdb.org/t/p/w200/rktDFPbfHfUbArZ6OOOKsXcv0Bm.jpg" alt="">
+          </div>
+          <div class="poster-grid-gradient"></div>
+
+          <div class="screen-content" style="padding: 48px 24px 24px;">
+            <div class="spacer"></div>
+            <div class="logo-icon">GW</div>
+            <div class="logo-text">GoodWatch</div>
+            <p class="tagline">One movie. No scrolling.</p>
+            <div class="spacer"></div>
+            <button class="gold-btn">Get started</button>
+            <div style="height:40px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- ============================== -->
+<!-- 2. MOOD SELECTOR               -->
+<!-- ============================== -->
+<div class="comparison-section">
+  <div class="section-title">2. Mood Selector</div>
+  <p class="section-desc">
+    Currently: plain text cards with emojis.<br>
+    <span class="change">Proposed: Each mood card gets a small movie thumbnail on the left edge — makes it feel tactile and cinematic.</span>
+  </p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="phone-label">Before</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="back-arrow">← Back</div>
+          <div class="heading-lg" style="text-align:left; margin-bottom:4px;">What's your mood?</div>
+          <p class="body-text" style="text-align:left; margin-bottom:16px;">Pick one, we'll match it.</p>
+
+          <div class="mood-card selected">
+            <div><div class="mood-label">Feel Good</div><div class="mood-sub">Warm, uplifting, comforting</div></div>
+          </div>
+          <div class="mood-card">
+            <div><div class="mood-label">Easy Watch</div><div class="mood-sub">Light, fun, no stress</div></div>
+          </div>
+          <div class="mood-card">
+            <div><div class="mood-label">Surprise Me</div><div class="mood-sub">You choose, I trust you</div></div>
+          </div>
+          <div class="mood-card">
+            <div><div class="mood-label">Gripping</div><div class="mood-sub">Edge of seat, can't look away</div></div>
+          </div>
+          <div class="mood-card">
+            <div><div class="mood-label">Dark & Heavy</div><div class="mood-sub">Intense, thought-provoking</div></div>
+          </div>
+
+          <div class="spacer"></div>
+          <button class="gold-btn">Continue</button>
+          <div style="height:16px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="phone-label after">After</span>
+      <div class="phone after-phone">
+        <div class="screen">
+          <div class="back-arrow">← Back</div>
+          <div class="heading-lg" style="text-align:left; margin-bottom:4px;">What's your mood?</div>
+          <p class="body-text" style="text-align:left; margin-bottom:16px;">Pick one, we'll match it.</p>
+
+          <div class="mood-card-after selected">
+            <img class="mood-thumb" src="https://image.tmdb.org/t/p/w200/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg" alt="">
+            <div class="mood-card-text">
+              <div class="mood-label">Feel Good</div>
+              <div class="mood-sub">Warm, uplifting, comforting</div>
+            </div>
+          </div>
+          <div class="mood-card-after">
+            <img class="mood-thumb" src="https://image.tmdb.org/t/p/w200/d5NXSklXo0qyIYkgV94XAgMIckC.jpg" alt="">
+            <div class="mood-card-text">
+              <div class="mood-label">Easy Watch</div>
+              <div class="mood-sub">Light, fun, no stress</div>
+            </div>
+          </div>
+          <div class="mood-card-after">
+            <img class="mood-thumb" src="https://image.tmdb.org/t/p/w200/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg" alt="">
+            <div class="mood-card-text">
+              <div class="mood-label">Surprise Me</div>
+              <div class="mood-sub">You choose, I trust you</div>
+            </div>
+          </div>
+          <div class="mood-card-after">
+            <img class="mood-thumb" src="https://image.tmdb.org/t/p/w200/8cdWjvZQUExUUTzyp4t6EDMubfO.jpg" alt="">
+            <div class="mood-card-text">
+              <div class="mood-label">Gripping</div>
+              <div class="mood-sub">Edge of seat, can't look away</div>
+            </div>
+          </div>
+          <div class="mood-card-after">
+            <img class="mood-thumb" src="https://image.tmdb.org/t/p/w200/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg" alt="">
+            <div class="mood-card-text">
+              <div class="mood-label">Dark & Heavy</div>
+              <div class="mood-sub">Intense, thought-provoking</div>
+            </div>
+          </div>
+
+          <div class="spacer"></div>
+          <button class="gold-btn">Continue</button>
+          <div style="height:16px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- ============================== -->
+<!-- 3. EMOTIONAL HOOK               -->
+<!-- ============================== -->
+<div class="comparison-section">
+  <div class="section-title">3. Emotional Hook (Pre-reveal)</div>
+  <p class="section-desc">
+    Currently: abstract pulsing gold rings.<br>
+    <span class="change">Proposed: The actual movie poster, heavily blurred + dark overlay with a "?" icon. Builds anticipation — "something's behind this curtain."</span>
+  </p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="phone-label">Before</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="spacer"></div>
+          <div class="heading-lg" style="margin-bottom:24px;">Your perfect pick<br>is ready</div>
+
+          <div class="hook-rings">
+            <div class="ring ring-3"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-1"></div>
+            <div class="ring-dot"></div>
+          </div>
+
+          <div class="spacer"></div>
+          <button class="gold-btn">Show me</button>
+          <div class="spacer-sm"></div>
+          <div class="back-arrow" style="text-align:center;">Change preferences</div>
+          <div style="height:24px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="phone-label after">After</span>
+      <div class="phone after-phone">
+        <div class="screen">
+          <div class="spacer"></div>
+          <div class="heading-lg" style="margin-bottom:24px;">Your perfect pick<br>is ready</div>
+
+          <div class="poster-preview-container">
+            <img src="https://image.tmdb.org/t/p/w500/qNBAXBIQlnOThrVvA6mA2B5ggV6.jpg" alt="">
+            <div class="poster-preview-overlay">
+              <span>?</span>
+            </div>
+          </div>
+
+          <div class="spacer"></div>
+          <button class="gold-btn">Show me</button>
+          <div class="spacer-sm"></div>
+          <div class="back-arrow" style="text-align:center;">Change preferences</div>
+          <div style="height:24px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- ============================== -->
+<!-- 4. POST-WATCH FEEDBACK          -->
+<!-- ============================== -->
+<div class="comparison-section">
+  <div class="section-title">4. Post-Watch Feedback</div>
+  <p class="section-desc">
+    Currently: generic film icon, no visual reminder of which movie.<br>
+    <span class="change">Proposed: Movie poster thumbnail + backdrop so user instantly recognizes what they're rating.</span>
+  </p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="phone-label">Before</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="spacer"></div>
+
+          <div class="feedback-icon" style="font-size:16px; font-weight:700; color:var(--gold);">GW</div>
+          <div class="heading-lg" style="margin-bottom:8px;">How was it?</div>
+          <p class="body-text" style="margin-bottom:24px;">You watched<br><strong style="color:var(--white);">The Shawshank Redemption</strong></p>
+
+          <div class="feedback-option">Loved it — finished the whole thing</div>
+          <div class="feedback-option">Stopped watching halfway</div>
+          <div class="feedback-option">Skip — don't want to say</div>
+
+          <div class="spacer"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="phone-label after">After</span>
+      <div class="phone after-phone">
+        <div class="screen" style="padding:0;">
+          <div class="backdrop-layer">
+            <img src="https://image.tmdb.org/t/p/w500/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg" alt="">
+            <div class="backdrop-gradient"></div>
+          </div>
+
+          <div class="screen-content" style="padding: 48px 24px 24px;">
+            <div class="spacer"></div>
+
+            <img class="feedback-poster" src="https://image.tmdb.org/t/p/w200/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg" alt="">
+            <div class="heading-lg" style="margin-bottom:8px;">How was it?</div>
+            <p class="body-text" style="margin-bottom:24px;"><strong style="color:var(--white);">The Shawshank Redemption</strong></p>
+
+            <div class="feedback-option">Loved it — finished the whole thing</div>
+            <div class="feedback-option">Stopped watching halfway</div>
+            <div class="feedback-option">Skip — don't want to say</div>
+
+            <div class="spacer"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<!-- ============================== -->
+<!-- 5. ENJOY SCREEN                 -->
+<!-- ============================== -->
+<div class="comparison-section">
+  <div class="section-title">5. Enjoy Screen (Post-accept)</div>
+  <p class="section-desc">
+    Currently: popcorn icon + "Enjoy!" text — feels generic.<br>
+    <span class="change">Proposed: Movie poster with backdrop + cinematic vibe. Reinforces the choice and feels premium.</span>
+  </p>
+
+  <div class="phone-row">
+    <!-- BEFORE -->
+    <div class="phone-col">
+      <span class="phone-label">Before</span>
+      <div class="phone">
+        <div class="screen">
+          <div class="spacer"></div>
+
+          <div style="text-align:center; font-size:32px; font-weight:800; margin-bottom:16px; color:var(--gold);">GW</div>
+          <div class="heading-lg" style="background: linear-gradient(135deg, var(--gold), #F5D76E); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:8px;">Enjoy!</div>
+          <p class="body-text">We hope you love it.</p>
+
+          <div class="spacer"></div>
+          <button class="gold-btn">Pick another</button>
+          <div class="spacer-sm"></div>
+          <p class="skip-text">Done for tonight</p>
+          <div style="height:32px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="phone-col">
+      <span class="phone-label after">After</span>
+      <div class="phone after-phone">
+        <div class="screen" style="padding:0;">
+          <div class="backdrop-layer">
+            <img src="https://image.tmdb.org/t/p/w500/tmU7GeKVybMWFButWEGl2M4GeiP.jpg" alt="">
+            <div class="backdrop-gradient"></div>
+          </div>
+
+          <div class="screen-content" style="padding: 48px 24px 24px;">
+            <div class="spacer"></div>
+
+            <img class="enjoy-poster" src="https://image.tmdb.org/t/p/w200/d5NXSklXo0qyIYkgV94XAgMIckC.jpg" alt="">
+            <div class="heading-lg" style="background: linear-gradient(135deg, var(--gold), #F5D76E); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom:8px;">Enjoy!</div>
+            <p class="body-text" style="margin-bottom:4px;"><strong style="color:var(--white);">The Dark Knight</strong></p>
+            <p class="body-text">We hope you love it.</p>
+
+            <div class="spacer"></div>
+            <button class="gold-btn">Pick another</button>
+            <div class="spacer-sm"></div>
+            <p class="skip-text">Done for tonight</p>
+            <div style="height:32px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="separator"></div>
+
+<p style="text-align:center; color:var(--light-gray); font-size:12px; padding-bottom:40px;">
+  All posters from TMDB. This is a preview mockup — no app code was changed.
+</p>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 07 - Explore Entry (Auth Gate)"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- assertVisible: "GoodWatch"
+- assertVisible:
+    id: "landing_explore"
+- tapOn:
+    id: "landing_explore"
+- waitForAnimationToEnd
+- takeScreenshot: flow_07_explore_auth_gate

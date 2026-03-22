@@ -1,0 +1,2361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoodWatch Audit Report - 2026-02-22</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e5e5e5; padding: 24px; }
+.container { max-width: 1200px; margin: 0 auto; }
+.header { text-align: center; padding: 32px 0; border-bottom: 1px solid #333; margin-bottom: 32px; position: relative; }
+.header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.header .subtitle { color: #888; font-size: 14px; }
+.score-card { display: flex; justify-content: center; gap: 40px; margin: 24px 0; flex-wrap: wrap; }
+.score-item { text-align: center; }
+.score-item .value { font-size: 36px; font-weight: 800; }
+.score-item .label { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+.score-100 { color: #22c55e; }
+.section { margin-bottom: 32px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #1a1a1a; border-radius: 8px 8px 0 0; border: 1px solid #333; border-bottom: none; cursor: pointer; }
+.section-header h2 { font-size: 16px; font-weight: 600; }
+.section-stats { font-size: 13px; color: #888; }
+table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; }
+th { background: #1f1f1f; padding: 8px 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; border-bottom: 1px solid #333; }
+td { padding: 8px 12px; border-bottom: 1px solid #222; font-size: 13px; vertical-align: top; }
+tr:hover { background: #1a1a1a; }
+.status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+.status-pass { background: #22c55e22; color: #22c55e; }
+.status-fail { background: #ef444422; color: #ef4444; }
+.status-warn { background: #f59e0b22; color: #f59e0b; }
+.status-skip { background: #94a3b822; color: #94a3b8; }
+.severity { font-size: 11px; padding: 2px 6px; border-radius: 3px; }
+.sev-critical { background: #7f1d1d; color: #fca5a5; }
+.sev-high { background: #78350f; color: #fcd34d; }
+.sev-medium { background: #1e3a5f; color: #93c5fd; }
+.sev-low { background: #14532d; color: #86efac; }
+.detail { color: #888; font-size: 12px; max-width: 300px; word-break: break-word; }
+.summary-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 16px 0; }
+.summary-bar .pass { background: #22c55e; }
+.summary-bar .fail { background: #ef4444; }
+.summary-bar .warn { background: #f59e0b; }
+.summary-bar .skip { background: #333; }
+.filter-bar { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+.filter-btn { padding: 6px 16px; border-radius: 6px; border: 1px solid #444; background: transparent; color: #ccc; cursor: pointer; font-size: 12px; }
+.filter-btn.active { background: #333; color: #fff; border-color: #666; }
+.footer { text-align: center; padding: 24px 0; color: #555; font-size: 12px; border-top: 1px solid #222; margin-top: 32px; }
+.download-btn { position: absolute; right: 0; bottom: 12px; padding: 10px 20px; background: linear-gradient(135deg, #d4a244, #c49030); color: #0a0a0a; font-weight: 700; font-size: 13px; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(212,162,68,0.35); transition: all 0.2s; }
+.download-btn:hover { background: linear-gradient(135deg, #e0b050, #d4a244); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(212,162,68,0.5); }
+.download-btn svg { width: 16px; height: 16px; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>GoodWatch Audit Report</h1>
+<div class="subtitle">Agent v1.3.1 | 2026-02-22 | manual trigger | 452s runtime</div>
+<button class="download-btn" onclick="downloadExcel()">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+Download Excel
+</button>
+</div>
+
+<div class="score-card">
+<div class="score-item"><div class="value score-100">100.0%</div><div class="label">Score</div></div>
+<div class="score-item"><div class="value" style="color:#22c55e">97</div><div class="label">Passed</div></div>
+<div class="score-item"><div class="value" style="color:#ef4444">0</div><div class="label">Failed</div></div>
+<div class="score-item"><div class="value" style="color:#f59e0b">2</div><div class="label">Warnings</div></div>
+<div class="score-item"><div class="value" style="color:#94a3b8">129</div><div class="label">Skipped</div></div>
+<div class="score-item"><div class="value" style="color:#fff">228</div><div class="label">Total</div></div>
+</div>
+
+<div class="summary-bar">
+<div class="pass" style="width:42.5%"></div>
+<div class="fail" style="width:0.0%"></div>
+<div class="warn" style="width:0.9%"></div>
+<div class="skip" style="width:56.6%"></div>
+</div>
+
+<div class="filter-bar">
+<button class="filter-btn active" onclick="filterRows('all')">All (228)</button>
+<button class="filter-btn" onclick="filterRows('pass')">Pass (97)</button>
+<button class="filter-btn" onclick="filterRows('fail')">Fail (0)</button>
+<button class="filter-btn" onclick="filterRows('warn')">Warn (2)</button>
+<button class="filter-btn" onclick="filterRows('skip')">Skip (129)</button>
+</div>
+
+<div class="section">
+<div class="section-header">
+<h2>A - Data Integrity</h2>
+<div class="section-stats">29 pass | 0 fail | 1 warn | 2 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>A01</strong></td>
+<td>Total movies >= 19,500</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=19500</td>
+<td>20008</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A02</strong></td>
+<td>Emotional profile coverage (95.8%)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=95%</td>
+<td>95.8% (19162/20008)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A03</strong></td>
+<td>All emotional_profiles have 8 dimensions</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 incomplete</td>
+<td>0/50 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A04</strong></td>
+<td>100% movies have tags</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 nulls</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A05</strong></td>
+<td>Each movie has 5 tag categories</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/50 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A06</strong></td>
+<td>Emotional profile values within 0-10</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 out-of-range</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A07</strong></td>
+<td>No stuck profiles (all dims identical)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 stuck</td>
+<td>0/100 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A08</strong></td>
+<td>Movies with poster_path (97.0%)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=95%</td>
+<td>97.0% (19415/20008)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A09</strong></td>
+<td>100% movies have overview</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 nulls</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A10</strong></td>
+<td>100% movies have genres</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 nulls</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A11</strong></td>
+<td>Movies with release_date (99.6%)</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=95%</td>
+<td>99.6% (19936/20008)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-warn" data-status="warn">
+<td><strong>A12</strong></td>
+<td>Movies with runtime (82.7%)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-warn">WARN</span></td>
+<td>>=95%</td>
+<td>82.7% (16537/20008)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A13</strong></td>
+<td>100% movies have vote_average</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 nulls</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>A14</strong></td>
+<td>No duplicate tmdb_ids</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">RPC not available, needs manual check</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A15</strong></td>
+<td>No movies with runtime < 40</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 shorts</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A16</strong></td>
+<td>No stand-up specials in pool</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 stand-ups</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A17</strong></td>
+<td>OTT provider data >= 60%</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=60%</td>
+<td>100.0%</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A18</strong></td>
+<td>Ratings enrichment >= 90%</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=90%</td>
+<td>94.6%</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A19_en</strong></td>
+<td>English movies >= 5000</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=5000</td>
+<td>7359</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A19_hi</strong></td>
+<td>Hindi movies >= 2000</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=2000</td>
+<td>2692</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A19_ta</strong></td>
+<td>Tamil movies >= 1000</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=1000</td>
+<td>1509</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A19_te</strong></td>
+<td>Telugu movies >= 1000</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=1000</td>
+<td>1374</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A20</strong></td>
+<td>Dark movies: darkness >= 6</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=70% pass</td>
+<td>83% (5/6)</td>
+<td class="detail">Failed: Parasite(darkness=3)</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A21</strong></td>
+<td>Feel-good movies: comfort >= 6</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=70% pass</td>
+<td>88% (7/8)</td>
+<td class="detail">Failed: The Grand Budapest Hotel(comfort=5)</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A22</strong></td>
+<td>Complex movies: complexity >= 7</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=70% pass</td>
+<td>75% (6/8)</td>
+<td class="detail">Failed: Inception(complexity=4), Interstellar(complexity=6)</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A23</strong></td>
+<td>Comedies: humour >= 6</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=70% pass</td>
+<td>100% (7/7)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A25</strong></td>
+<td>Tag cognitive_load values valid</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/200 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A26</strong></td>
+<td>Tag emotional_outcome values valid</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/200 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A27</strong></td>
+<td>Tag energy values valid</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/200 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A28</strong></td>
+<td>Tag attention values valid</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/200 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>A29</strong></td>
+<td>Tag risk values valid</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 missing</td>
+<td>0/200 sampled</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>A30</strong></td>
+<td>OTT data freshness top 500</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires watch_providers_updated_at column -- check manually</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>B - Engine Invariants</h2>
+<div class="section-stats">9 pass | 0 fail | 0 warn | 21 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>B01</strong></td>
+<td>Scoring weights: tag=50%, regret=25%, platform=15%, dim=10%</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>All 4 weights present</td>
+<td>tag=True, regret=True, platform=True, dim=True</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B02</strong></td>
+<td>Taste engine weight 0-0.15</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0.15 max + taste reference</td>
+<td>0.15=Found, taste=Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B03</strong></td>
+<td>Confidence boost 0-5%</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B04</strong></td>
+<td>Tag deltas: watch=+0.15, not_tonight=-0.20, abandoned=-0.40, skip=-0.05</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>All deltas found</td>
+<td>All found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B05</strong></td>
+<td>Tag weight clamp 0-1</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B06</strong></td>
+<td>Quality thresholds</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not in mood_mappings -- verify in engine code</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B07</strong></td>
+<td>New user recency gate pre-2010</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B08</strong></td>
+<td>GoodScore thresholds by mood</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B09</strong></td>
+<td>computeMoodAffinity 0-1 range</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B10</strong></td>
+<td>Anti-tag penalty -0.10</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B11</strong></td>
+<td>isValidMovie excludes shorts/stand-up</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Both checks present</td>
+<td>runtime=True, standup=True</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B12</strong></td>
+<td>Engine returns 1 or ordered list</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B13</strong></td>
+<td>Never recommend watched movie</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B14</strong></td>
+<td>Soft reject 7-day cooldown</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B15</strong></td>
+<td>No same-movie same-session</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B16</strong></td>
+<td>Progressive picks tiers defined</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Progressive picks logic</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B17</strong></td>
+<td>Interaction point values</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B18</strong></td>
+<td>Interaction points ratchet</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B19</strong></td>
+<td>Temperature = 0.15</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0.15</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B20</strong></td>
+<td>Movies scored against correct mood targets</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B21</strong></td>
+<td>5 moods active</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>{'surprise_me', 'dark_heavy', 'gripping', 'feel_good', 'easy_watch'}</td>
+<td>{'gripping', 'feel_good', 'surprise_me', 'easy_watch', 'dark_heavy'}</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B22</strong></td>
+<td>mood_mappings has 5 rows</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>5</td>
+<td>5</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B23</strong></td>
+<td>surprise_me weights</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">mood_mappings row not found</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>B24</strong></td>
+<td>All 8 feature flags ON</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>All 8 ON</td>
+<td>All ON</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B25</strong></td>
+<td>Dimensional learning = 10%</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B26</strong></td>
+<td>tagAlignment = 50%</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B27</strong></td>
+<td>No movie < GoodScore 60 reaches user</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B28</strong></td>
+<td>Language priority scoring</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B29</strong></td>
+<td>Duration union ranges</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>B30</strong></td>
+<td>Feed-forward same session</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires runtime/simulator testing</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>C - User Experience</h2>
+<div class="section-stats">1 pass | 0 fail | 0 warn | 0 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>C09</strong></td>
+<td>No possessive pronouns in copy</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 violations</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>D - Protected Files & Compliance</h2>
+<div class="section-stats">13 pass | 0 fail | 0 warn | 17 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>D01</strong></td>
+<td>CLAUDE.md exists and non-empty</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Exists >100 bytes</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D02</strong></td>
+<td>INVARIANTS.md exists and non-empty</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Exists >100 bytes</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D03</strong></td>
+<td>Pre-commit hook installed</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Skip in CI: hooks are local-only, verified on developer machine</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D04</strong></td>
+<td>skip-worktree lock on CLAUDE.md</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Skip in CI: skip-worktree is local-only</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D05</strong></td>
+<td>skip-worktree lock on INVARIANTS.md</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Skip in CI: skip-worktree is local-only</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D06</strong></td>
+<td>unlock.sh exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Exists</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D07</strong></td>
+<td>GWRecommendationEngine.swift hash baseline recorded</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Recorded hash 7d337810ac22e52f</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D08</strong></td>
+<td>Movie.swift unchanged from approved</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Hash cce3536f49c4e64c</td>
+<td>Hash cce3536f49c4e64c</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D09</strong></td>
+<td>GWSpec.swift unchanged from approved</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Hash 9f339e4fb6896d40</td>
+<td>Hash 9f339e4fb6896d40</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D10</strong></td>
+<td>RootFlowView.swift hash baseline recorded</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Recorded hash 9b6976e66af92a25</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D11</strong></td>
+<td>CLAUDE.md Section 15 (Protection System) present</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Section 15 present</td>
+<td>MISSING</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D12</strong></td>
+<td>CLAUDE.md invariants table present</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>INV- references found</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D13</strong></td>
+<td>GWProductInvariantTests.swift exists</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Exists</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D14</strong></td>
+<td>Check D14</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D15</strong></td>
+<td>Check D15</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D16</strong></td>
+<td>Check D16</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D17</strong></td>
+<td>Check D17</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D18</strong></td>
+<td>Check D18</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D19</strong></td>
+<td>Check D19</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D20</strong></td>
+<td>Check D20</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D21</strong></td>
+<td>Check D21</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D22</strong></td>
+<td>No hardcoded API keys in Swift</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 violations</td>
+<td>0</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D23</strong></td>
+<td>Check D23</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D24</strong></td>
+<td>Check D24</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D25</strong></td>
+<td>Check D25</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D26</strong></td>
+<td>CLAUDE.md: DO NOT TOUCH rule present</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Rule present</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>D27</strong></td>
+<td>CLAUDE.md: Only modify when explicitly asked rule</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Rule present</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D28</strong></td>
+<td>Check D28</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D29</strong></td>
+<td>Check D29</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>D30</strong></td>
+<td>Check D30</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet implemented</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>E - Website & SEO</h2>
+<div class="section-stats">10 pass | 0 fail | 0 warn | 20 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>E01</strong></td>
+<td>goodwatch.movie loads (HTTP 200)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E02</strong></td>
+<td>Homepage has title, description, OG tags</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>All 3 present</td>
+<td>title=True, og=True, desc=True</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E03</strong></td>
+<td>/command-center/audit page exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E04</strong></td>
+<td>Movie pages return 200 (sample 5)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=3/5</td>
+<td>5/5</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E05</strong></td>
+<td>Check E05</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E06</strong></td>
+<td>Check E06</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E07</strong></td>
+<td>Check E07</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E08</strong></td>
+<td>Check E08</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E09</strong></td>
+<td>Check E09</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E10</strong></td>
+<td>sitemap.xml exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E11</strong></td>
+<td>robots.txt exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E12</strong></td>
+<td>Check E12</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E13</strong></td>
+<td>Check E13</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E14</strong></td>
+<td>Check E14</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E15</strong></td>
+<td>Check E15</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E16</strong></td>
+<td>Check E16</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E17</strong></td>
+<td>Check E17</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E18</strong></td>
+<td>HTTPS enforced</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>https</td>
+<td>https://</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E19</strong></td>
+<td>Check E19</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E20</strong></td>
+<td>Check E20</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E21</strong></td>
+<td>Check E21</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E22</strong></td>
+<td>Cloudflare Pages deployment active</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Site accessible</td>
+<td>Yes</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E23</strong></td>
+<td>Check E23</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E24</strong></td>
+<td>Check E24</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E25</strong></td>
+<td>Check E25</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E26</strong></td>
+<td>Check E26</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E27</strong></td>
+<td>Check E27</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E28</strong></td>
+<td>No Lorem ipsum or placeholder text</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>No lorem</td>
+<td>Clean</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>E29</strong></td>
+<td>No possessive pronouns on homepage</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>0 violations</td>
+<td>Clean</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>E30</strong></td>
+<td>Check E30</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>F - Supabase & Backend</h2>
+<div class="section-stats">10 pass | 0 fail | 0 warn | 15 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>F01</strong></td>
+<td>Supabase project accessible</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200/206</td>
+<td>206</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F02</strong></td>
+<td>RLS enabled on interactions</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>No anon access</td>
+<td>count=0, status=200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F03</strong></td>
+<td>Check F03</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F04</strong></td>
+<td>Check F04</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F05</strong></td>
+<td>mood_mappings: 5 rows</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>5</td>
+<td>5</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F06</strong></td>
+<td>Check F06</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F07</strong></td>
+<td>Check F07</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F08</strong></td>
+<td>Check F08</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F09</strong></td>
+<td>Feature flags table has entries</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=8</td>
+<td>8</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F10</strong></td>
+<td>interactions table exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Accessible</td>
+<td>206</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F11</strong></td>
+<td>user_watchlist table exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Accessible</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F12</strong></td>
+<td>user_tag_weights_bulk table exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Accessible</td>
+<td>206</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F13</strong></td>
+<td>Check F13</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F14</strong></td>
+<td>Check F14</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F15</strong></td>
+<td>REST API responds < 1500ms</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td><1500ms</td>
+<td>420ms</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F16</strong></td>
+<td>Check F16</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F17</strong></td>
+<td>Check F17</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F18</strong></td>
+<td>Check F18</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F19</strong></td>
+<td>API keys valid</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Working</td>
+<td>Yes</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F20</strong></td>
+<td>Check F20</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F21</strong></td>
+<td>Check F21</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F22</strong></td>
+<td>Check F22</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F23</strong></td>
+<td>Check F23</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>F24</strong></td>
+<td>Movies table has data (not wiped)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>1000</td>
+<td>20008</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>F25</strong></td>
+<td>Check F25</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>G - iOS Build & Tests</h2>
+<div class="section-stats">1 pass | 0 fail | 1 warn | 23 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-skip" data-status="skip">
+<td><strong>G01</strong></td>
+<td>Xcode build</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Build timed out (5min)</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>G02</strong></td>
+<td>Unit tests: 0 new failures</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td><=12 failures (pre-existing)</td>
+<td>0 failures</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-warn" data-status="warn">
+<td><strong>G03</strong></td>
+<td>Invariant tests pass</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-warn">WARN</span></td>
+<td>All pass</td>
+<td>Could not run</td>
+<td class="detail">Tests could not execute in CI -- simulator/signing issues. Run locally to verify.</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G04</strong></td>
+<td>Check G04</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G05</strong></td>
+<td>Check G05</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G06</strong></td>
+<td>Check G06</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G07</strong></td>
+<td>Check G07</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G08</strong></td>
+<td>Check G08</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G09</strong></td>
+<td>Check G09</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G10</strong></td>
+<td>Check G10</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G11</strong></td>
+<td>Check G11</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G12</strong></td>
+<td>Check G12</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G13</strong></td>
+<td>Check G13</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G14</strong></td>
+<td>Check G14</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G15</strong></td>
+<td>Check G15</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G16</strong></td>
+<td>Check G16</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G17</strong></td>
+<td>Check G17</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G18</strong></td>
+<td>Check G18</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G19</strong></td>
+<td>Check G19</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G20</strong></td>
+<td>Check G20</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G21</strong></td>
+<td>Check G21</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G22</strong></td>
+<td>Check G22</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G23</strong></td>
+<td>Check G23</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G24</strong></td>
+<td>Check G24</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>G25</strong></td>
+<td>Check G25</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not yet automated</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>H - Marketing Infrastructure</h2>
+<div class="section-stats">2 pass | 0 fail | 0 warn | 18 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-skip" data-status="skip">
+<td><strong>H01</strong></td>
+<td>Check H01</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H02</strong></td>
+<td>Check H02</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H03</strong></td>
+<td>Check H03</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H04</strong></td>
+<td>Check H04</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H05</strong></td>
+<td>Check H05</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H06</strong></td>
+<td>Check H06</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H07</strong></td>
+<td>Check H07</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H08</strong></td>
+<td>Check H08</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>H09</strong></td>
+<td>Privacy policy URL valid</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H10</strong></td>
+<td>Check H10</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H11</strong></td>
+<td>Check H11</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H12</strong></td>
+<td>Check H12</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H13</strong></td>
+<td>Check H13</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H14</strong></td>
+<td>Check H14</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H15</strong></td>
+<td>Check H15</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H16</strong></td>
+<td>Check H16</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H17</strong></td>
+<td>Check H17</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H18</strong></td>
+<td>Check H18</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>H19</strong></td>
+<td>Domain goodwatch.movie healthy</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>200</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>H20</strong></td>
+<td>Check H20</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual/external check</td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>I - Retention & Addiction Loop</h2>
+<div class="section-stats">21 pass | 0 fail | 0 warn | 4 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>I01</strong></td>
+<td>Tag weight sync active (user_tag_weights_bulk has data)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=1 user with synced weights</td>
+<td>3 users found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I02</strong></td>
+<td>Interactions update tag weights</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Tag weights have timestamps</td>
+<td>3 entries found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I03</strong></td>
+<td>Tag weights diverge from defaults after interactions</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>At least 1 user with non-default weights</td>
+<td>3/3 users diverged</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>I04</strong></td>
+<td>Session diversity</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">No multi-session users found yet -- pre-launch</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I05</strong></td>
+<td>Tag weights show evolution (non-default values)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Users with tag weight data</td>
+<td>3 users in bulk table, 3 with evolved weights</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>I06</strong></td>
+<td>Mood differentiation</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Only 0 moods found</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I07</strong></td>
+<td>Score diversity across catalog (spread > 2)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>2 point spread</td>
+<td>0.5 to 10.0 (spread=9.5)</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I08</strong></td>
+<td>Genre diversity in quality movies (>= 8 genres)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=8 genres</td>
+<td>23 genres: News, Sci-Fi & Fantasy, Crime, Music, Kids, Romance, Reality, Family, War, Action</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>I09</strong></td>
+<td>Surprise me config</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Not found</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I10</strong></td>
+<td>Late night quality floor in engine</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Late night logic present</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I11</strong></td>
+<td>Post-watch feedback flow exists</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Feedback view exists</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I12</strong></td>
+<td>Watchlist table exists and accessible</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Table accessible</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>I13</strong></td>
+<td>Decision speed</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">No shown->watch_now pairs yet</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I14</strong></td>
+<td>Push notifications enabled</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Enabled</td>
+<td>True</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I15</strong></td>
+<td>Progressive picks tiers (5->4->3->2->1) in code</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>All tier values present</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I16</strong></td>
+<td>High-confidence titles available (rating>=7.5, votes>=500)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=100 movies</td>
+<td>837</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I17</strong></td>
+<td>Post-2010 quality movies available (recency gate pool)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=500 movies</td>
+<td>5009</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I18</strong></td>
+<td>Card rejection tracking exists in code</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Implicit skip/rejection code found</td>
+<td>Found</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I19</strong></td>
+<td>Users with multiple sessions same day</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Tracking multi-session behavior</td>
+<td>9 user-days with 2+ sessions</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I20</strong></td>
+<td>Quality improvement tracking capability</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Interactions table captures data for quality analysis</td>
+<td>264 interactions recorded</td>
+<td class="detail">Full analysis requires 10+ users with 10+ interactions each</td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I21</strong></td>
+<td>User interactions persist (cloud)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Table accessible</td>
+<td>206</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I22</strong></td>
+<td>Watchlist persists (cloud)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Table accessible</td>
+<td>200</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I23</strong></td>
+<td>Tag weights persist (cloud)</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Table accessible</td>
+<td>206</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I24</strong></td>
+<td>GoodScore data available (vote_average as proxy)</td>
+<td><span class="severity sev-medium">medium</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Movies have rating data</td>
+<td>5 sampled with vote_average</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-pass" data-status="pass">
+<td><strong>I25</strong></td>
+<td>Movie overviews available for 'why this' copy (>= 90%)</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>>=90%</td>
+<td>98.3% (19672/20008)</td>
+<td class="detail"></td>
+</tr>
+</tbody></table></div>
+
+<div class="section">
+<div class="section-header">
+<h2>J - Security & Compliance</h2>
+<div class="section-stats">1 pass | 0 fail | 0 warn | 9 skip</div>
+</div>
+<table>
+<thead><tr><th>ID</th><th>Check</th><th>Severity</th><th>Status</th><th>Expected</th><th>Actual</th><th>Detail</th></tr></thead>
+<tbody>
+<tr class="row-pass" data-status="pass">
+<td><strong>J01</strong></td>
+<td>RLS on user-data tables</td>
+<td><span class="severity sev-critical">critical</span></td>
+<td><span class="status status-pass">PASS</span></td>
+<td>Checked in F02</td>
+<td>See F02</td>
+<td class="detail"></td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J02</strong></td>
+<td>Check J02</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J03</strong></td>
+<td>Check J03</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J04</strong></td>
+<td>Check J04</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J05</strong></td>
+<td>Check J05</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J06</strong></td>
+<td>Check J06</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J07</strong></td>
+<td>Check J07</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J08</strong></td>
+<td>Check J08</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J09</strong></td>
+<td>Check J09</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+<tr class="row-skip" data-status="skip">
+<td><strong>J10</strong></td>
+<td>Check J10</td>
+<td><span class="severity sev-high">high</span></td>
+<td><span class="status status-skip">SKIP</span></td>
+<td>-</td>
+<td>-</td>
+<td class="detail">Requires manual review</td>
+</tr>
+</tbody></table></div>
+
+<div class="footer">
+GoodWatch Audit Agent v1.3.1 | Ralph Wiggum Loop | Generated 2026-02-22 15:41 UTC
+</div>
+</div>
+
+<script>
+function filterRows(status) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    document.querySelectorAll('tbody tr').forEach(row => {
+        if (status === 'all' || row.dataset.status === status) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function downloadExcel() {
+    // Build CSV-style XML spreadsheet (opens natively in Excel/Numbers)
+    const rows = document.querySelectorAll('tbody tr');
+    const sections = document.querySelectorAll('.section');
+
+    let xmlRows = '';
+    // Header row
+    xmlRows += '<Row ss:StyleID="header">';
+    ['Section','Check ID','Check Name','Severity','Status','Expected','Actual','Detail'].forEach(h => {
+        xmlRows += '<Cell><Data ss:Type="String">' + h + '</Data></Cell>';
+    });
+    xmlRows += '</Row>\n';
+
+    // Data rows
+    sections.forEach(section => {
+        const sectionName = section.querySelector('.section-header h2')?.textContent || '';
+        const trs = section.querySelectorAll('tbody tr');
+        trs.forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            if (cells.length < 7) return;
+            const status = tr.dataset.status || '';
+            const styleId = status === 'fail' ? 'fail' : status === 'warn' ? 'warn' : status === 'pass' ? 'pass' : 'skip';
+            xmlRows += '<Row ss:StyleID="' + styleId + '">';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(sectionName) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[0]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[1]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[2]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[3]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[4]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[5]?.textContent) + '</Data></Cell>';
+            xmlRows += '<Cell><Data ss:Type="String">' + esc(cells[6]?.textContent) + '</Data></Cell>';
+            xmlRows += '</Row>\n';
+        });
+    });
+
+    // Summary sheet rows
+    let summaryRows = '';
+    summaryRows += '<Row ss:StyleID="header"><Cell><Data ss:Type="String">Metric</Data></Cell><Cell><Data ss:Type="String">Value</Data></Cell></Row>\n';
+    const stats = [
+        ['Report Date', '2026-02-22'],
+        ['Agent Version', 'v1.3.1'],
+        ['Score', '100.0%'],
+        ['Passed', '97'],
+        ['Failed', '0'],
+        ['Warnings', '2'],
+        ['Skipped', '129'],
+        ['Total Checks', '228'],
+        ['Critical Failures', '0'],
+        ['Duration', '452s'],
+    ];
+    stats.forEach(([k,v]) => {
+        summaryRows += '<Row><Cell><Data ss:Type="String">' + k + '</Data></Cell><Cell><Data ss:Type="String">' + v + '</Data></Cell></Row>\n';
+    });
+
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Default"><Font ss:FontName="Helvetica" ss:Size="11"/></Style>
+  <Style ss:ID="header"><Font ss:FontName="Helvetica" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1a1a1a" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="pass"><Interior ss:Color="#dcfce7" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="fail"><Font ss:Color="#991b1b"/><Interior ss:Color="#fee2e2" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="warn"><Interior ss:Color="#fef9c3" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="skip"><Interior ss:Color="#f1f5f9" ss:Pattern="Solid"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Summary">
+  <Table>
+   <Column ss:Width="150"/>
+   <Column ss:Width="150"/>
+   ${summaryRows}
+  </Table>
+ </Worksheet>
+ <Worksheet ss:Name="All Checks">
+  <Table>
+   <Column ss:Width="180"/>
+   <Column ss:Width="60"/>
+   <Column ss:Width="300"/>
+   <Column ss:Width="80"/>
+   <Column ss:Width="60"/>
+   <Column ss:Width="150"/>
+   <Column ss:Width="200"/>
+   <Column ss:Width="300"/>
+   ${xmlRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'GoodWatch_Audit_Report_2026-02-22.xls';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function esc(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

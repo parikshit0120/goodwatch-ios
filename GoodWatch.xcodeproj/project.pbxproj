@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		012476112C571E753C93AD50 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E33C5C9D83C784E1FCD6CC8D /* PrivacyInfo.xcprivacy */; };
+		02F23A7FAC035F3C533ACD52 /* ProfileButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F06604DA1C5F2F328001E8B /* ProfileButton.swift */; };
 		04E906831FDDCAF41498F8D5 /* DecisionReadyScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = 11F4107215BA5609003E49E7 /* DecisionReadyScreen.ts */; };
 		0637FC9397C95A056788E330 /* PreEntryScreen.ts in Resources */ = {isa = PBXBuildFile; fileRef = A0D6DDD288ED205AAE7D4AA9 /* PreEntryScreen.ts */; };
 		08141F5CCB7FA94B3A6A7AE4 /* FirebaseRemoteConfig in Frameworks */ = {isa = PBXBuildFile; productRef = 5AC28140B80FC5F3A7193273 /* FirebaseRemoteConfig */; };
@@ -241,6 +242,7 @@
 		83BEDACD7999E314FD652CC8 /* GWUpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWUpdateChecker.swift; sourceTree = "<group>"; };
 		87BAD4A30B832689D018002F /* UserService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserService.swift; sourceTree = "<group>"; };
 		8DD5586AC86473BDA01E958B /* GWPre1990Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWPre1990Tests.swift; sourceTree = "<group>"; };
+		8F06604DA1C5F2F328001E8B /* ProfileButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileButton.swift; sourceTree = "<group>"; };
 		8F56FE09101049E0EE121D59 /* ClientMovieFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMovieFilter.swift; sourceTree = "<group>"; };
 		90D8953AFED2CEB1C478827C /* SuppressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuppressionTests.swift; sourceTree = "<group>"; };
 		9222B638066BA62FF5DA68E0 /* GWWatchFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GWWatchFeedbackView.swift; sourceTree = "<group>"; };
@@ -489,6 +491,7 @@
 				550A876344894398CC2A19CB /* AppLogo.swift */,
 				96F15077CC45FE9B9EF768B8 /* GoodWatchApp.swift */,
 				5806EF988D4E5A4174A12EDD /* PrimaryButton.swift */,
+				8F06604DA1C5F2F328001E8B /* ProfileButton.swift */,
 				D481E32B73493B02D7E086BE /* Config */,
 				FE8E096F64DDD768EADB8541 /* Core */,
 				76E0C6A90A9B61AC451E1F51 /* screens */,
@@ -839,6 +842,7 @@
 				92F78163190BD0B57312BADC /* PlatformViewModel.swift in Sources */,
 				B0624CAD7615069C548B039D /* PostWatchFeedbackView.swift in Sources */,
 				F0D765EAC05FBEEA160C0F8B /* PrimaryButton.swift in Sources */,
+				02F23A7FAC035F3C533ACD52 /* ProfileButton.swift in Sources */,
 				0A6C9D6F60DD530A6B7D7F5F /* ProfileTab.swift in Sources */,
 				C11DCF21767307D5EA2B8E24 /* QualityRelaxedBannerView.swift in Sources */,
 				C67C04CFA188D7AC8A3334CC /* RecentPicksBubble.swift in Sources */,
@@ -1094,14 +1098,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.3.2;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -1115,14 +1119,14 @@
 				CODE_SIGN_ENTITLEMENTS = GoodWatch/GoodWatch.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = H827NY6Y9W;
 				INFOPLIST_FILE = GoodWatch/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3.1;
+				MARKETING_VERSION = 1.3.2;
 				PRODUCT_BUNDLE_IDENTIFIER = PJWorks.goodwatch.movies.v1;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = 1;

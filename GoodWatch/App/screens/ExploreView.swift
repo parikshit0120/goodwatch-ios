@@ -84,6 +84,8 @@ struct ExploreView: View {
 
             // Home button — always present to switch back to Pick For Me
             if let home = onHome {
+                ProfileButton(onSignOut: home, iconSize: 16)
+
                 Button(action: home) {
                     Image(systemName: "house.fill")
                         .font(.system(size: 16, weight: .medium))

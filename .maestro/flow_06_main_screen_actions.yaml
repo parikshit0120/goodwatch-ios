@@ -1,0 +1,51 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 06 - Main Screen Recommendation Actions"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- tapOn:
+    id: "landing_pick_for_me"
+- waitForAnimationToEnd
+- tapOn:
+    id: "auth_skip"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_continue"
+- waitForAnimationToEnd
+- tapOn:
+    id: "platform_netflix"
+    optional: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "platform_continue"
+- waitForAnimationToEnd
+- tapOn: "English"
+- waitForAnimationToEnd
+- tapOn:
+    id: "language_lock"
+- waitForAnimationToEnd
+- tapOn:
+    id: "duration_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "duration_continue"
+- waitForAnimationToEnd
+# Should now be on confidence moment or main screen
+- extendedWaitUntil:
+    visible:
+      id: "main_watch_now"
+    timeout: 15000
+- takeScreenshot: flow_06_main_screen
+# Test Not Tonight action
+- assertVisible:
+    id: "main_not_tonight"
+- takeScreenshot: flow_06_main_actions_visible

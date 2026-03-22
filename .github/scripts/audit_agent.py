@@ -843,9 +843,9 @@ def run_section_c():
           source_ref="Fix 1 badge layout")
 
     # C08: Card rank copy
-    rank_labels = ["Top pick", "Runner up", "Also great", "Worth a watch", "Dark horse"]
+    rank_labels = ["Top pick", "Runner up", "Also great", "Worth a watch", "Surprise pick"]
     found_labels = [l for l in rank_labels if any(l.lower() in m[2].lower() for m in search_swift_for(re.escape(l)))]
-    check("C08", "user_experience", "Card rank copy: Top pick/Runner up/Also great/Worth a watch/Dark horse", "high",
+    check("C08", "user_experience", "Card rank copy: Top pick/Runner up/Also great/Worth a watch/Surprise pick", "high",
           len(found_labels) >= 3, ">=3 rank labels present",
           f"Found: {', '.join(found_labels)}" if found_labels else "MISSING")
 

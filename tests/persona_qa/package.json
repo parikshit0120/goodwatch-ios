@@ -1,0 +1,10 @@
+{
+  "name": "goodwatch-persona-qa",
+  "version": "1.0.0",
+  "description": "1000-persona QA engine for GoodWatch recommendation testing",
+  "main": "run_qa.js",
+  "type": "module",
+  "scripts": {
+    "test": "node run_qa.js"
+  }
+}

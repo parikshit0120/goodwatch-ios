@@ -62,6 +62,8 @@ struct PickCarouselView: View {
                     }
                 }
 
+                ProfileButton(onSignOut: onStartOver, iconSize: 16)
+
                 Button(action: onStartOver) {
                     Image(systemName: "house.fill")
                         .font(.system(size: 16))
@@ -178,7 +180,7 @@ struct PickCarouselView: View {
                     position: index + 1,
                     isTopPick: index == 0 && !replacedPositions.contains(index),
                     isReplacement: replacedPositions.contains(index),
-                    canReject: GWFeatureFlags.shared.isEnabled("card_rejection") && !swapsExhausted,
+                    canReject: GWFeatureFlags.shared.isEnabled("card_rejection"),
                     userOTTs: userOTTs,
                     userMood: userMood,
                     trailerKey: trailerKeys[gwMovie.id],

@@ -10,6 +10,7 @@
 import Foundation
 import FirebaseAnalytics
 import FirebaseCrashlytics
+import PostHog
 
 // MARK: - Event Types
 
@@ -135,11 +136,21 @@ class MetricsService {
 
     // MARK: - Track Event
 
+    /// Events that GWJourneyTracker already sends to PostHog — skip to avoid duplicates
+    private static let journeyTrackerEvents: Set<MetricEvent> = [
+        .appOpen, .onboardingStart, .onboardingComplete, .sessionStart, .sessionEnd
+    ]
+
     func track(_ event: MetricEvent, properties: [String: Any] = [:]) {
         let entry = LogEntry(timestamp: Date(), event: event, properties: properties)
 
         // Firebase Analytics (immediate — Firebase handles its own batching)
         logToFirebase(event: event, properties: properties)
+
+        // PostHog (immediate — skip events already tracked by GWJourneyTracker)
+        if !Self.journeyTrackerEvents.contains(event) {
+            logToPostHog(event: event, properties: properties)
+        }
 
         // Session log + Supabase buffer — both on the serial queue for thread safety
         queue.async { [weak self] in
@@ -151,7 +162,7 @@ class MetricsService {
         }
 
         #if DEBUG
-        print("📊 [METRIC] \(event.rawValue)\(properties.isEmpty ? "" : " | \(properties)")")
+        print("[METRIC] \(event.rawValue)\(properties.isEmpty ? "" : " | \(properties)")")
         #endif
     }
 
@@ -174,6 +185,26 @@ class MetricsService {
         }
 
         Analytics.logEvent(event.rawValue, parameters: firebaseParams.isEmpty ? nil : firebaseParams)
+    }
+
+    // MARK: - PostHog Logging
+
+    private func logToPostHog(event: MetricEvent, properties: [String: Any]) {
+        var posthogProps: [String: Any] = [:]
+
+        for (key, value) in properties {
+            if let str = value as? String {
+                posthogProps[key] = str
+            } else if let num = value as? NSNumber {
+                posthogProps[key] = num
+            } else if let bool = value as? Bool {
+                posthogProps[key] = bool
+            } else {
+                posthogProps[key] = String(describing: value)
+            }
+        }
+
+        PostHogSDK.shared.capture(event.rawValue, properties: posthogProps)
     }
 
     // MARK: - Supabase Batch Upload

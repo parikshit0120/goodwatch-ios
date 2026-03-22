@@ -1,0 +1,49 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 05 - Language Priority and Duration"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- tapOn:
+    id: "landing_pick_for_me"
+- waitForAnimationToEnd
+- tapOn:
+    id: "auth_skip"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "mood_continue"
+- waitForAnimationToEnd
+- tapOn:
+    id: "platform_netflix"
+    optional: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "platform_continue"
+- waitForAnimationToEnd
+# Language Priority screen
+- assertVisible: "What do you watch in?"
+- takeScreenshot: flow_05_language_screen
+- tapOn: "English"
+- waitForAnimationToEnd
+- tapOn:
+    id: "language_lock"
+- waitForAnimationToEnd
+# Duration screen
+- assertVisible:
+    id: "duration_card_0"
+- takeScreenshot: flow_05_duration_screen
+- tapOn:
+    id: "duration_card_0"
+- waitForAnimationToEnd
+- tapOn:
+    id: "duration_continue"
+- waitForAnimationToEnd
+- takeScreenshot: flow_05_after_duration

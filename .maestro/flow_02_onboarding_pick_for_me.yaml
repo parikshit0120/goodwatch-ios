@@ -1,0 +1,21 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 02 - Pick For Me Onboarding (Auth Skip)"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- tapOn:
+    id: "landing_pick_for_me"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "auth_skip"
+- takeScreenshot: flow_02_auth_screen
+- tapOn:
+    id: "auth_skip"
+- waitForAnimationToEnd
+- takeScreenshot: flow_02_after_auth_skip

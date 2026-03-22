@@ -54,7 +54,7 @@ struct PickCardView: View {
         case 2: return "Runner up."
         case 3: return "Also great."
         case 4: return "Worth a watch."
-        default: return "Dark horse."
+        default: return "Surprise pick."
         }
     }
 

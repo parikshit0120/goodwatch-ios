@@ -1,0 +1,16 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 01 - App Launch and Landing"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- assertVisible: "GoodWatch"
+- assertVisible: "Pick for me"
+- assertVisible:
+    id: "landing_explore"
+- takeScreenshot: flow_01_landing

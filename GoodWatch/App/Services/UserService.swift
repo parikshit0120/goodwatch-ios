@@ -335,9 +335,12 @@ final class UserService: ObservableObject {
         defer { DispatchQueue.main.async { [self] in isLoading = false } }
 
         // Build the Supabase OAuth URL for Facebook
+        // Use direct Supabase URL (not Cloudflare proxy) because ASWebAuthenticationSession
+        // opens a browser that cannot set custom headers — the proxy requires an apikey header.
         let redirectScheme = "goodwatch"
         let redirectTo = "\(redirectScheme)://auth/callback"
-        let authURL = "\(baseURL)/auth/v1/authorize?provider=facebook&redirect_to=\(redirectTo)"
+        let directSupabaseURL = "https://jdjqrlkynwfhbtyuddjk.supabase.co"
+        let authURL = "\(directSupabaseURL)/auth/v1/authorize?provider=facebook&redirect_to=\(redirectTo)"
 
         guard let url = URL(string: authURL) else {
             throw UserServiceError.invalidURL

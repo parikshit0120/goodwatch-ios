@@ -102,6 +102,9 @@ struct DurationSelectorView: View {
                                 .foregroundColor(GWColors.lightGray)
                         }
                         .padding(.leading, 12)
+
+                        ProfileButton(onSignOut: onHome)
+                            .padding(.leading, 4)
                     }
                 }
                 .padding(.horizontal, GWSpacing.screenPadding)

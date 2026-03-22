@@ -55,8 +55,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: PJWorks.goodwatch.movies.v1
-        MARKETING_VERSION: 1.3.1
-        CURRENT_PROJECT_VERSION: 3
+        MARKETING_VERSION: 1.3.2
+        CURRENT_PROJECT_VERSION: 1
         DEVELOPMENT_TEAM: H827NY6Y9W
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: Apple Development

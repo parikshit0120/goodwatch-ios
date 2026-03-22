@@ -1,0 +1,29 @@
+appId: PJWorks.goodwatch.movies.v1
+name: "Flow 03 - Mood Selection"
+---
+- launchApp:
+    appId: PJWorks.goodwatch.movies.v1
+    clearState: true
+    arguments:
+      --interaction-points: "1000"
+      --skip-loading-delay: ""
+      --reset-onboarding: ""
+- waitForAnimationToEnd
+- tapOn:
+    id: "landing_pick_for_me"
+- waitForAnimationToEnd
+- tapOn:
+    id: "auth_skip"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "mood_card_0"
+- takeScreenshot: flow_03_mood_screen
+- tapOn:
+    id: "mood_card_0"
+- waitForAnimationToEnd
+- assertVisible:
+    id: "mood_continue"
+- tapOn:
+    id: "mood_continue"
+- waitForAnimationToEnd
+- takeScreenshot: flow_03_after_mood

@@ -645,7 +645,7 @@ final class SupabaseService {
 
     /// Fetch movies from Supabase
     func fetchMovies(limit: Int = 1000) async throws -> [Movie] {
-        let urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false&order=composite_score.desc.nullslast,imdb_rating.desc.nullslast"
+        let urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false&year=gte.1990&order=composite_score.desc.nullslast,imdb_rating.desc.nullslast"
         guard let url = URL(string: urlString) else { throw SupabaseServiceError.invalidURL }
 
         var request = URLRequest(url: url)
@@ -672,7 +672,7 @@ final class SupabaseService {
         acceptCount: Int,
         limit: Int = 500
     ) async throws -> [Movie] {
-        var urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false"
+        var urlString = "\(baseURL)/rest/v1/movies?select=*&limit=\(limit)&is_standup=eq.false&year=gte.1990"
 
         // Add language filter at DB level (convert full names to ISO 639-1 codes)
         // This ensures we fetch movies in the user's preferred languages, not just top-rated globally

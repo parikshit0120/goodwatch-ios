@@ -219,6 +219,8 @@ struct MainScreenView: View {
                         }
                     }
 
+                    ProfileButton(onSignOut: onStartOver, iconSize: 16)
+
                     if let startOver = onStartOver {
                         Button(action: startOver) {
                             Image(systemName: "house.fill")

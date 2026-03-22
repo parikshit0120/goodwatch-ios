@@ -410,11 +410,18 @@ struct RootFlowView: View {
             clearSavedPicks()
             resumeFromSavedState()
             checkForPendingFeedback()
-            // Auto-show Recent Picks sheet on landing if picks exist
-            if currentScreen == .landing && !RecentPicksService.shared.getPicks().isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeOut(duration: 0.3)) {
-                        showRecentPicksSheet = true
+            // Load suppression cache BEFORE showing Recent Picks (fixes rejected movies leaking into recent picks)
+            Task {
+                if let userId = AuthGuard.shared.currentUserId {
+                    await GWSuppressionManager.shared.loadSuppressionCache(userId: userId.uuidString)
+                }
+                // Auto-show Recent Picks sheet on landing if picks exist (after suppression loaded)
+                if currentScreen == .landing && !RecentPicksService.shared.getPicks().isEmpty {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    await MainActor.run {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showRecentPicksSheet = true
+                        }
                     }
                 }
             }
@@ -584,7 +591,7 @@ struct RootFlowView: View {
                     }
                 },
                 onBack: {
-                    navigateBack(to: .auth)
+                    returnToLanding()
                 },
                 onHome: {
                     returnToLanding()
@@ -1418,9 +1425,8 @@ struct RootFlowView: View {
                 print("[DIAG] Profile: platforms=\(profile.platforms), langs=\(profile.preferredLanguages), runtime=\(profile.runtimeWindow.min)-\(profile.runtimeWindow.max), intentTags=\(profile.intentTags)")
                 #endif
 
-                // Determine pick count from interaction points
-                // Carousel is the default UI — no feature flag gate
-                let effectivePickCount = GWInteractionPoints.shared.effectivePickCount
+                // Always start with 5 cards — rejections narrow the carousel, not interaction points
+                let effectivePickCount = 5
 
                 #if DEBUG
                 print("[CAROUSEL] === Carousel Debug ===")
@@ -2379,9 +2385,6 @@ struct RootFlowView: View {
         guard let userId = AuthGuard.shared.currentUserId else { return }
         guard let profile = currentProfile else { return }
 
-        // Hard cap check
-        guard totalReplacements < maxReplacements else { return }
-
         // Find position of rejected card
         guard let position = recommendedPicks.firstIndex(where: { $0.id == gwMovie.id }) else { return }
 
@@ -2442,6 +2445,18 @@ struct RootFlowView: View {
         updatedProfile.notTonight.insert(gwMovie.id)
         for vid in visibleIds {
             updatedProfile.notTonight.insert(vid)
+        }
+
+        // After max replacements exhausted: remove card (no replacement search)
+        // Interactions + tag learning still recorded above — only replacement is skipped
+        if totalReplacements >= maxReplacements {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                recommendedPicks.remove(at: position)
+            }
+            #if DEBUG
+            print("[CAROUSEL] Max replacements (\(maxReplacements)) reached. Removing \(gwMovie.title). Count: \(recommendedPicks.count)")
+            #endif
+            return
         }
 
         // Pre-filter pool: remove ALL visible movies from the pool before engine sees it
