@@ -1212,7 +1212,7 @@
 			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 4.0.0;
+				minimumVersion = 5.67.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
