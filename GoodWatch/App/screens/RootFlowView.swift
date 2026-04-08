@@ -489,6 +489,7 @@ struct RootFlowView: View {
                 returnToLanding()
             }
         }
+        .paywallListener()
     }
 
     // MARK: - Screen Router
@@ -1324,12 +1325,27 @@ struct RootFlowView: View {
 
         Task {
             // Ensure user exists
+            // PAYWALL GATE — enable when retention data confirms value
+            // Activate after 7+ days of PostHog data shows repeat usage
+            // Uncomment the block below to enforce free recommendation limit
+            //
+            // if !GWSubscriptionManager.shared.canGetRecommendation {
+            //     await MainActor.run {
+            //         self.isLoadingRecommendation = false
+            //         self.recommendationReady = true
+            //         NotificationCenter.default.post(name: .gwShowPaywall, object: nil)
+            //         self.tryTransitionToMainScreen()
+            //     }
+            //     return
+            // }
+
             let userId = await AuthGuard.shared.ensureUserExistsBeforeOnboarding()
 
             // Set metrics user context
             MetricsService.shared.setUser(
                 id: userId.uuidString,
-                authType: UserService.shared.currentUser?.auth_provider ?? "anonymous"
+                authType: UserService.shared.currentUser?.auth_provider ?? "anonymous",
+                email: UserService.shared.currentUser?.email
             )
 
             // Set user for per-user tag weights and watchlist
@@ -1666,6 +1682,7 @@ struct RootFlowView: View {
                                 MetricsService.shared.track(.onboardingComplete)
                             }
 
+                            GWSubscriptionManager.shared.incrementRecommendationCount(wasAccepted: false)
                             self.recommendationReady = true
                             self.tryTransitionToMainScreen()
                         }
@@ -1835,6 +1852,7 @@ struct RootFlowView: View {
                         }
 
                         // Signal recommendation ready for ConfidenceMoment transition
+                        GWSubscriptionManager.shared.incrementRecommendationCount(wasAccepted: false)
                         self.recommendationReady = true
                         self.tryTransitionToMainScreen()
                     } else {

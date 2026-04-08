@@ -123,7 +123,7 @@ class MetricsService {
     // MARK: - Set User Context
 
     /// Call after authentication to associate events with a user
-    func setUser(id: String, authType: String) {
+    func setUser(id: String, authType: String, email: String? = nil) {
         queue.sync {
             self._userId = id
         }
@@ -132,6 +132,13 @@ class MetricsService {
         Analytics.setUserID(id)
         Analytics.setUserProperty(authType, forName: "auth_type")
         Crashlytics.crashlytics().setUserID(id)
+
+        // Link PostHog events to this user identity — include email so users are identifiable in PostHog
+        var posthogProps: [String: Any] = ["auth_type": authType]
+        if let email = email, !email.isEmpty {
+            posthogProps["email"] = email
+        }
+        PostHogSDK.shared.identify(id, userProperties: posthogProps)
     }
 
     // MARK: - Track Event
