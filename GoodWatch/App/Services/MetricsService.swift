@@ -133,12 +133,15 @@ class MetricsService {
         Analytics.setUserProperty(authType, forName: "auth_type")
         Crashlytics.crashlytics().setUserID(id)
 
-        // Link PostHog events to this user identity — include email so users are identifiable in PostHog
-        var posthogProps: [String: Any] = ["auth_type": authType]
+        // Link PostHog events to this user identity
+        // Use email as distinct_id so users show as emails in PostHog, not UUIDs
+        // Falls back to Supabase UUID if no email (anonymous users)
+        var posthogProps: [String: Any] = ["auth_type": authType, "supabase_id": id]
         if let email = email, !email.isEmpty {
             posthogProps["email"] = email
         }
-        PostHogSDK.shared.identify(id, userProperties: posthogProps)
+        let distinctId = (email != nil && !email!.isEmpty) ? email! : id
+        PostHogSDK.shared.identify(distinctId, userProperties: posthogProps)
     }
 
     // MARK: - Track Event

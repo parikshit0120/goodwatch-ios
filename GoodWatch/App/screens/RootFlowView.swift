@@ -536,11 +536,26 @@ struct RootFlowView: View {
         case .auth:
             AuthView(
                 onContinue: {
-                    // Authenticated via Google/Apple
+                    // Authenticated via Google/Apple — identify user in PostHog IMMEDIATELY
+                    // so all subsequent events (mood, platform, etc.) are linked to this user
+                    if let user = UserService.shared.currentUser {
+                        MetricsService.shared.setUser(
+                            id: user.id.uuidString,
+                            authType: user.auth_provider ?? "apple",
+                            email: user.email
+                        )
+                    }
                     navigateTo(.moodSelector)
                 },
                 onSkip: {
-                    // Anonymous / skip
+                    // Anonymous / skip — still identify with UUID so events are linked
+                    if let user = UserService.shared.currentUser {
+                        MetricsService.shared.setUser(
+                            id: user.id.uuidString,
+                            authType: "anonymous",
+                            email: nil
+                        )
+                    }
                     navigateTo(.moodSelector)
                 }
             )

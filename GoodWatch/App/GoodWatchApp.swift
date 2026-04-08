@@ -4,6 +4,8 @@ import FirebaseCore
 import FirebaseCrashlytics
 import FirebaseMessaging
 import UserNotifications
+import PostHog
+import RevenueCat
 
 // Firebase initialization via AppDelegate + Push Notification handling
 class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate {
@@ -103,6 +105,14 @@ struct GoodWatchApp: App {
     }
 
     init() {
+        // PostHog setup — must be first so all capture() calls have an active SDK
+        let phConfig = PostHogConfig(apiKey: "phc_Rt4jtmymW0Ax8p0IgU2au40lcmJZ3CQ28fwlOUKMlFW", host: "https://us.i.posthog.com")
+        PostHogSDK.shared.setup(phConfig)
+
+        // RevenueCat setup — must be before any Purchases.shared calls
+        Purchases.logLevel = .error
+        Purchases.configure(withAPIKey: "appl_bfHXoHQbdqYghaMcSLIGhAEPbGg")
+
         // One-time: remove stale onboarding step from Keychain on existing devices.
         // Onboarding step now lives in UserDefaults (clears on uninstall/reinstall).
         GWKeychainManager.shared.migrateOnboardingFromKeychain()
