@@ -1176,7 +1176,7 @@
 			repositoryURL = "https://github.com/PostHog/posthog-ios";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 3.0.0;
+				minimumVersion = 3.49.0;
 			};
 		};
 		BB0AD9A702E44DAFB9BD85AD /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
